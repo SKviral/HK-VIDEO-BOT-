@@ -500,4 +500,11 @@ if __name__ == "__main__":
     server_thread.start()
     
     print("🤖 Bot Started Successfully...")
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    
+    # অটো-রিস্টার্ট লুপ (যাতে ক্র্যাশ করলে নিজে নিজেই চালু হয়)
+    while True:
+        try:
+            bot.polling(none_stop=True, timeout=60, request_timeout=60)
+        except Exception as e:
+            print(f"Bot Polling Error: {e}")
+            time.sleep(5) # ৫ সেকেন্ড অপেক্ষা করে আবার বট চালু করবে
