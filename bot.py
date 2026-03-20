@@ -495,7 +495,7 @@ def run_server():
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
 
-if __name__ == "__main__":
+ if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.start()
     
@@ -504,7 +504,7 @@ if __name__ == "__main__":
     # অটো-রিস্টার্ট লুপ (যাতে ক্র্যাশ করলে নিজে নিজেই চালু হয়)
     while True:
         try:
-            bot.polling(none_stop=True, timeout=60, request_timeout=60)
+            bot.polling(none_stop=True, timeout=60)
         except Exception as e:
             print(f"Bot Polling Error: {e}")
             time.sleep(5) # ৫ সেকেন্ড অপেক্ষা করে আবার বট চালু করবে
