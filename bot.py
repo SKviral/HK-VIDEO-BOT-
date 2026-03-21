@@ -177,11 +177,25 @@ def callback_handler(call):
         markup.add(InlineKeyboardButton("🔙 ব্যাক", callback_data="settings"))
         bot.edit_message_text("⚙️ <b>অ্যাডভান্সড সেটিংস:</b>", chat_id, msg_id, reply_markup=markup)
 
-    elif data in["toggle_post_link", "toggle_tutorial_btn"]:
+    elif data in ["toggle_post_link", "toggle_tutorial_btn"]:
         key = "post_link_toggle" if data == "toggle_post_link" else "post_tutorial_toggle"
         new_val = 0 if user.get(key, 1) == 1 else 1
         update_user(chat_id, {key: new_val})
-        callback_handler(call) # Refresh menu
+        
+        # ডাটা আপডেট করার পর শুধুমাত্র বাটনগুলো রিফ্রেশ করা হবে (লুপ হবে না)
+        user[key] = new_val
+        link_btn = "🔗 লিংক: ON 🟢" if user.get("post_link_toggle", 1) == 1 else "🔗 লিংক: OFF 🔴"
+        tut_btn = "📽️ টিউটোরিয়াল: ON 🟢" if user.get("post_tutorial_toggle", 1) == 1 else "📽️ টিউটোরিয়াল: OFF 🔴"
+        rep_count = user.get("link_repeat_count", 1)
+        
+        markup = InlineKeyboardMarkup()
+        markup.row(InlineKeyboardButton(link_btn, callback_data="toggle_post_link"), InlineKeyboardButton(tut_btn, callback_data="toggle_tutorial_btn"))
+        markup.add(InlineKeyboardButton(f"🔄 লিংক রিপিট: {rep_count} বার", callback_data="set_link_repeat"))
+        markup.add(InlineKeyboardButton("⏳ Auto Delete Time", callback_data="set_autodelete"))
+        markup.add(InlineKeyboardButton("👥 এডমিন ম্যানেজমেন্ট", callback_data="manage_admins"))
+        markup.row(InlineKeyboardButton("💾 ব্যাকআপ", callback_data="cmd_backup"), InlineKeyboardButton("🔄 রিস্টোর", callback_data="cmd_restore"))
+        markup.add(InlineKeyboardButton("🔙 ব্যাক", callback_data="settings"))
+        bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=markup)
 
     elif data == "cmd_backup":
         bot.send_message(chat_id, "⏳ ডাটাবেস ব্যাকআপ তৈরি করা হচ্ছে...")
