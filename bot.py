@@ -1739,6 +1739,64 @@ def home():
 @app.route('/health')
 def health():
     return {"status":"ok","time":datetime.now().isoformat()}
+    from functools import wraps
+
+PANEL_SECRET = os.environ.get("PANEL_SECRET", "my-secret-key")
+
+def require_auth(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if request.headers.get("X-Admin-Key") != PANEL_SECRET:
+            return {"error": "Unauthorized"}, 401
+        return f(*args, **kwargs)
+    return wrapper
+
+@app.route('/api/stats')
+@require_auth
+def api_stats():
+    return jsonify(get_stats())
+
+@app.route('/api/scheduled')
+@require_auth
+def api_scheduled():
+    items = list(scheduled_col.find({}, {"_id":0}).sort("scheduled_at",1).limit(100))
+    return jsonify(items)
+
+@app.route('/api/scheduled/delete/<sched_id>', methods=['DELETE'])
+@require_auth
+def api_delete_sched(sched_id):
+    scheduled_col.delete_one({"sched_id": sched_id})
+    return jsonify({"ok": True})
+
+@app.route('/api/categories')
+@require_auth
+def api_categories():
+    return jsonify(list(categories_col.find({}, {"_id":0})))
+
+@app.route('/api/channels')
+@require_auth
+def api_channels():
+    return jsonify(list(auto_channels_col.find({}, {"_id":0})))
+
+@app.route('/api/admins')
+@require_auth
+def api_admins():
+    return jsonify(list(admins_col.find({}, {"_id":0})))
+
+@app.route('/api/users')
+@require_auth
+def api_users():
+    return jsonify(list(users_col.find({}, {"_id":0}).sort("last_active",-1).limit(50)))
+
+@app.route('/api/settings', methods=['GET','POST'])
+@require_auth
+def api_settings():
+    if request.method == 'POST':
+        data = request.json
+        set_setting(data['key'], data['value'])
+        return jsonify({"ok": True})
+    keys = ['protect_content','short_link_on','force_sub_on','btn_download','btn_share','btn_tutorial']
+    return jsonify({k: get_setting(k, 0) for k in keys})
 
 def _run_server():
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT',8080)), debug=False)
