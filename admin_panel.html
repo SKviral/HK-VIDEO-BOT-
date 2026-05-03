@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🤖 Bot Admin Panel v6.0</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#18181f;--bg4:#1e1e28;--card:#16161e;
+  --border:rgba(120,120,180,.12);--border2:rgba(120,120,180,.25);
+  --accent:#6c63ff;--accent2:#8b85ff;--glow:rgba(108,99,255,.18);
+  --green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--cyan:#06b6d4;--pink:#ec4899;
+  --text:#e8e8f0;--text2:#9090a8;--text3:#5a5a72;
+  --mono:'JetBrains Mono',monospace;--sans:'Noto Sans Bengali',sans-serif;
+  --r:12px;--rs:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+/* SETUP */
+#setup-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
+.setup-box{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:40px;width:100%;max-width:460px}
+.setup-logo{text-align:center;margin-bottom:28px}
+.setup-logo .ico{font-size:48px;display:block;margin-bottom:10px}
+.setup-logo h1{font-size:22px;font-weight:700}
+.setup-logo p{font-size:13px;color:var(--text3);margin-top:4px}
+.sf{margin-bottom:16px}
+.sf label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px}
+.sf input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);padding:11px 14px;font-size:14px;font-family:var(--sans);outline:none;transition:border .15s}
+.sf input:focus{border-color:var(--accent)}.sf input::placeholder{color:var(--text3)}
+.sf .hint{font-size:11px;color:var(--text3);margin-top:4px}
+#setup-btn{width:100%;padding:13px;border:none;border-radius:var(--rs);background:var(--accent);color:#fff;font-size:15px;font-family:var(--sans);font-weight:600;cursor:pointer;transition:background .15s;margin-top:6px}
+#setup-btn:hover{background:var(--accent2)}
+#setup-btn:disabled{background:var(--bg4);color:var(--text3);cursor:not-allowed}
+#setup-status{margin-top:12px;padding:11px 14px;border-radius:var(--rs);font-size:13px;text-align:center;display:none}
+.s-ok{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.25);color:var(--green)}
+.s-err{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);color:var(--red)}
+.s-load{background:rgba(108,99,255,.12);border:1px solid rgba(108,99,255,.25);color:var(--accent2)}
+/* SIDEBAR */
+.sidebar{width:240px;min-height:100vh;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100}
+.sb-logo{padding:22px 18px 16px;border-bottom:1px solid var(--border)}
+.sb-logo .logo-ico{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--pink));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:10px}
+.sb-logo h1{font-size:16px;font-weight:700}
+.sb-logo p{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+nav{padding:12px 10px;flex:1;overflow-y:auto}
+.ns{font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;padding:8px 10px 4px}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--rs);cursor:pointer;transition:all .15s;font-size:13.5px;color:var(--text2);border:none;background:none;width:100%;text-align:left;font-family:var(--sans);margin-bottom:2px}
+.ni:hover{background:var(--bg4);color:var(--text)}
+.ni.active{background:var(--glow);color:var(--accent2);border:1px solid rgba(108,99,255,.2)}
+.ni .ico{font-size:16px;width:20px;text-align:center;flex-shrink:0}
+.nbadge{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-family:var(--mono);padding:1px 6px;border-radius:20px;font-weight:600}
+.sb-foot{padding:14px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);font-family:var(--mono)}
+.dot{display:inline-block;width:7px;height:7px;background:var(--green);border-radius:50%;margin-right:5px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* MAIN */
+.main{margin-left:240px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 26px;height:60px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50}
+.tb-title{font-size:16px;font-weight:600;flex:1}
+.tb-sub{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.content{padding:24px;flex:1}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--rs);border:none;cursor:pointer;font-size:13px;font-family:var(--sans);font-weight:500;transition:all .15s}
+.bp{background:var(--accent);color:#fff}.bp:hover{background:var(--accent2)}
+.bg_{background:transparent;color:var(--text2);border:1px solid var(--border2)}.bg_:hover{background:var(--bg4);color:var(--text)}
+.bd{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.2)}.bd:hover{background:rgba(239,68,68,.25)}
+.bs{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.2)}.bs:hover{background:rgba(34,197,94,.25)}
+.by{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.2)}.by:hover{background:rgba(245,158,11,.25)}
+.btn-sm{padding:5px 10px;font-size:12px}.btn-xs{padding:3px 8px;font-size:11px}
+/* PAGES */
+.page{display:none}.page.active{display:block}
+/* STAT CARDS */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:14px;margin-bottom:22px}
+.sc{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;position:relative;overflow:hidden}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.sc.blue::before{background:var(--accent)}.sc.green::before{background:var(--green)}
+.sc.yellow::before{background:var(--yellow)}.sc.red::before{background:var(--red)}
+.sc.cyan::before{background:var(--cyan)}.sc.pink::before{background:var(--pink)}
+.sc-ico{font-size:22px;margin-bottom:10px;display:block}
+.sc-val{font-size:28px;font-weight:700;font-family:var(--mono);line-height:1;margin-bottom:4px}
+.sc-lbl{font-size:12px;color:var(--text3)}.sc-sub{font-size:11px;color:var(--green);margin-top:4px;font-family:var(--mono)}
+/* CARD */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:20px}
+.card-hd{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card-title{font-size:14px;font-weight:600;flex:1}.card-body{padding:18px}
+/* TABLE */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 14px;font-size:11px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);font-weight:500}
+td{padding:11px 14px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+/* BADGE */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono)}
+.b-g{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.25)}
+.b-y{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.25)}
+.b-r{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.b-c{background:rgba(6,182,212,.15);color:var(--cyan);border:1px solid rgba(6,182,212,.25)}
+.b-p{background:rgba(108,99,255,.15);color:var(--accent2);border:1px solid rgba(108,99,255,.25)}
+/* FORM */
+.fg{margin-bottom:14px}
+.fl{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px}
+.fc{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);padding:10px 14px;font-size:13px;font-family:var(--sans);outline:none;transition:border .15s}
+.fc:focus{border-color:var(--accent)}.fc::placeholder{color:var(--text3)}
+textarea.fc{resize:vertical;min-height:80px}
+select.fc{cursor:pointer}
+.fhint{font-size:11px;color:var(--text3);margin-top:4px}
+/* TOGGLE */
+.tw-{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.tgl{position:relative;width:42px;height:24px;flex-shrink:0}
+.tgl input{opacity:0;width:0;height:0}
+.ts{position:absolute;inset:0;background:var(--bg4);border:1px solid var(--border2);border-radius:12px;cursor:pointer;transition:all .2s}
+.ts::before{content:'';position:absolute;width:16px;height:16px;background:var(--text3);border-radius:50%;top:3px;left:3px;transition:all .2s}
+.tgl input:checked+.ts{background:rgba(108,99,255,.25);border-color:var(--accent)}
+.tgl input:checked+.ts::before{transform:translateX(18px);background:var(--accent2)}
+/* SCHEDULE ITEM */
+.si{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px}
+.si:hover{border-color:var(--border2)}
+.si-thumb{width:44px;height:44px;border-radius:8px;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.si-info{flex:1;min-width:0}.si-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.si-meta{font-size:12px;color:var(--text3);font-family:var(--mono);display:flex;gap:12px;flex-wrap:wrap}
+/* CAT */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.cat-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.cat-card:hover{border-color:var(--border2)}
+.cat-hd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cat-name{font-size:15px;font-weight:700;flex:1}
+.ch-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
+.ch-row:last-child{border-bottom:none}
+/* MODAL */
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center}
+.mbg.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:90%;max-width:500px;max-height:90vh;overflow-y:auto}
+.mhd{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center}
+.mtitle{font-size:15px;font-weight:700;flex:1}
+.mclose{background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1}
+.mclose:hover{color:var(--text)}
+.mbody{padding:18px 22px}.mfoot{padding:12px 22px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+/* ALERT */
+.alert{padding:11px 14px;border-radius:var(--rs);font-size:13px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px}
+.a-info{background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.2);color:var(--cyan)}
+.a-warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);color:var(--yellow)}
+/* TOAST */
+#toast{position:fixed;bottom:22px;right:22px;z-index:1000;display:flex;flex-direction:column;gap:8px}
+.tm{background:var(--bg4);border:1px solid var(--border2);border-radius:var(--rs);padding:11px 14px;font-size:13px;display:flex;align-items:center;gap:10px;animation:tmin .3s ease;min-width:240px}
+@keyframes tmin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* MISC */
+.code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:2px 6px;border-radius:4px;color:var(--accent2)}
+.empty{text-align:center;padding:36px;color:var(--text3)}
+.empty .eico{font-size:36px;display:block;margin-bottom:10px}
+.tag{display:inline-block;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:4px;background:var(--bg4);color:var(--text3);border:1px solid var(--border)}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+/* HAMBURGER */
+.hamburger{display:none;flex-direction:column;justify-content:center;align-items:center;gap:5px;width:38px;height:38px;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--rs);cursor:pointer;flex-shrink:0}
+.hamburger span{display:block;width:18px;height:2px;background:var(--text2);border-radius:2px;transition:all .25s}
+.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.hamburger.open span:nth-child(2){opacity:0}
+.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;backdrop-filter:blur(2px)}
+.sidebar-overlay.open{display:block}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:200;width:260px;box-shadow:4px 0 24px rgba(0,0,0,.5)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;width:100%}
+  .hamburger{display:flex}
+  .topbar{padding:0 14px;gap:10px}
+  .content{padding:14px}
+  .stat-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .sc{padding:14px}.sc-val{font-size:22px}.sc-ico{font-size:18px;margin-bottom:6px}
+  .g2{grid-template-columns:1fr}
+  .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:520px}
+  .card-body{padding:12px 14px}
+  .modal{width:95%;max-height:95vh;border-radius:12px}
+  #toast{bottom:16px;right:12px;left:12px}.tm{min-width:unset;width:100%}
+  .setup-box{padding:24px 18px;margin:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="setup-screen">
+  <div class="setup-box">
+    <div class="setup-logo"><span class="ico">🤖</span><h1>Bot Admin Panel</h1><p>নিচের তথ্য দিয়ে সংযোগ করুন</p></div>
+    <div class="sf"><label>🌐 Bot API URL</label><input id="s-url" type="url" placeholder="https://hk-video-bot.onrender.com"><div class="hint">Render ড্যাশবোর্ড → সার্ভিস URL</div></div>
+    <div class="sf"><label>🔑 Secret Key</label><input id="s-key" type="password" placeholder="PANEL_SECRET এর মান"><div class="hint">Render → Environment → PANEL_SECRET</div></div>
+    <div class="sf"><label>🆔 Telegram Admin ID</label><input id="s-admin" type="text" placeholder="যেমন: 5991854507"><div class="hint">@userinfobot এ /start দিয়ে জানুন</div></div>
+    <div class="sf"><label>🤖 Bot Username</label><input id="s-user" type="text" placeholder="যেমন: MyFileBot (@ ছাড়া)"></div>
+    <div id="setup-status"></div>
+    <button id="setup-btn" onclick="doSetup()">🔌 সংযোগ করুন ও প্যানেল খুলুন</button>
+    <div style="text-align:center;margin-top:14px;font-size:12px;color:var(--text3)">
+      আগে সেটআপ করা থাকলে → <span style="color:var(--accent2);cursor:pointer;text-decoration:underline" onclick="autoLoad()">সেভ করা কনফিগ লোড করুন</span>
+    </div>
+  </div>
+</div>
+
+<div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sb-logo"><div class="logo-ico">🤖</div><h1>Bot Admin Panel</h1><p>Premium File Share v6.0</p></div>
+  <nav>
+    <div class="ns">মেইন</div>
+    <button class="ni active" onclick="go('dashboard',this)"><span class="ico">📊</span>ড্যাশবোর্ড</button>
+    <button class="ni" onclick="go('scheduled',this)"><span class="ico">⏰</span>সিডিউল পোস্ট<span class="nbadge" id="sb-badge">0</span></button>
+    <button class="ni" onclick="go('categories',this)"><span class="ico">📂</span>ক্যাটাগরি</button>
+    <div class="ns">ম্যানেজমেন্ট</div>
+    <button class="ni" onclick="go('channels',this)"><span class="ico">📡</span>অটো চ্যানেল</button>
+    <button class="ni" onclick="go('forcesub',this)"><span class="ico">🔒</span>Force Subscribe</button>
+    <button class="ni" onclick="go('admins',this)"><span class="ico">👑</span>এডমিন</button>
+    <button class="ni" onclick="go('users',this)"><span class="ico">👥</span>ইউজার</button>
+    <button class="ni" onclick="go('banned',this)"><span class="ico">🚫</span>ব্যান লিস্ট</button>
+    <button class="ni" onclick="go('files',this)"><span class="ico">🗂️</span>ফাইল</button>
+    <div class="ns">সিস্টেম</div>
+    <button class="ni" onclick="go('settings',this)"><span class="ico">⚙️</span>বট সেটিংস</button>
+    <button class="ni" onclick="go('broadcast',this)"><span class="ico">📢</span>ব্রডকাস্ট</button>
+    <button class="ni" onclick="resetCFG()"><span class="ico">🔧</span>পুনরায় সেটআপ</button>
+  </nav>
+  <div class="sb-foot"><span class="dot"></span><span id="conn-lbl">সংযুক্ত</span></div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <button class="hamburger" id="hamburger" onclick="toggleSidebar()"><span></span><span></span><span></span></button>
+    <div style="flex:1"><div class="tb-title" id="pg-title">ড্যাশবোর্ড</div><div class="tb-sub" id="pg-sub"></div></div>
+    <button class="btn bg_ btn-sm" onclick="refresh()">🔄 রিফ্রেশ</button>
+  </div>
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="stat-grid">
+        <div class="sc blue"><span class="sc-ico">👥</span><div class="sc-val" id="sv-users">—</div><div class="sc-lbl">মোট ইউজার</div><div class="sc-sub" id="sv-active"></div></div>
+        <div class="sc green"><span class="sc-ico">🗂️</span><div class="sc-val" id="sv-files">—</div><div class="sc-lbl">মোট ফাইল</div><div class="sc-sub" id="sv-ul"></div></div>
+        <div class="sc yellow"><span class="sc-ico">📥</span><div class="sc-val" id="sv-dl">—</div><div class="sc-lbl">ডাউনলোড আজ</div></div>
+        <div class="sc cyan"><span class="sc-ico">👑</span><div class="sc-val" id="sv-adm">—</div><div class="sc-lbl">মোট এডমিন</div></div>
+        <div class="sc red"><span class="sc-ico">🚫</span><div class="sc-val" id="sv-ban">—</div><div class="sc-lbl">ব্যানড ইউজার</div></div>
+        <div class="sc pink"><span class="sc-ico">⏰</span><div class="sc-val" id="sv-sched">—</div><div class="sc-lbl">পেন্ডিং সিডিউল</div></div>
+      </div>
+      <div class="g2">
+        <div class="card"><div class="card-hd"><span>⏰</span><div class="card-title">আসন্ন সিডিউল পোস্ট</div><button class="btn bp btn-sm" onclick="go('scheduled',document.querySelectorAll('.ni')[1])">সব দেখুন</button></div><div class="card-body" id="d-upcoming"><div class="empty"><span class="eico">📭</span>লোড হচ্ছে…</div></div></div>
+        <div class="card"><div class="card-hd"><span>📡</span><div class="card-title">সক্রিয় চ্যানেল</div></div><div class="card-body" id="d-channels"><div class="empty"><span class="eico">📡</span>লোড হচ্ছে…</div></div></div>
+      </div>
+    </div>
+
+    <!-- SCHEDULED -->
+    <div class="page" id="page-scheduled">
+      <div class="card">
+        <div class="card-hd">
+          <span>⏰</span><div class="card-title">সিডিউল পোস্ট</div>
+          <select class="fc" style="width:130px;padding:6px 10px;font-size:12px" id="sf-filter" onchange="filterSched()">
+            <option value="all">সব স্ট্যাটাস</option>
+            <option value="pending">⏳ পেন্ডিং</option>
+            <option value="done">✅ সম্পন্ন</option>
+            <option value="error">❌ ব্যর্থ</option>
+          </select>
+        </div>
+        <div class="card-body">
+          <div class="alert a-info">ℹ️ টেলিগ্রামে বটে মিডিয়া পাঠান → ⏰ সিডিউল বাটনে ক্লিক করুন → সময় দিন। পেন্ডিং পোস্ট এডিট করতে ✏️ বাটনে ক্লিক করুন।</div>
+          <div id="sched-list"><div class="empty"><span class="eico">⏰</span>লোড হচ্ছে…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div class="page" id="page-categories">
+      <div class="card">
+        <div class="card-hd"><span>📂</span><div class="card-title">ক্যাটাগরি ম্যানেজমেন্ট</div><button class="btn bp btn-sm" onclick="openM('m-addcat')">+ নতুন ক্যাটাগরি</button></div>
+        <div class="card-body" id="cat-list"><div class="empty"><span class="eico">📂</span>লোড হচ্ছে…</div></div>
+      </div>
+    </div>
+
+    <!-- CHANNELS -->
+    <div class="page" id="page-channels">
+      <div class="card">
+        <div class="card-hd"><span>📡</span><div class="card-title">অটো পোস্ট চ্যানেল</div><button class="btn bp btn-sm" onclick="openM('m-addch')">+ চ্যানেল যোগ</button></div>
+        <div class="tw"><table>
+          <thead><tr><th>নাম</th><th>চ্যানেল ID</th><th>ধরন</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
+          <tbody id="ch-tbody"><tr><td colspan="5"><div class="empty">লোড হচ্ছে…</div></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- FORCE SUB -->
+    <div class="page" id="page-forcesub">
+      <div class="card">
+        <div class="card-hd"><span>🔒</span><div class="card-title">Force Subscribe চ্যানেল</div><button class="btn bp btn-sm" onclick="openM('m-fs')">+ চ্যানেল যোগ</button></div>
+        <div class="tw"><table>
+          <thead><tr><th>নাম</th><th>চ্যানেল ID</th><th>Join লিংক</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
+          <tbody id="fs-tbody"><tr><td colspan="5"><div class="empty">লোড হচ্ছে…</div></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ADMINS -->
+    <div class="page" id="page-admins">
+      <div class="card">
+        <div class="card-hd"><span>👑</span><div class="card-title">এডমিন লিস্ট</div><button class="btn bp btn-sm" onclick="openM('m-admin')">+ এডমিন যোগ</button></div>
+        <div class="tw"><table>
+          <thead><tr><th>Chat ID</th><th>রোল</th><th>যোগের সময়</th><th>অ্যাকশন</th></tr></thead>
+          <tbody id="adm-tbody"><tr><td colspan="4"><div class="empty">লোড হচ্ছে…</div></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- USERS -->
+    <div class="page" id="page-users">
+      <div class="card">
+        <div class="card-hd"><span>👥</span><div class="card-title">ইউজার লিস্ট</div>
+          <input class="fc" style="width:200px;padding:6px 12px;font-size:12px" placeholder="🔍 Chat ID খুঁজুন…" oninput="searchU(this.value)">
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>Chat ID</th><th>যোগ দিয়েছে</th><th>শেষ সক্রিয়</th><th>আপলোড</th><th>ডাউনলোড</th><th>অ্যাকশন</th></tr></thead>
+          <tbody id="usr-tbody"><tr><td colspan="6"><div class="empty">লোড হচ্ছে…</div></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- BANNED -->
+    <div class="page" id="page-banned">
+      <div class="card">
+        <div class="card-hd"><span>🚫</span><div class="card-title">ব্যান লিস্ট</div><button class="btn bp btn-sm" onclick="openM('m-ban')">+ ব্যান করুন</button></div>
+        <div class="tw"><table>
+          <thead><tr><th>Chat ID</th><th>কারণ</th><th>ব্যানের সময়</th><th>অ্যাকশন</th></tr></thead>
+          <tbody id="ban-tbody"><tr><td colspan="4"><div class="empty">লোড হচ্ছে…</div></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- FILES -->
+    <div class="page" id="page-files">
+      <div class="card">
+        <div class="card-hd"><span>🗂️</span><div class="card-title">ফাইল লিস্ট</div>
+          <input class="fc" style="width:200px;padding:6px 12px;font-size:12px" placeholder="🔍 File Key…" oninput="searchF(this.value)">
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>File Key</th><th>ধরন</th><th>আপলোডার</th><th>তারিখ</th><th>লিংক</th></tr></thead>
+          <tbody id="file-tbody"><tr><td colspan="5"><div class="empty">লোড হচ্ছে…</div></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="card">
+        <div class="card-hd"><span>⚙️</span><div class="card-title">বট সেটিংস</div></div>
+        <div class="card-body">
+          <div class="g2">
+            <div>
+              <p style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.8px">📁 কন্টেন্ট সেটিংস</p>
+              <div class="tw-"><label class="tgl"><input type="checkbox" id="t-protect" onchange="saveSetting('protect_content',+this.checked)"><span class="ts"></span></label><span style="font-size:13px;color:var(--text2)">🔒 Protect Content (ফরওয়ার্ড বন্ধ)</span></div>
+              <div class="tw-"><label class="tgl"><input type="checkbox" id="t-sl" onchange="saveSetting('short_link_on',+this.checked)"><span class="ts"></span></label><span style="font-size:13px;color:var(--text2)">🔗 Short Link চালু</span></div>
+              <div class="tw-"><label class="tgl"><input type="checkbox" id="t-fs" onchange="saveSetting('force_sub_on',+this.checked)"><span class="ts"></span></label><span style="font-size:13px;color:var(--text2)">🔒 Force Subscribe চালু</span></div>
+            </div>
+            <div>
+              <p style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.8px">🔘 পোস্ট বাটন</p>
+              <div class="tw-"><label class="tgl"><input type="checkbox" id="t-dl" onchange="saveSetting('btn_download',+this.checked)"><span class="ts"></span></label><span style="font-size:13px;color:var(--text2)">⬇️ Download বাটন</span></div>
+              <div class="tw-"><label class="tgl"><input type="checkbox" id="t-sh" onchange="saveSetting('btn_share',+this.checked)"><span class="ts"></span></label><span style="font-size:13px;color:var(--text2)">↗️ Share বাটন</span></div>
+              <div class="tw-"><label class="tgl"><input type="checkbox" id="t-tut" onchange="saveSetting('btn_tutorial',+this.checked)"><span class="ts"></span></label><span style="font-size:13px;color:var(--text2)">🎓 Tutorial বাটন</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BROADCAST -->
+    <div class="page" id="page-broadcast">
+      <div class="card">
+        <div class="card-hd"><span>📢</span><div class="card-title">ব্রডকাস্ট মেসেজ</div></div>
+        <div class="card-body">
+          <div class="alert a-warn">⚠️ এটি সব ইউজারকে মেসেজ পাঠাবে। HTML ফরম্যাট সাপোর্ট করে।</div>
+          <div class="fg"><label class="fl">🎯 টার্গেট</label><select class="fc" id="bc-target"><option value="all">🌐 সব ইউজার</option><option value="active">🟢 গত ২৪ ঘন্টায় সক্রিয়</option></select></div>
+          <div class="fg"><label class="fl">📝 মেসেজ (HTML সাপোর্টেড)</label><textarea class="fc" id="bc-text" rows="6" placeholder="&lt;b&gt;বোল্ড&lt;/b&gt;, &lt;i&gt;ইটালিক&lt;/i&gt;, &lt;code&gt;কোড&lt;/code&gt; ব্যবহার করতে পারবেন..."></textarea></div>
+          <button class="btn bp" onclick="doBroadcast()" id="bc-btn">📢 ব্রডকাস্ট শুরু করুন</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="mbg" id="m-sched-edit">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">✏️ সিডিউল এডিট</span><button class="mclose" onclick="closeM('m-sched-edit')">✕</button></div>
+    <div class="mbody">
+      <input type="hidden" id="edit-sched-id">
+      <div class="fg"><label class="fl">📅 নতুন সময় (বাংলাদেশ সময় UTC+6)</label><input class="fc" type="datetime-local" id="edit-sched-time"><div class="fhint">বাংলাদেশ সময় দিন</div></div>
+      <div class="fg"><label class="fl">📂 ক্যাটাগরি</label><select class="fc" id="edit-sched-cat"><option value="">🌐 সব চ্যানেল</option></select></div>
+    </div>
+    <div class="mfoot"><button class="btn bg_" onclick="closeM('m-sched-edit')">বাতিল</button><button class="btn bp" onclick="saveSchedEdit()">✅ সেভ করুন</button></div>
+  </div>
+</div>
+
+<div class="mbg" id="m-addcat">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">📂 নতুন ক্যাটাগরি</span><button class="mclose" onclick="closeM('m-addcat')">✕</button></div>
+    <div class="mbody"><div class="fg"><label class="fl">📝 ক্যাটাগরির নাম</label><input class="fc" id="new-cat-name" placeholder="যেমন: হিন্দি, বাংলা, ইংরেজি"></div></div>
+    <div class="mfoot"><button class="btn bg_" onclick="closeM('m-addcat')">বাতিল</button><button class="btn bp" onclick="addCat()">✅ তৈরি করুন</button></div>
+  </div>
+</div>
+
+<div class="mbg" id="m-cat-addch">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">➕ ক্যাটাগরিতে চ্যানেল যোগ</span><button class="mclose" onclick="closeM('m-cat-addch')">✕</button></div>
+    <div class="mbody">
+      <input type="hidden" id="cat-addch-id">
+      <div class="fg"><label class="fl">📝 চ্যানেলের নাম</label><input class="fc" id="cat-ch-name" placeholder="যেমন: Bangla Ads"></div>
+      <div class="fg"><label class="fl">🆔 চ্যানেল ID</label><input class="fc" id="cat-ch-id" placeholder="-100xxxxxxxxxx"><div class="fhint">Telegram চ্যানেলের numeric ID (- সহ)</div></div>
+      <div class="fg"><label class="fl">ধরন</label><select class="fc" id="cat-ch-type"><option value="ad">📢 Ad (বিজ্ঞাপন চ্যানেল)</option><option value="premium">💎 Premium (সরাসরি লিংক)</option><option value="log">📋 Log (ব্যাকআপ)</option></select></div>
+    </div>
+    <div class="mfoot"><button class="btn bg_" onclick="closeM('m-cat-addch')">বাতিল</button><button class="btn bp" onclick="addCatChannel()">✅ যোগ করুন</button></div>
+  </div>
+</div>
+
+<div class="mbg" id="m-addch">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">📡 নতুন অটো চ্যানেল</span><button class="mclose" onclick="closeM('m-addch')">✕</button></div>
+    <div class="mbody">
+      <div class="alert a-warn">⚠️ বটকে এই চ্যানেলের অ্যাডমিন করতে হবে।</div>
+      <div class="fg"><label class="fl">📝 চ্যানেলের নাম</label><input class="fc" id="new-ch-name" placeholder="যেমন: My Ad Channel"></div>
+      <div class="fg"><label class="fl">🆔 চ্যানেল ID</label><input class="fc" id="new-ch-id" placeholder="-100xxxxxxxxxx"><div class="fhint">Telegram চ্যানেলের numeric ID (- সহ)</div></div>
+      <div class="fg"><label class="fl">ধরন</label><select class="fc" id="new-ch-type"><option value="ad">📢 Ad</option><option value="premium">💎 Premium</option><option value="log">📋 Log</option></select></div>
+    </div>
+    <div class="mfoot"><button class="btn bg_" onclick="closeM('m-addch')">বাতিল</button><button class="btn bp" onclick="addChannel()">✅ যোগ করুন</button></div>
+  </div>
+</div>
+
+<div class="mbg" id="m-admin">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">👑 নতুন এডমিন</span><button class="mclose" onclick="closeM('m-admin')">✕</button></div>
+    <div class="mbody"><div class="fg"><label class="fl">🆔 Telegram Chat ID</label><input class="fc" id="new-adm" type="number" placeholder="5991854507"></div></div>
+    <div class="mfoot"><button class="btn bg_" onclick="closeM('m-admin')">বাতিল</button><button class="btn bp" onclick="addAdmin()">✅ এডমিন করুন</button></div>
+  </div>
+</div>
+
+<div class="mbg" id="m-fs">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">🔒 Force Subscribe যোগ</span><button class="mclose" onclick="closeM('m-fs')">✕</button></div>
+    <div class="mbody">
+      <div class="alert a-warn">⚠️ বটকে চ্যানেলের অ্যাডমিন করতে হবে।</div>
+      <div class="fg"><label class="fl">📝 চ্যানেল নাম</label><input class="fc" id="fs-nm" placeholder="আমার চ্যানেল"></div>
+      <div class="fg"><label class="fl">🆔 চ্যানেল ID</label><input class="fc" id="fs-id" placeholder="-100xxxxxxxxxx"><div class="fhint">Telegram চ্যানেলের numeric ID (- সহ)</div></div>
+      <div class="fg"><label class="fl">🔗 Join লিংক</label><input class="fc" id="fs-url" placeholder="https://t.me/mychannel"></div>
+    </div>
+    <div class="mfoot"><button class="btn bg_" onclick="closeM('m-fs')">বাতিল</button><button class="btn bp" onclick="addFS()">✅ যোগ করুন</button></div>
+  </div>
+</div>
+
+<div class="mbg" id="m-ban">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">🚫 ইউজার ব্যান</span><button class="mclose" onclick="closeM('m-ban')">✕</button></div>
+    <div class="mbody">
+      <div class="fg"><label class="fl">🆔 Telegram Chat ID</label><input class="fc" id="ban-uid" type="number" placeholder="1234567890"></div>
+      <div class="fg"><label class="fl">📝 কারণ (ঐচ্ছিক)</label><input class="fc" id="ban-reason" placeholder="স্প্যাম / নিয়ম ভঙ্গ"></div>
+    </div>
+    <div class="mfoot"><button class="btn bg_" onclick="closeM('m-ban')">বাতিল</button><button class="btn bd" onclick="doBan()">🚫 ব্যান করুন</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ======= CONFIG =======
+let CFG={},D={scheduled:[],categories:[],channels:[],admins:[],users:[],files:[],banned:[],forcesub:[]};
+function loadCFG(){try{CFG=JSON.parse(localStorage.getItem('botpanel')||'{}');}catch{CFG={};}}
+function saveCFG(){localStorage.setItem('botpanel',JSON.stringify(CFG));}
+loadCFG();
+if(CFG.url&&CFG.key) hideSetup();
+
+function autoLoad(){loadCFG();document.getElementById('s-url').value=CFG.url||'';document.getElementById('s-key').value=CFG.key||'';document.getElementById('s-admin').value=CFG.admin||'';document.getElementById('s-user').value=CFG.user||'';toast('✅ কনফিগ লোড হয়েছে','success');}
+
+async function doSetup(){
+  const url=document.getElementById('s-url').value.trim().replace(/\/+$/,''),key=document.getElementById('s-key').value.trim(),admin=document.getElementById('s-admin').value.trim(),user=document.getElementById('s-user').value.trim();
+  if(!url){showSS('❌ Bot API URL দিন!','s-err');return;}if(!key){showSS('❌ Secret Key দিন!','s-err');return;}
+  const btn=document.getElementById('setup-btn');btn.disabled=true;btn.textContent='⏳ পরীক্ষা হচ্ছে…';showSS('⏳ বটের সাথে যোগাযোগ হচ্ছে…','s-load');
+  try{
+    const r1=await fetch(url+'/health',{signal:AbortSignal.timeout(10000)});if(!r1.ok) throw new Error('সার্ভার সাড়া দেয়নি ('+r1.status+')');
+    const r2=await fetch(url+'/api/stats',{headers:{'X-Admin-Key':key},signal:AbortSignal.timeout(10000)});
+    if(r2.status===401){showSS('❌ Secret Key ভুল!','s-err');btn.disabled=false;btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';return;}
+    if(!r2.ok) throw new Error('API Error: '+r2.status);
+    CFG={url,key,admin,user};saveCFG();showSS('✅ সংযোগ সফল!','s-ok');setTimeout(hideSetup,800);
+  }catch(e){
+    showSS('❌ '+(e.name==='TimeoutError'?'সময় শেষ। Render চালু আছে?':e.message||'সংযোগ ব্যর্থ'),'s-err');
+    btn.disabled=false;btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
+  }
+}
+function showSS(m,c){const el=document.getElementById('setup-status');el.textContent=m;el.className=c;el.style.display='block';}
+function hideSetup(){document.getElementById('setup-screen').style.display='none';document.getElementById('pg-sub').textContent=CFG.url||'';loadPage('dashboard');}
+function resetCFG(){if(!confirm('সেটআপ রিসেট করবেন?')) return;localStorage.removeItem('botpanel');location.reload();}
+
+// ======= API =======
+async function api(path,method='GET',body=null){
+  try{
+    const opts={method,headers:{'Content-Type':'application/json','X-Admin-Key':CFG.key||''},signal:AbortSignal.timeout(14000)};
+    if(body) opts.body=JSON.stringify(body);
+    const r=await fetch((CFG.url||'').replace(/\/+$/,'')+path,opts);
+    if(r.status===401){toast('❌ Auth Error','danger');return null;}
+    if(!r.ok){toast('⚠️ API Error: '+r.status,'warn');return null;}
+    return await r.json();
+  }catch(e){if(e.name!=='TimeoutError') console.error(e);else toast('⚠️ রিকোয়েস্ট সময় শেষ','warn');return null;}
+}
+
+// ======= NAV =======
+const TITLES={dashboard:'ড্যাশবোর্ড',scheduled:'সিডিউল পোস্ট',categories:'ক্যাটাগরি',channels:'অটো চ্যানেল',forcesub:'Force Subscribe',admins:'এডমিন',users:'ইউজার',banned:'ব্যান লিস্ট',files:'ফাইল',settings:'বট সেটিংস',broadcast:'ব্রডকাস্ট'};
+function go(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(el) el.classList.add('active');
+  document.getElementById('pg-title').textContent=TITLES[id]||id;
+  loadPage(id);if(window.innerWidth<=768) closeSidebar();
+}
+function loadPage(id){
+  if(id==='dashboard') loadDash();
+  if(id==='scheduled') loadSched();
+  if(id==='categories') loadCats();
+  if(id==='channels') loadChs();
+  if(id==='forcesub') loadFS();
+  if(id==='admins') loadAdms();
+  if(id==='users') loadUsers();
+  if(id==='banned') loadBanned();
+  if(id==='files') loadFiles();
+  if(id==='settings') loadSets();
+}
+function refresh(){const p=document.querySelector('.page.active');const id=p?.id?.replace('page-','');if(id) loadPage(id);toast('🔄 রিফ্রেশ হচ্ছে…','info');}
+
+// ======= DASHBOARD =======
+async function loadDash(){
+  const [stats,scheds,chans]=await Promise.all([api('/api/stats'),api('/api/scheduled'),api('/api/channels')]);
+  if(stats){set('sv-users',n(stats.total_users));set('sv-files',n(stats.total_files));set('sv-dl',n(stats.dl_today));set('sv-adm',n(stats.total_admins));set('sv-ban',n(stats.total_banned));set('sv-active',n(stats.active_today)+' সক্রিয় আজ');set('sv-ul',n(stats.ul_today)+' আপলোড আজ');}
+  if(scheds){D.scheduled=scheds;const pend=scheds.filter(x=>x.status==='pending');set('sv-sched',n(pend.length));set('sb-badge',pend.length);
+    const ul=document.getElementById('d-upcoming');
+    if(!pend.length){ul.innerHTML='<div class="empty"><span class="eico">📭</span>কোনো পেন্ডিং পোস্ট নেই</div>';}
+    else ul.innerHTML=pend.slice(0,5).map(s=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:20px">${mico(s.media_type)}</span><div style="flex:1"><div style="font-size:13px;font-weight:600">${s.category_id?'📂 ক্যাটাগরি':'🌐 সব চ্যানেল'}</div><div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${ft(s.scheduled_at)}</div></div><button class="btn bd btn-xs" onclick="delSched('${s.sched_id}')">🗑️</button></div>`).join('');}
+  if(chans){D.channels=chans;const el=document.getElementById('d-channels');
+    if(!chans.length){el.innerHTML='<div class="empty"><span class="eico">📡</span>কোনো চ্যানেল নেই</div>';}
+    else el.innerHTML=`<div style="margin-bottom:10px;font-size:13px;color:var(--text2)">সক্রিয়: <b style="color:var(--green)">${chans.filter(c=>c.status==='on').length}</b> / মোট: <b>${chans.length}</b></div>`+chans.slice(0,6).map(c=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)"><span class="badge ${c.type==='premium'?'b-c':c.type==='log'?'b-p':'b-y'}">${c.type==='premium'?'💎':c.type==='log'?'📋':'📢'} ${c.type}</span><span style="font-size:13px;flex:1;color:var(--text)">${c.name}</span><span class="badge ${c.status==='on'?'b-g':'b-r'}">${c.status==='on'?'চালু':'বন্ধ'}</span></div>`).join('');}
+}
+
+// ======= SCHEDULED =======
+async function loadSched(){const res=await api('/api/scheduled');if(res) D.scheduled=res;filterSched();}
+function filterSched(){
+  const f=document.getElementById('sf-filter')?.value||'all';
+  const items=f==='all'?D.scheduled:D.scheduled.filter(x=>x.status===f);
+  const el=document.getElementById('sched-list');
+  if(!items.length){el.innerHTML='<div class="empty"><span class="eico">⏰</span>কোনো সিডিউল পোস্ট নেই</div>';return;}
+  el.innerHTML=items.map(s=>`
+    <div class="si">
+      <div class="si-thumb">${mico(s.media_type)}</div>
+      <div class="si-info">
+        <div class="si-title">${s.category_id?'📂 ক্যাটাগরি পোস্ট':'🌐 সব চ্যানেলে পোস্ট'}</div>
+        <div class="si-meta"><span>⏰ ${ft(s.scheduled_at)}</span><span>🆔 <span class="code">${s.sched_id}</span></span>${s.admin_id?`<span>👤 ${s.admin_id}</span>`:''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
+        <span class="badge ${sbadge(s.status)}">${slbl(s.status)}</span>
+        ${s.status==='pending'?`<div style="display:flex;gap:5px"><button class="btn by btn-xs" onclick="openSchedEdit('${s.sched_id}','${s.scheduled_at||''}','${s.category_id||''}')">✏️ এডিট</button><button class="btn bd btn-xs" onclick="delSched('${s.sched_id}')">🗑️</button></div>`:''}
+      </div>
+    </div>`).join('');
+}
+async function delSched(id){
+  if(!confirm('এই সিডিউল পোস্ট ডিলিট করবেন?')) return;
+  const r=await api('/api/scheduled/delete/'+id,'DELETE');
+  if(r){D.scheduled=D.scheduled.filter(x=>x.sched_id!==id);filterSched();set('sb-badge',D.scheduled.filter(x=>x.status==='pending').length);toast('🗑️ সিডিউল ডিলিট হয়েছে','danger');}
+  else toast('❌ ডিলিট ব্যর্থ','danger');
+}
+async function openSchedEdit(schedId,scheduledAt,categoryId){
+  document.getElementById('edit-sched-id').value=schedId;
+  try{
+    const dt=new Date(scheduledAt);dt.setHours(dt.getHours()+6);
+    document.getElementById('edit-sched-time').value=dt.toISOString().slice(0,16);
+  }catch(e){document.getElementById('edit-sched-time').value='';}
+  const sel=document.getElementById('edit-sched-cat');
+  sel.innerHTML='<option value="">🌐 সব চ্যানেল</option>';
+  if(!D.categories.length){const cats=await api('/api/categories');if(cats) D.categories=cats;}
+  D.categories.forEach(c=>{const opt=document.createElement('option');opt.value=c.cat_id;opt.textContent='📂 '+c.name;if(c.cat_id===categoryId) opt.selected=true;sel.appendChild(opt);});
+  openM('m-sched-edit');
+}
+async function saveSchedEdit(){
+  const schedId=document.getElementById('edit-sched-id').value,localTime=document.getElementById('edit-sched-time').value,catId=document.getElementById('edit-sched-cat').value;
+  if(!localTime){toast('⚠️ সময় দিন','warn');return;}
+  const dt=new Date(localTime);dt.setHours(dt.getHours()-6);
+  if(dt<=new Date()){toast('⚠️ সময়টি ভবিষ্যতে হওয়া উচিত!','warn');return;}
+  const r=await api('/api/scheduled/edit/'+schedId,'POST',{scheduled_at:dt.toISOString(),category_id:catId});
+  if(r?.ok){closeM('m-sched-edit');loadSched();toast('✅ সিডিউল আপডেট হয়েছে','success');}
+  else toast('❌ আপডেট ব্যর্থ','danger');
+}
+
+// ======= CATEGORIES =======
+async function loadCats(){const res=await api('/api/categories');if(res) D.categories=res;renderCats();}
+function renderCats(){
+  const el=document.getElementById('cat-list');
+  if(!D.categories.length){el.innerHTML='<div class="empty"><span class="eico">📂</span>কোনো ক্যাটাগরি নেই — উপরে "নতুন ক্যাটাগরি" বাটনে ক্লিক করুন</div>';return;}
+  el.innerHTML='<div class="g3">'+D.categories.map(c=>`
+    <div class="cat-card">
+      <div class="cat-hd"><span style="font-size:20px">📂</span><div class="cat-name">${c.name}</div><button class="btn bd btn-xs" onclick="delCat('${c.cat_id}')">🗑️</button></div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px">${(c.channels||[]).length}টি চ্যানেল</div>
+      <div style="margin-bottom:8px">
+        ${(c.channels||[]).length?(c.channels||[]).map((ch,i)=>`
+          <div class="ch-row">
+            <span class="badge ${ch.type==='premium'?'b-c':ch.type==='log'?'b-p':'b-y'}" style="font-size:9px">${ch.type}</span>
+            <span style="flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${ch.name}</span>
+            <span class="badge ${ch.status==='on'?'b-g':'b-r'}" style="font-size:9px;cursor:pointer" onclick="toggleCatCh('${c.cat_id}',${i})">${ch.status==='on'?'ON':'OFF'}</span>
+            <button style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0 2px" onclick="delCatCh('${c.cat_id}',${i})">✕</button>
+          </div>`).join(''):'<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">চ্যানেল নেই</div>'}
+      </div>
+      <button class="btn bg_ btn-sm" style="width:100%;justify-content:center" onclick="openCatAddCh('${c.cat_id}')">+ চ্যানেল যোগ</button>
+    </div>`).join('')+'</div>';
+}
+async function addCat(){
+  const name=document.getElementById('new-cat-name').value.trim();
+  if(!name){toast('⚠️ নাম দিন','warn');return;}
+  const r=await api('/api/categories/add','POST',{name});
+  if(r?.ok){closeM('m-addcat');document.getElementById('new-cat-name').value='';loadCats();toast('✅ ক্যাটাগরি তৈরি হয়েছে','success');}
+  else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+}
+async function delCat(id){
+  if(!confirm('এই ক্যাটাগরি মুছবেন?')) return;
+  const r=await api('/api/categories/delete/'+id,'DELETE');
+  if(r?.ok){D.categories=D.categories.filter(c=>c.cat_id!==id);renderCats();toast('✅ মুছে ফেলা হয়েছে','success');}
+  else toast('❌ ব্যর্থ','danger');
+}
+function openCatAddCh(catId){document.getElementById('cat-addch-id').value=catId;document.getElementById('cat-ch-name').value='';document.getElementById('cat-ch-id').value='';document.getElementById('cat-ch-type').value='ad';openM('m-cat-addch');}
+async function addCatChannel(){
+  const catId=document.getElementById('cat-addch-id').value,name=document.getElementById('cat-ch-name').value.trim(),channelId=document.getElementById('cat-ch-id').value.trim(),type=document.getElementById('cat-ch-type').value;
+  if(!name||!channelId){toast('⚠️ নাম ও চ্যানেল ID দিন','warn');return;}
+  const r=await api(`/api/categories/${catId}/channels/add`,'POST',{name,channel_id:channelId,type});
+  if(r?.ok){closeM('m-cat-addch');loadCats();toast('✅ চ্যানেল যোগ হয়েছে','success');}
+  else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+}
+async function toggleCatCh(catId,idx){const r=await api(`/api/categories/${catId}/channels/${idx}/toggle`,'POST');if(r?.ok) loadCats();else toast('❌ ব্যর্থ','danger');}
+async function delCatCh(catId,idx){if(!confirm('এই চ্যানেলটি সরাবেন?')) return;const r=await api(`/api/categories/${catId}/channels/${idx}/delete`,'DELETE');if(r?.ok){loadCats();toast('✅ সরানো হয়েছে','success');}else toast('❌ ব্যর্থ','danger');}
+
+// ======= CHANNELS =======
+async function loadChs(){
+  const res=await api('/api/channels');if(res) D.channels=res;
+  const el=document.getElementById('ch-tbody');
+  if(!D.channels.length){el.innerHTML=`<tr><td colspan="5"><div class="empty">কোনো চ্যানেল নেই</div></td></tr>`;return;}
+  el.innerHTML=D.channels.map(c=>`<tr>
+    <td style="font-weight:600;color:var(--text)">${c.name}</td>
+    <td><span class="code">${c.channel_id}</span></td>
+    <td><span class="badge ${c.type==='premium'?'b-c':c.type==='log'?'b-p':'b-y'}">${c.type==='premium'?'💎 Premium':c.type==='log'?'📋 Log':'📢 Ad'}</span></td>
+    <td><span class="badge ${c.status==='on'?'b-g':'b-r'}">${c.status==='on'?'✅ চালু':'⛔ বন্ধ'}</span></td>
+    <td style="display:flex;gap:6px">
+      <button class="btn by btn-sm" onclick="toggleCh('${c.ch_id}')">${c.status==='on'?'⏸ বন্ধ':'▶ চালু'}</button>
+      <button class="btn bd btn-sm" onclick="delCh('${c.ch_id}')">🗑️</button>
+    </td>
+  </tr>`).join('');
+}
+async function addChannel(){
+  const name=document.getElementById('new-ch-name').value.trim(),channelId=document.getElementById('new-ch-id').value.trim(),type=document.getElementById('new-ch-type').value;
+  if(!name||!channelId){toast('⚠️ নাম ও চ্যানেল ID দিন','warn');return;}
+  const r=await api('/api/channels/add','POST',{name,channel_id:channelId,type});
+  if(r?.ok){closeM('m-addch');document.getElementById('new-ch-name').value='';document.getElementById('new-ch-id').value='';loadChs();toast('✅ চ্যানেল যোগ হয়েছে','success');}
+  else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+}
+async function toggleCh(id){const r=await api('/api/channels/toggle/'+id,'POST');if(r?.ok){loadChs();toast('✅ স্ট্যাটাস পরিবর্তন হয়েছে','success');}else toast('❌ ব্যর্থ','danger');}
+async function delCh(id){if(!confirm('চ্যানেলটি সরাবেন?')) return;const r=await api('/api/channels/delete/'+id,'DELETE');if(r?.ok){D.channels=D.channels.filter(x=>x.ch_id!==id);loadChs();toast('✅ সরানো হয়েছে','success');}else toast('❌ ব্যর্থ','danger');}
+
+// ======= FORCE SUB =======
+async function loadFS(){
+  const res=await api('/api/forcesub');if(res) D.forcesub=res;
+  const el=document.getElementById('fs-tbody');
+  if(!D.forcesub.length){el.innerHTML=`<tr><td colspan="5"><div class="empty">কোনো Force Subscribe চ্যানেল নেই</div></td></tr>`;return;}
+  el.innerHTML=D.forcesub.map(f=>`<tr>
+    <td style="font-weight:600;color:var(--text)">${f.name}</td>
+    <td><span class="code">${f.channel_id}</span></td>
+    <td><a href="${f.url}" target="_blank" style="color:var(--accent2);font-size:12px">🔗 লিংক</a></td>
+    <td><span class="badge ${f.status==='on'?'b-g':'b-r'}">${f.status==='on'?'চালু':'বন্ধ'}</span></td>
+    <td style="display:flex;gap:6px">
+      <button class="btn by btn-sm" onclick="toggleFS('${f.fs_id}')">${f.status==='on'?'⏸ বন্ধ':'▶ চালু'}</button>
+      <button class="btn bd btn-sm" onclick="deleteFS('${f.fs_id}')">🗑️</button>
+    </td>
+  </tr>`).join('');
+}
+async function addFS(){
+  const nm=document.getElementById('fs-nm').value.trim(),id=document.getElementById('fs-id').value.trim(),url=document.getElementById('fs-url').value.trim();
+  if(!nm||!id||!url){toast('⚠️ সব তথ্য পূরণ করুন','warn');return;}
+  const r=await api('/api/forcesub/add','POST',{name:nm,channel_id:id,url});
+  if(r?.ok){closeM('m-fs');document.getElementById('fs-nm').value='';document.getElementById('fs-id').value='';document.getElementById('fs-url').value='';loadFS();toast('✅ Force Subscribe চ্যানেল যোগ হয়েছে','success');}
+  else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+}
+async function toggleFS(id){const r=await api('/api/forcesub/toggle/'+id,'POST');if(r?.ok){loadFS();toast('✅ স্ট্যাটাস পরিবর্তন হয়েছে','success');}}
+async function deleteFS(id){if(!confirm('মুছবেন?')) return;const r=await api('/api/forcesub/delete/'+id,'DELETE');if(r?.ok){loadFS();toast('🗑️ মুছে গেছে','danger');}}
+
+// ======= ADMINS =======
+async function loadAdms(){
+  const res=await api('/api/admins');if(res) D.admins=res;
+  const el=document.getElementById('adm-tbody');
+  if(!D.admins.length){el.innerHTML=`<tr><td colspan="4"><div class="empty">কোনো এডমিন নেই</div></td></tr>`;return;}
+  el.innerHTML=D.admins.map(a=>`<tr>
+    <td><span class="code">${a.chat_id}</span></td>
+    <td><span class="badge ${a.role==='super_admin'?'b-c':'b-p'}">${a.role==='super_admin'?'⭐ Super Admin':'👑 Admin'}</span></td>
+    <td style="color:var(--text3)">${fd(a.added_at)}</td>
+    <td>${a.role==='super_admin'?'<span style="font-size:12px;color:var(--text3)">সরানো যাবে না</span>':`<button class="btn bd btn-sm" onclick="delAdm('${a.chat_id}')">🗑️ সরান</button>`}</td>
+  </tr>`).join('');
+}
+async function addAdmin(){
+  const id=document.getElementById('new-adm').value.trim();if(!id){toast('⚠️ Chat ID দিন','warn');return;}
+  const r=await api('/api/admins/add','POST',{chat_id:id});
+  if(r?.ok){closeM('m-admin');document.getElementById('new-adm').value='';loadAdms();toast('✅ এডমিন যোগ হয়েছে','success');}
+  else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+}
+async function delAdm(id){if(!confirm('এই এডমিনকে সরাবেন?')) return;const r=await api('/api/admins/delete/'+id,'DELETE');if(r?.ok){loadAdms();toast('✅ সরানো হয়েছে','success');}else toast('❌ ব্যর্থ','danger');}
+
+// ======= USERS =======
+async function loadUsers(q=''){
+  const res=await api('/api/users?limit=50&q='+encodeURIComponent(q));if(res) D.users=res;
+  const el=document.getElementById('usr-tbody');
+  if(!D.users.length){el.innerHTML=`<tr><td colspan="6"><div class="empty">কোনো ইউজার নেই</div></td></tr>`;return;}
+  el.innerHTML=D.users.map(u=>`<tr>
+    <td><span class="code">${u.chat_id}</span></td>
+    <td style="color:var(--text3)">${fd(u.joined_at)}</td>
+    <td style="color:var(--text3)">${fd(u.last_active)}</td>
+    <td>${u.total_uploads||0}</td>
+    <td>${u.total_downloads||0}</td>
+    <td><button class="btn bd btn-sm" onclick="banU('${u.chat_id}')">🚫 ব্যান</button></td>
+  </tr>`).join('');
+}
+let uTimer;
+function searchU(q){clearTimeout(uTimer);uTimer=setTimeout(()=>loadUsers(q),400);}
+async function banU(id){if(!confirm(id+' কে ব্যান করবেন?')) return;const r=await api('/api/users/ban','POST',{chat_id:id});if(r?.ok) toast('✅ ব্যান হয়েছে','success');else toast('❌ ব্যর্থ','danger');}
+
+// ======= BANNED =======
+async function loadBanned(){
+  const res=await api('/api/banned');if(res) D.banned=res;
+  const el=document.getElementById('ban-tbody');
+  if(!D.banned.length){el.innerHTML=`<tr><td colspan="4"><div class="empty">কোনো ব্যান নেই</div></td></tr>`;return;}
+  el.innerHTML=D.banned.map(b=>`<tr>
+    <td><span class="code">${b.chat_id}</span></td>
+    <td style="color:var(--text2)">${b.reason||'—'}</td>
+    <td style="color:var(--text3)">${fd(b.banned_at)}</td>
+    <td><button class="btn bs btn-sm" onclick="unbanU('${b.chat_id}')">✅ আনব্যান</button></td>
+  </tr>`).join('');
+}
+async function doBan(){
+  const id=document.getElementById('ban-uid').value.trim(),reason=document.getElementById('ban-reason').value.trim()||'প্যানেল থেকে ব্যান';
+  if(!id){toast('⚠️ Chat ID দিন','warn');return;}
+  const r=await api('/api/users/ban','POST',{chat_id:id,reason});
+  if(r?.ok){closeM('m-ban');document.getElementById('ban-uid').value='';document.getElementById('ban-reason').value='';loadBanned();toast('✅ ব্যান হয়েছে','success');}
+  else toast('❌ ব্যর্থ','danger');
+}
+async function unbanU(id){if(!confirm(id+' কে আনব্যান করবেন?')) return;const r=await api('/api/users/unban','POST',{chat_id:id});if(r?.ok){loadBanned();toast('✅ আনব্যান হয়েছে','success');}else toast('❌ ব্যর্থ','danger');}
+
+// ======= FILES =======
+async function loadFiles(q=''){
+  const res=await api('/api/files?limit=50&q='+encodeURIComponent(q));if(res) D.files=res;
+  const el=document.getElementById('file-tbody');
+  if(!D.files.length){el.innerHTML=`<tr><td colspan="5"><div class="empty">কোনো ফাইল নেই</div></td></tr>`;return;}
+  el.innerHTML=D.files.map(f=>`<tr>
+    <td><span class="code">${f.file_key}</span></td>
+    <td>${mico(f.type)} ${f.type||'—'}</td>
+    <td><span class="code">${f.uploader||'—'}</span></td>
+    <td style="color:var(--text3)">${fd(f.uploaded_at)}</td>
+    <td><a href="https://t.me/${CFG.user||'Bot'}?start=${f.file_key}" target="_blank" style="color:var(--accent2);font-size:12px">🔗 লিংক</a></td>
+  </tr>`).join('');
+}
+let fTimer;
+function searchF(q){clearTimeout(fTimer);fTimer=setTimeout(()=>loadFiles(q),400);}
+
+// ======= SETTINGS =======
+async function loadSets(){
+  const res=await api('/api/settings');if(!res){toast('⚠️ সেটিংস লোড হয়নি','warn');return;}
+  const m={protect_content:'t-protect',short_link_on:'t-sl',force_sub_on:'t-fs',btn_download:'t-dl',btn_share:'t-sh',btn_tutorial:'t-tut'};
+  Object.entries(m).forEach(([k,id])=>{const el=document.getElementById(id);if(el) el.checked=!!res[k];});
+}
+async function saveSetting(key,val){const r=await api('/api/settings','POST',{key,value:val});toast(r?.ok?'✅ সেটিং সেভ হয়েছে':'❌ সেভ ব্যর্থ',r?.ok?'success':'danger');}
+
+// ======= BROADCAST =======
+async function doBroadcast(){
+  const text=document.getElementById('bc-text').value.trim(),target=document.getElementById('bc-target').value;
+  if(!text){toast('⚠️ মেসেজ লিখুন','warn');return;}
+  if(!confirm('সত্যিই ব্রডকাস্ট পাঠাবেন?')) return;
+  const btn=document.getElementById('bc-btn');btn.disabled=true;btn.textContent='⏳ পাঠানো হচ্ছে…';
+  const r=await api('/api/broadcast','POST',{text,target,admin_id:CFG.admin||''});
+  btn.disabled=false;btn.textContent='📢 ব্রডকাস্ট শুরু করুন';
+  if(r?.ok){toast(`✅ ব্রডকাস্ট শুরু! মোট ${r.total} জন।`,'success');document.getElementById('bc-text').value='';}
+  else toast('❌ ব্রডকাস্ট ব্যর্থ','danger');
+}
+
+// ======= MODAL =======
+function openM(id){document.getElementById(id).classList.add('open');}
+function closeM(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m) m.classList.remove('open');}));
+
+// ======= TOAST =======
+function toast(msg,type='info'){
+  const C={info:'var(--cyan)',success:'var(--green)',warn:'var(--yellow)',danger:'var(--red)'};
+  const I={info:'ℹ️',success:'✅',warn:'⚠️',danger:'❌'};
+  const el=document.createElement('div');el.className='tm';
+  el.style.borderLeft=`3px solid ${C[type]||C.info}`;
+  el.innerHTML=`<span>${I[type]||''}</span><span>${msg}</span>`;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(()=>el.remove(),3500);
+}
+
+// ======= HELPERS =======
+function set(id,v){const e=document.getElementById(id);if(e) e.textContent=v;}
+function n(v){return (v||0).toLocaleString('bn-BD');}
+function mico(t){return {video:'🎬',photo:'🖼️',document:'📄',audio:'🎵'}[t]||'📁';}
+function sbadge(s){return {pending:'b-y',done:'b-g',error:'b-r'}[s]||'b-p';}
+function slbl(s){return {pending:'⏳ পেন্ডিং',done:'✅ সম্পন্ন',error:'❌ ব্যর্থ'}[s]||s;}
+function ft(iso){if(!iso) return '—';try{return new Date(iso).toLocaleString('bn-BD',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}catch{return iso.slice(0,16).replace('T',' ');}}
+function fd(iso){if(!iso) return '—';try{return new Date(iso).toLocaleDateString('bn-BD');}catch{return iso.slice(0,10);}}
+
+// ======= MOBILE =======
+function toggleSidebar(){const sb=document.querySelector('.sidebar'),ov=document.getElementById('sidebar-overlay'),hb=document.getElementById('hamburger');sb.classList.toggle('open');ov.classList.toggle('open');hb.classList.toggle('open');}
+function closeSidebar(){document.querySelector('.sidebar').classList.remove('open');document.getElementById('sidebar-overlay').classList.remove('open');document.getElementById('hamburger').classList.remove('open');}
+</script>
+</body>
+</html>
