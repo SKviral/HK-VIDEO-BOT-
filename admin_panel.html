@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>🤖 Bot Admin Panel</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#18181f;--bg4:#1e1e28;--card:#16161e;
+  --border:rgba(120,120,180,.12);--border2:rgba(120,120,180,.28);
+  --accent:#6c63ff;--accent2:#8b85ff;--glow:rgba(108,99,255,.18);
+  --green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--cyan:#06b6d4;--pink:#ec4899;
+  --text:#e8e8f0;--text2:#9090a8;--text3:#5a5a72;
+  --mono:'JetBrains Mono',monospace;--sans:'Noto Sans Bengali',sans-serif;
+  --r:14px;--rs:10px;
+  --nav-h:68px;--top-h:56px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{height:100%}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* ══ SETUP SCREEN ══ */
+#setup-screen{
+  position:fixed;inset:0;background:var(--bg);z-index:9999;
+  overflow-y:auto;padding:24px 16px 40px;
+}
+.setup-inner{max-width:440px;margin:0 auto}
+.setup-logo{text-align:center;padding:24px 0 28px}
+.setup-logo .ico{font-size:52px;display:block;margin-bottom:12px}
+.setup-logo h1{font-size:24px;font-weight:700}
+.setup-logo p{font-size:14px;color:var(--text3);margin-top:5px}
+.sf{margin-bottom:18px}
+.sf label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px}
+.sf input{
+  width:100%;background:var(--bg3);border:1.5px solid var(--border2);
+  border-radius:var(--rs);color:var(--text);padding:14px 16px;
+  font-size:16px;font-family:var(--sans);outline:none;
+  transition:border .15s;-webkit-appearance:none;
+}
+.sf input:focus{border-color:var(--accent)}
+.sf input::placeholder{color:var(--text3)}
+.sf .hint{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.5}
+#setup-btn{
+  width:100%;padding:16px;border:none;border-radius:var(--rs);
+  background:var(--accent);color:#fff;font-size:16px;
+  font-family:var(--sans);font-weight:700;cursor:pointer;
+  transition:background .15s;margin-top:8px;
+}
+#setup-btn:active{background:var(--accent2)}
+#setup-btn:disabled{background:var(--bg4);color:var(--text3)}
+#setup-status{
+  margin-top:14px;padding:14px 16px;border-radius:var(--rs);
+  font-size:14px;text-align:center;display:none;line-height:1.5;
+}
+.s-ok{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.s-err{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+.s-load{background:rgba(108,99,255,.12);border:1px solid rgba(108,99,255,.3);color:var(--accent2)}
+.setup-link{text-align:center;margin-top:18px;font-size:13px;color:var(--text3)}
+.setup-link span{color:var(--accent2);cursor:pointer;text-decoration:underline}
+
+/* ══ TOP BAR ══ */
+.topbar{
+  position:fixed;top:0;left:0;right:0;height:var(--top-h);z-index:100;
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 16px;gap:10px;
+}
+.topbar-menu{
+  background:none;border:none;color:var(--text2);font-size:22px;
+  cursor:pointer;padding:6px;border-radius:8px;display:flex;align-items:center;
+}
+.topbar-menu:active{background:var(--bg4)}
+.tb-title{font-size:17px;font-weight:700;flex:1}
+.tb-dot{width:8px;height:8px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;flex-shrink:0}
+.tb-refresh{background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:6px;border-radius:8px}
+.tb-refresh:active{background:var(--bg4)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ══ DRAWER (slide-in menu) ══ */
+.drawer-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:none}
+.drawer-bg.open{display:block}
+.drawer{
+  position:fixed;top:0;left:-280px;bottom:0;width:280px;z-index:201;
+  background:var(--bg2);border-right:1px solid var(--border2);
+  display:flex;flex-direction:column;transition:left .25s ease;
+  overflow-y:auto;
+}
+.drawer.open{left:0}
+.drawer-hd{
+  padding:20px 18px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;
+}
+.drawer-logo{
+  width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--pink));
+  border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;
+}
+.drawer-hd h2{font-size:15px;font-weight:700}
+.drawer-hd p{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+.drawer-close{margin-left:auto;background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer}
+nav{padding:10px 10px;flex:1}
+.ns{font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;padding:10px 10px 4px}
+.ni{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;
+  border-radius:var(--rs);cursor:pointer;font-size:15px;color:var(--text2);
+  border:none;background:none;width:100%;text-align:left;font-family:var(--sans);
+  margin-bottom:2px;transition:all .15s;
+}
+.ni:active{background:var(--bg4)}
+.ni.active{background:var(--glow);color:var(--accent2);border:1px solid rgba(108,99,255,.2)}
+.ni .ico{font-size:18px;width:22px;text-align:center;flex-shrink:0}
+.nbadge{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:20px;font-weight:600}
+.drawer-foot{padding:14px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);font-family:var(--mono)}
+
+/* ══ BOTTOM NAV ══ */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);
+  background:var(--bg2);border-top:1px solid var(--border);
+  display:flex;align-items:center;z-index:100;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.bn-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;padding:8px 4px;cursor:pointer;border:none;background:none;
+  color:var(--text3);font-family:var(--sans);transition:all .15s;position:relative;
+}
+.bn-item.active{color:var(--accent2)}
+.bn-item .bn-ico{font-size:22px;line-height:1}
+.bn-item .bn-lbl{font-size:10px;font-weight:500}
+.bn-badge{
+  position:absolute;top:6px;right:calc(50% - 18px);
+  background:var(--red);color:#fff;font-size:9px;font-family:var(--mono);
+  padding:1px 5px;border-radius:20px;font-weight:700;min-width:16px;text-align:center;
+}
+
+/* ══ MAIN CONTENT ══ */
+.main{
+  padding-top:calc(var(--top-h) + 12px);
+  padding-bottom:calc(var(--nav-h) + 12px);
+  padding-left:16px;padding-right:16px;
+  min-height:100vh;
+}
+
+/* ══ PAGES ══ */
+.page{display:none}.page.active{display:block}
+
+/* ══ STAT CARDS ══ */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.sc{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:16px;position:relative;overflow:hidden;
+}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.sc.blue::before{background:var(--accent)}.sc.green::before{background:var(--green)}
+.sc.yellow::before{background:var(--yellow)}.sc.red::before{background:var(--red)}
+.sc.cyan::before{background:var(--cyan)}.sc.pink::before{background:var(--pink)}
+.sc-ico{font-size:20px;margin-bottom:8px;display:block}
+.sc-val{font-size:24px;font-weight:700;font-family:var(--mono);line-height:1;margin-bottom:3px}
+.sc-lbl{font-size:11px;color:var(--text3)}
+.sc-sub{font-size:10px;color:var(--green);margin-top:3px;font-family:var(--mono)}
+
+/* ══ CARD ══ */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px}
+.card-hd{
+  padding:14px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.card-title{font-size:14px;font-weight:600;flex:1}
+.card-body{padding:14px 16px}
+
+/* ══ SCHEDULE ITEM ══ */
+.si{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--rs);padding:14px;margin-bottom:10px;
+}
+.si-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.si-thumb{width:42px;height:42px;border-radius:8px;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.si-info{flex:1;min-width:0}
+.si-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px}
+.si-time{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.si-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.si-id{font-size:11px;color:var(--text3);font-family:var(--mono);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ══ USER / CHANNEL CARD (mobile list) ══ */
+.list-card{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--rs);padding:14px;margin-bottom:10px;
+}
+.list-card-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.list-card-ico{width:40px;height:40px;border-radius:10px;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.list-card-info{flex:1;min-width:0}
+.list-card-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-card-sub{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.list-card-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ══ BADGE ══ */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono)}
+.b-g{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.25)}
+.b-y{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.25)}
+.b-r{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.b-c{background:rgba(6,182,212,.15);color:var(--cyan);border:1px solid rgba(6,182,212,.25)}
+.b-p{background:rgba(108,99,255,.15);color:var(--accent2);border:1px solid rgba(108,99,255,.25)}
+
+/* ══ BUTTONS ══ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:var(--rs);border:none;cursor:pointer;font-size:14px;font-family:var(--sans);font-weight:600;transition:all .15s;min-height:42px}
+.btn:active{opacity:.8;transform:scale(.97)}
+.btn-p{background:var(--accent);color:#fff}
+.btn-g{background:transparent;color:var(--text2);border:1.5px solid var(--border2)}
+.btn-d{background:rgba(239,68,68,.15);color:var(--red);border:1.5px solid rgba(239,68,68,.25)}
+.btn-s{background:rgba(34,197,94,.15);color:var(--green);border:1.5px solid rgba(34,197,94,.25)}
+.btn-sm{padding:7px 12px;font-size:12px;min-height:34px}
+.btn-full{width:100%}
+
+/* ══ FORM ══ */
+.fg{margin-bottom:18px}
+.fl{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px}
+.fc{
+  width:100%;background:var(--bg3);border:1.5px solid var(--border2);
+  border-radius:var(--rs);color:var(--text);padding:13px 14px;
+  font-size:16px;font-family:var(--sans);outline:none;
+  transition:border .15s;-webkit-appearance:none;
+}
+.fc:focus{border-color:var(--accent)}
+.fc::placeholder{color:var(--text3)}
+textarea.fc{resize:vertical;min-height:90px;font-size:14px}
+select.fc{cursor:pointer}
+.fhint{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.5}
+
+/* ══ TOGGLE ══ */
+.tgl-row{display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg3);border-radius:var(--rs);margin-bottom:10px;border:1px solid var(--border)}
+.tgl{position:relative;width:48px;height:28px;flex-shrink:0}
+.tgl input{opacity:0;width:0;height:0}
+.ts{position:absolute;inset:0;background:var(--bg4);border:1.5px solid var(--border2);border-radius:14px;cursor:pointer;transition:all .2s}
+.ts::before{content:'';position:absolute;width:20px;height:20px;background:var(--text3);border-radius:50%;top:3px;left:3px;transition:all .2s}
+.tgl input:checked+.ts{background:rgba(108,99,255,.25);border-color:var(--accent)}
+.tgl input:checked+.ts::before{transform:translateX(20px);background:var(--accent2)}
+.tgl-lbl{font-size:14px;color:var(--text);flex:1}
+
+/* ══ MODAL (bottom sheet on mobile) ══ */
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;align-items:flex-end;justify-content:center}
+.mbg.open{display:flex}
+.modal{
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:20px 20px 0 0;width:100%;max-height:92vh;
+  overflow-y:auto;animation:slideUp .25s ease;
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.mhd{
+  padding:16px 20px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;position:sticky;top:0;background:var(--bg2);z-index:1;
+}
+.mhd::before{content:'';position:absolute;top:8px;left:50%;transform:translateX(-50%);width:40px;height:4px;background:var(--border2);border-radius:2px}
+.mtitle{font-size:16px;font-weight:700;flex:1;padding-top:4px}
+.mclose{background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;padding:0 0 0 10px}
+.mbody{padding:18px 20px}
+.mfoot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px}
+.mfoot .btn{flex:1}
+
+/* ══ ALERT ══ */
+.alert{padding:13px 14px;border-radius:var(--rs);font-size:13px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;line-height:1.5}
+.a-info{background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.2);color:var(--cyan)}
+.a-warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);color:var(--yellow)}
+
+/* ══ SEARCH BAR ══ */
+.search-bar{
+  display:flex;align-items:center;background:var(--bg3);
+  border:1.5px solid var(--border2);border-radius:var(--rs);
+  padding:0 14px;margin-bottom:14px;gap:8px;
+}
+.search-bar input{
+  flex:1;background:none;border:none;color:var(--text);
+  padding:12px 0;font-size:15px;font-family:var(--sans);outline:none;
+}
+.search-bar input::placeholder{color:var(--text3)}
+.search-bar .sico{color:var(--text3);font-size:16px}
+
+/* ══ FILTER ROW ══ */
+.filter-row{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px}
+.filter-row::-webkit-scrollbar{display:none}
+.ftag{
+  padding:8px 14px;border-radius:20px;border:1.5px solid var(--border2);
+  background:transparent;color:var(--text3);font-size:13px;font-family:var(--sans);
+  cursor:pointer;white-space:nowrap;transition:all .15s;
+}
+.ftag.active{background:var(--glow);border-color:var(--accent);color:var(--accent2)}
+
+/* ══ TOAST ══ */
+#toast{position:fixed;top:calc(var(--top-h) + 10px);left:16px;right:16px;z-index:1000;display:flex;flex-direction:column;gap:8px}
+.tm{
+  background:var(--bg4);border:1px solid var(--border2);border-radius:var(--rs);
+  padding:13px 16px;font-size:14px;display:flex;align-items:center;gap:10px;
+  animation:tmin .3s ease;box-shadow:0 4px 20px rgba(0,0,0,.4);
+}
+@keyframes tmin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* ══ MISC ══ */
+.code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:3px 7px;border-radius:5px;color:var(--accent2)}
+.empty{text-align:center;padding:40px 20px;color:var(--text3)}
+.empty .eico{font-size:40px;display:block;margin-bottom:12px}
+.empty p{font-size:14px;line-height:1.6}
+.tag{display:inline-block;font-size:11px;font-family:var(--mono);padding:3px 8px;border-radius:5px;background:var(--bg4);color:var(--text3);border:1px solid var(--border);margin:2px}
+.section-lbl{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding:0 2px}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+/* ══ SKELETON LOADER ══ */
+.skel{background:linear-gradient(90deg,var(--bg3) 25%,var(--bg4) 50%,var(--bg3) 75%);background-size:200% 100%;animation:skel 1.5s infinite;border-radius:8px}
+@keyframes skel{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ══ RESPONSIVE: tablet/desktop gets sidebar back ══ */
+@media(min-width:768px){
+  .bottom-nav{display:none}
+  .topbar-menu{display:none}
+  .drawer,.drawer-bg{display:none!important}
+  .sidebar-desktop{
+    display:flex!important;
+    position:fixed;top:0;left:0;bottom:0;width:240px;
+    background:var(--bg2);border-right:1px solid var(--border);
+    flex-direction:column;z-index:50;overflow-y:auto;
+  }
+  .main{
+    margin-left:240px;
+    padding-top:calc(var(--top-h) + 16px);
+    padding-bottom:24px;
+    padding-left:24px;padding-right:24px;
+  }
+  .topbar{left:240px}
+  .stat-grid{grid-template-columns:repeat(3,1fr)}
+  .modal{border-radius:16px;max-width:480px;margin:auto}
+  .mbg{align-items:center}
+}
+.sidebar-desktop{display:none}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ SETUP SCREEN ══════════════ -->
+<div id="setup-screen">
+  <div class="setup-inner">
+    <div class="setup-logo">
+      <span class="ico">🤖</span>
+      <h1>Bot Admin Panel</h1>
+      <p>নিচের ৪টি তথ্য দিয়ে সংযোগ করুন</p>
+    </div>
+    <div class="sf">
+      <label>🌐 Bot API URL</label>
+      <input id="s-url" type="url" inputmode="url" placeholder="https://your-bot.onrender.com" autocomplete="off" autocorrect="off" autocapitalize="none">
+      <div class="hint">Render ড্যাশবোর্ড → সার্ভিস → উপরে URL দেওয়া আছে</div>
+    </div>
+    <div class="sf">
+      <label>🔑 Secret Key (PANEL_SECRET)</label>
+      <input id="s-key" type="password" placeholder="Render-এ যা সেট করেছেন" autocomplete="off">
+      <div class="hint">Render → Environment → PANEL_SECRET এর Value</div>
+    </div>
+    <div class="sf">
+      <label>🆔 আপনার Telegram Admin ID</label>
+      <input id="s-admin" type="tel" inputmode="numeric" placeholder="যেমন: 5991854507">
+      <div class="hint">না জানলে @userinfobot এ /start দিন</div>
+    </div>
+    <div class="sf">
+      <label>🤖 Bot Username</label>
+      <input id="s-user" type="text" placeholder="HKVIDEO_BOT (@ ছাড়া)" autocorrect="off" autocapitalize="none">
+    </div>
+    <div id="setup-status"></div>
+    <button id="setup-btn" onclick="doSetup()">🔌 সংযোগ করুন ও প্যানেল খুলুন</button>
+    <div class="setup-link">আগে সেটআপ করা থাকলে → <span onclick="autoLoad()">সেভ করা কনফিগ লোড করুন</span></div>
+  </div>
+</div>
+
+<!-- ══════════════ DESKTOP SIDEBAR ══════════════ -->
+<aside class="sidebar-desktop">
+  <div style="padding:20px 18px 14px;border-bottom:1px solid var(--border)">
+    <div style="width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--pink));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:10px">🤖</div>
+    <div style="font-size:15px;font-weight:700">Bot Admin Panel</div>
+    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px">Premium File Share v6.0</div>
+  </div>
+  <nav style="padding:10px">
+    <div class="ns">মেইন</div>
+    <button class="ni active" onclick="go('dashboard',this)"><span class="ico">📊</span>ড্যাশবোর্ড</button>
+    <button class="ni" onclick="go('scheduled',this)"><span class="ico">⏰</span>সিডিউল পোস্ট<span class="nbadge" id="sb-badge-d">0</span></button>
+    <button class="ni" onclick="go('categories',this)"><span class="ico">📂</span>ক্যাটাগরি</button>
+    <div class="ns">ম্যানেজমেন্ট</div>
+    <button class="ni" onclick="go('channels',this)"><span class="ico">📡</span>চ্যানেল</button>
+    <button class="ni" onclick="go('admins',this)"><span class="ico">👑</span>এডমিন</button>
+    <button class="ni" onclick="go('users',this)"><span class="ico">👥</span>ইউজার</button>
+    <button class="ni" onclick="go('files',this)"><span class="ico">🗂️</span>ফাইল</button>
+    <div class="ns">সিস্টেম</div>
+    <button class="ni" onclick="go('settings',this)"><span class="ico">⚙️</span>বট সেটিংস</button>
+    <button class="ni" onclick="go('forcesub',this)"><span class="ico">🔒</span>Force Subscribe</button>
+    <button class="ni" onclick="resetCFG()"><span class="ico">🔧</span>পুনরায় সেটআপ</button>
+  </nav>
+  <div style="padding:14px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);font-family:var(--mono)">
+    <span class="tb-dot" style="display:inline-block;margin-right:5px"></span>সংযুক্ত
+  </div>
+</aside>
+
+<!-- ══════════════ TOP BAR ══════════════ -->
+<div class="topbar">
+  <button class="topbar-menu" onclick="openDrawer()">☰</button>
+  <div class="tb-title" id="pg-title">ড্যাশবোর্ড</div>
+  <span class="tb-dot"></span>
+  <button class="tb-refresh" onclick="refresh()" title="রিফ্রেশ">🔄</button>
+</div>
+
+<!-- ══════════════ DRAWER ══════════════ -->
+<div class="drawer-bg" id="drawer-bg" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-hd">
+    <div class="drawer-logo">🤖</div>
+    <div><div style="font-size:15px;font-weight:700">Bot Admin Panel</div><div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px">Premium File Share v6.0</div></div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <nav>
+    <div class="ns">মেইন</div>
+    <button class="ni active" onclick="go('dashboard',this);closeDrawer()"><span class="ico">📊</span>ড্যাশবোর্ড</button>
+    <button class="ni" onclick="go('scheduled',this);closeDrawer()"><span class="ico">⏰</span>সিডিউল পোস্ট<span class="nbadge" id="sb-badge">0</span></button>
+    <button class="ni" onclick="go('categories',this);closeDrawer()"><span class="ico">📂</span>ক্যাটাগরি</button>
+    <div class="ns">ম্যানেজমেন্ট</div>
+    <button class="ni" onclick="go('channels',this);closeDrawer()"><span class="ico">📡</span>চ্যানেল</button>
+    <button class="ni" onclick="go('admins',this);closeDrawer()"><span class="ico">👑</span>এডমিন</button>
+    <button class="ni" onclick="go('users',this);closeDrawer()"><span class="ico">👥</span>ইউজার</button>
+    <button class="ni" onclick="go('files',this);closeDrawer()"><span class="ico">🗂️</span>ফাইল</button>
+    <div class="ns">সিস্টেম</div>
+    <button class="ni" onclick="go('settings',this);closeDrawer()"><span class="ico">⚙️</span>বট সেটিংস</button>
+    <button class="ni" onclick="go('forcesub',this);closeDrawer()"><span class="ico">🔒</span>Force Subscribe</button>
+    <button class="ni" onclick="resetCFG()"><span class="ico">🔧</span>পুনরায় সেটআপ</button>
+  </nav>
+  <div class="drawer-foot"><span class="tb-dot" style="display:inline-block;margin-right:5px"></span>সংযুক্ত: <span id="conn-url" style="color:var(--text2)"></span></div>
+</div>
+
+<!-- ══════════════ MAIN CONTENT ══════════════ -->
+<div class="main">
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="stat-grid">
+      <div class="sc blue"><span class="sc-ico">👥</span><div class="sc-val" id="sv-users">—</div><div class="sc-lbl">মোট ইউজার</div><div class="sc-sub" id="sv-active"></div></div>
+      <div class="sc green"><span class="sc-ico">🗂️</span><div class="sc-val" id="sv-files">—</div><div class="sc-lbl">মোট ফাইল</div><div class="sc-sub" id="sv-ul"></div></div>
+      <div class="sc yellow"><span class="sc-ico">📥</span><div class="sc-val" id="sv-dl">—</div><div class="sc-lbl">ডাউনলোড আজ</div></div>
+      <div class="sc cyan"><span class="sc-ico">👑</span><div class="sc-val" id="sv-adm">—</div><div class="sc-lbl">মোট এডমিন</div></div>
+      <div class="sc red"><span class="sc-ico">🚫</span><div class="sc-val" id="sv-ban">—</div><div class="sc-lbl">ব্যানড ইউজার</div></div>
+      <div class="sc pink"><span class="sc-ico">⏰</span><div class="sc-val" id="sv-sched">—</div><div class="sc-lbl">পেন্ডিং সিডিউল</div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span>⏰</span><div class="card-title">আসন্ন সিডিউল পোস্ট</div><button class="btn btn-sm btn-p" onclick="go('scheduled',null)">সব →</button></div>
+      <div class="card-body" id="d-upcoming"><div class="empty"><span class="eico">📭</span><p>লোড হচ্ছে…</p></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span>📡</span><div class="card-title">সক্রিয় চ্যানেল</div><button class="btn btn-sm btn-p" onclick="go('channels',null)">সব →</button></div>
+      <div class="card-body" id="d-channels"><div class="empty"><span class="eico">📡</span><p>লোড হচ্ছে…</p></div></div>
+    </div>
+  </div>
+
+  <!-- SCHEDULED -->
+  <div class="page" id="page-scheduled">
+    <div class="filter-row" id="sched-filters">
+      <button class="ftag active" onclick="filterSched('all',this)">সব</button>
+      <button class="ftag" onclick="filterSched('pending',this)">⏳ পেন্ডিং</button>
+      <button class="ftag" onclick="filterSched('done',this)">✅ সম্পন্ন</button>
+      <button class="ftag" onclick="filterSched('error',this)">❌ ব্যর্থ</button>
+    </div>
+    <div id="sched-list"><div class="empty"><span class="eico">⏰</span><p>লোড হচ্ছে…</p></div></div>
+  </div>
+
+  <!-- CATEGORIES -->
+  <div class="page" id="page-categories">
+    <div id="cat-list"><div class="empty"><span class="eico">📂</span><p>লোড হচ্ছে…</p></div></div>
+  </div>
+
+  <!-- CHANNELS -->
+  <div class="page" id="page-channels">
+    <div id="ch-list"><div class="empty"><span class="eico">📡</span><p>লোড হচ্ছে…</p></div></div>
+  </div>
+
+  <!-- ADMINS -->
+  <div class="page" id="page-admins">
+    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-admin')">👑 + নতুন এডমিন যোগ করুন</button>
+    <div id="adm-list"><div class="empty"><span class="eico">👑</span><p>লোড হচ্ছে…</p></div></div>
+  </div>
+
+  <!-- USERS -->
+  <div class="page" id="page-users">
+    <div class="search-bar">
+      <span class="sico">🔍</span>
+      <input type="search" inputmode="numeric" placeholder="Chat ID দিয়ে খুঁজুন…" oninput="searchU(this.value)">
+    </div>
+    <div id="usr-list"><div class="empty"><span class="eico">👥</span><p>লোড হচ্ছে…</p></div></div>
+  </div>
+
+  <!-- FILES -->
+  <div class="page" id="page-files">
+    <div class="search-bar">
+      <span class="sico">🔍</span>
+      <input type="search" placeholder="File Key দিয়ে খুঁজুন…" oninput="searchF(this.value)">
+    </div>
+    <div id="file-list"><div class="empty"><span class="eico">🗂️</span><p>লোড হচ্ছে…</p></div></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="section-lbl">সাধারণ সেটিংস</div>
+    <div class="tgl-row"><div class="tgl-lbl">🔒 Protect Content (ফরওয়ার্ড বন্ধ)</div><label class="tgl"><input type="checkbox" id="t-protect" onchange="saveSetting('protect_content',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl">🔗 Short Link চালু</div><label class="tgl"><input type="checkbox" id="t-sl" onchange="saveSetting('short_link_on',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl">🔒 Force Subscribe চালু</div><label class="tgl"><input type="checkbox" id="t-fs" onchange="saveSetting('force_sub_on',+this.checked)"><span class="ts"></span></label></div>
+    <div class="divider"></div>
+    <div class="section-lbl">বাটন সেটিংস</div>
+    <div class="tgl-row"><div class="tgl-lbl">⬇️ Download বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-dl" onchange="saveSetting('btn_download',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl">↗️ Share বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-sh" onchange="saveSetting('btn_share',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl">🎓 Tutorial বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-tut" onchange="saveSetting('btn_tutorial',+this.checked)"><span class="ts"></span></label></div>
+    <div class="divider"></div>
+    <button class="btn btn-d btn-full" onclick="resetCFG()">🔧 পুনরায় সেটআপ করুন</button>
+  </div>
+
+  <!-- FORCE SUB -->
+  <div class="page" id="page-forcesub">
+    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-fs')">🔒 + Force Sub চ্যানেল যোগ</button>
+    <div id="fs-list"><div class="empty"><span class="eico">🔒</span><p>লোড হচ্ছে…</p></div></div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ══════════════ BOTTOM NAV ══════════════ -->
+<nav class="bottom-nav">
+  <button class="bn-item active" onclick="go('dashboard',this)" id="bn-dashboard">
+    <span class="bn-ico">📊</span><span class="bn-lbl">ড্যাশবোর্ড</span>
+  </button>
+  <button class="bn-item" onclick="go('scheduled',this)" id="bn-scheduled">
+    <span class="bn-ico">⏰</span><span class="bn-lbl">সিডিউল</span>
+    <span class="bn-badge" id="bn-badge" style="display:none">0</span>
+  </button>
+  <button class="bn-item" onclick="go('users',this)" id="bn-users">
+    <span class="bn-ico">👥</span><span class="bn-lbl">ইউজার</span>
+  </button>
+  <button class="bn-item" onclick="go('settings',this)" id="bn-settings">
+    <span class="bn-ico">⚙️</span><span class="bn-lbl">সেটিংস</span>
+  </button>
+</nav>
+
+<!-- ══════════════ MODALS ══════════════ -->
+<div class="mbg" id="m-info">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">⏰ সিডিউল পোস্ট তৈরি</span><button class="mclose" onclick="closeM('m-info')">✕</button></div>
+    <div class="mbody">
+      <div class="alert a-info">টেলিগ্রামে বটে মিডিয়া পাঠান (ছবি/ভিডিও/ফাইল) → তারপর ⏰ বাটনে ক্লিক করুন → সময় সেট করুন। সিডিউল এই প্যানেলে স্বয়ংক্রিয়ভাবে দেখাবে।</div>
+    </div>
+    <div class="mfoot"><button class="btn btn-p" onclick="closeM('m-info')">বুঝেছি ✓</button></div>
+  </div>
+</div>
+
+<div class="mbg" id="m-admin">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">👑 নতুন এডমিন যোগ</span><button class="mclose" onclick="closeM('m-admin')">✕</button></div>
+    <div class="mbody">
+      <div class="fg">
+        <label class="fl">🆔 Telegram Chat ID</label>
+        <input class="fc" id="new-adm" type="tel" inputmode="numeric" placeholder="5991854507">
+        <div class="fhint">বটের কাছে /id পাঠিয়ে Chat ID জানুন</div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-g" onclick="closeM('m-admin')">বাতিল</button>
+      <button class="btn btn-p" onclick="addAdmin()">✅ এডমিন করুন</button>
+    </div>
+  </div>
+</div>
+
+<div class="mbg" id="m-fs">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">🔒 Force Subscribe যোগ</span><button class="mclose" onclick="closeM('m-fs')">✕</button></div>
+    <div class="mbody">
+      <div class="alert a-warn">⚠️ বটকে চ্যানেলের অ্যাডমিন করতে হবে।</div>
+      <div class="fg"><label class="fl">📝 চ্যানেল নাম</label><input class="fc" id="fs-nm" placeholder="আমার চ্যানেল"></div>
+      <div class="fg"><label class="fl">🆔 চ্যানেল ID</label><input class="fc" id="fs-id" type="tel" inputmode="numeric" placeholder="-100xxxxxxxxxx"><div class="fhint">Telegram চ্যানেলের numeric ID (মাইনাস সহ)</div></div>
+      <div class="fg"><label class="fl">🔗 Join লিংক</label><input class="fc" id="fs-url" type="url" inputmode="url" placeholder="https://t.me/mychannel"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-g" onclick="closeM('m-fs')">বাতিল</button>
+      <button class="btn btn-p" onclick="addFS()">✅ যোগ করুন</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════ CONFIG ══════════
+let CFG={}, D={scheduled:[],categories:[],channels:[],admins:[],users:[],files:[]};
+let currentFilter='all';
+
+function loadCFG(){try{CFG=JSON.parse(localStorage.getItem('botpanel')||'{}')}catch{CFG={}}}
+function saveCFG(){localStorage.setItem('botpanel',JSON.stringify(CFG))}
+
+loadCFG();
+if(CFG.url&&CFG.key) hideSetup();
+
+function autoLoad(){
+  loadCFG();
+  $('s-url').value=CFG.url||'';
+  $('s-key').value=CFG.key||'';
+  $('s-admin').value=CFG.admin||'';
+  $('s-user').value=CFG.user||'';
+  toast('✅ আগের কনফিগ লোড হয়েছে','success');
+}
+
+// ══════════ SETUP ══════════
+async function doSetup(){
+  const url=$('s-url').value.trim().replace(/\/+$/,'');
+  const key=$('s-key').value.trim();
+  const admin=$('s-admin').value.trim();
+  const user=$('s-user').value.trim();
+  if(!url){showSS('❌ Bot API URL দিন!','s-err');return}
+  if(!key){showSS('❌ Secret Key দিন!','s-err');return}
+  const btn=$('setup-btn');
+  btn.disabled=true; btn.textContent='⏳ পরীক্ষা হচ্ছে…';
+  showSS('⏳ বটের সাথে যোগাযোগ করা হচ্ছে…','s-load');
+  try{
+    const r1=await fetch(url+'/health',{signal:AbortSignal.timeout(10000)});
+    if(!r1.ok) throw new Error('বট সার্ভার সাড়া দেয়নি ('+r1.status+')');
+    const r2=await fetch(url+'/api/stats',{headers:{'X-Admin-Key':key},signal:AbortSignal.timeout(10000)});
+    if(r2.status===401){showSS('❌ Secret Key ভুল! Render-এ PANEL_SECRET চেক করুন।','s-err');btn.disabled=false;btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';return}
+    if(!r2.ok) throw new Error('API Error: '+r2.status);
+    CFG={url,key,admin,user};saveCFG();
+    showSS('✅ সফল! প্যানেল খুলছে…','s-ok');
+    setTimeout(hideSetup,700);
+  }catch(e){
+    showSS('❌ '+(e.name==='TimeoutError'?'সময় শেষ। Render চালু আছে কিনা দেখুন।':e.message||'সংযোগ ব্যর্থ'),'s-err');
+    btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
+  }
+}
+function showSS(msg,cls){const el=$('setup-status');el.textContent=msg;el.className=cls;el.style.display='block'}
+function hideSetup(){
+  $('setup-screen').style.display='none';
+  const short=(CFG.url||'').replace('https://','').split('.')[0];
+  $('conn-url').textContent=short;
+  loadPage('dashboard');
+}
+function resetCFG(){if(!confirm('সেটআপ রিসেট করবেন?'))return;localStorage.removeItem('botpanel');location.reload()}
+
+// ══════════ API ══════════
+async function api(path,method='GET',body=null){
+  try{
+    const opts={method,headers:{'Content-Type':'application/json','X-Admin-Key':CFG.key||''},signal:AbortSignal.timeout(12000)};
+    if(body) opts.body=JSON.stringify(body);
+    const r=await fetch((CFG.url||'').replace(/\/+$/,'')+path,opts);
+    if(r.status===401){toast('❌ Auth Error — Secret Key ভুল?','danger');return null}
+    if(!r.ok){toast('⚠️ API Error: '+r.status,'warn');return null}
+    return await r.json();
+  }catch(e){
+    if(e.name==='TimeoutError') toast('⚠️ সময় শেষ হয়ে গেছে','warn');
+    return null;
+  }
+}
+
+// ══════════ NAVIGATION ══════════
+const TITLES={dashboard:'ড্যাশবোর্ড',scheduled:'সিডিউল পোস্ট',categories:'ক্যাটাগরি',channels:'চ্যানেল',admins:'এডমিন',users:'ইউজার',files:'ফাইল',settings:'সেটিংস',forcesub:'Force Subscribe'};
+
+function go(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  // drawer nav + desktop nav
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  // bottom nav
+  document.querySelectorAll('.bn-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(el){
+    el.classList.add('active');
+    // sync bottom nav
+    const bn=document.getElementById('bn-'+id);
+    if(bn) bn.classList.add('active');
+  }
+  $('pg-title').textContent=TITLES[id]||id;
+  loadPage(id);
+  window.scrollTo(0,0);
+}
+
+function loadPage(id){
+  if(id==='dashboard') loadDash();
+  if(id==='scheduled') loadSched();
+  if(id==='categories') loadCats();
+  if(id==='channels') loadChs();
+  if(id==='admins') loadAdms();
+  if(id==='users') loadUsers();
+  if(id==='files') loadFiles();
+  if(id==='settings') loadSets();
+  if(id==='forcesub') loadFS();
+}
+
+function refresh(){
+  const p=document.querySelector('.page.active');
+  const id=p?.id?.replace('page-','');
+  if(id) loadPage(id);
+  toast('🔄 রিফ্রেশ হচ্ছে…','info');
+}
+
+// ══════════ DRAWER ══════════
+function openDrawer(){$('drawer').classList.add('open');$('drawer-bg').classList.add('open')}
+function closeDrawer(){$('drawer').classList.remove('open');$('drawer-bg').classList.remove('open')}
+
+// ══════════ DASHBOARD ══════════
+async function loadDash(){
+  const [stats,scheds,chans]=await Promise.all([api('/api/stats'),api('/api/scheduled'),api('/api/channels')]);
+  if(stats){
+    set('sv-users',n(stats.total_users));set('sv-files',n(stats.total_files));
+    set('sv-dl',n(stats.dl_today));set('sv-adm',n(stats.total_admins));
+    set('sv-ban',n(stats.total_banned));
+    set('sv-active',n(stats.active_today)+' সক্রিয়');
+    set('sv-ul',n(stats.ul_today)+' আপলোড');
+  }else toast('⚠️ স্ট্যাটস লোড হয়নি','warn');
+
+  if(scheds){
+    D.scheduled=scheds;
+    const pend=scheds.filter(x=>x.status==='pending');
+    set('sv-sched',n(pend.length));
+    set('sb-badge',pend.length); set('sb-badge-d',pend.length);
+    const bnb=$('bn-badge');
+    if(pend.length>0){bnb.textContent=pend.length;bnb.style.display='block'}else{bnb.style.display='none'}
+    const ul=$('d-upcoming');
+    if(!pend.length){ul.innerHTML='<div class="empty"><span class="eico">📭</span><p>কোনো পেন্ডিং পোস্ট নেই</p></div>';}
+    else ul.innerHTML=pend.slice(0,4).map(s=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:24px">${mico(s.media_type)}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:600">${s.category_id?'📂 ক্যাটাগরি':'🌐 সব চ্যানেল'}</div>
+          <div style="font-size:12px;color:var(--text3);font-family:var(--mono);margin-top:2px">${ft(s.scheduled_at)}</div>
+        </div>
+        <button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')">🗑️</button>
+      </div>`).join('');
+  }
+
+  if(chans){
+    D.channels=chans;
+    const el=$('d-channels');
+    if(!chans.length){el.innerHTML='<div class="empty"><span class="eico">📡</span><p>কোনো চ্যানেল নেই</p></div>';}
+    else el.innerHTML=`<div style="font-size:13px;color:var(--text2);margin-bottom:10px">সক্রিয়: <b style="color:var(--green)">${chans.filter(c=>c.status==='on').length}</b> / মোট: <b>${chans.length}</b></div>`+
+      chans.slice(0,5).map(c=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+          <span class="badge ${c.type==='premium'?'b-c':c.type==='log'?'b-p':'b-y'}">${c.type==='premium'?'💎':c.type==='log'?'📋':'📢'}</span>
+          <span style="font-size:14px;flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</span>
+          <span class="badge ${c.status==='on'?'b-g':'b-r'}">${c.status==='on'?'চালু':'বন্ধ'}</span>
+        </div>`).join('');
+  }
+}
+
+// ══════════ SCHEDULED ══════════
+async function loadSched(){
+  const res=await api('/api/scheduled');
+  if(res) D.scheduled=res;
+  filterSched(currentFilter);
+}
+function filterSched(f,el){
+  currentFilter=f||currentFilter;
+  if(el){document.querySelectorAll('.ftag').forEach(t=>t.classList.remove('active'));el.classList.add('active')}
+  const items=currentFilter==='all'?D.scheduled:D.scheduled.filter(x=>x.status===currentFilter);
+  const cont=$('sched-list');
+  if(!items.length){cont.innerHTML='<div class="empty"><span class="eico">⏰</span><p>কোনো সিডিউল পোস্ট নেই</p></div>';return}
+  cont.innerHTML=items.map(s=>`
+    <div class="si">
+      <div class="si-row">
+        <div class="si-thumb">${mico(s.media_type)}</div>
+        <div class="si-info">
+          <div class="si-title">${s.category_id?'📂 ক্যাটাগরি পোস্ট':'🌐 সব চ্যানেলে পোস্ট'}</div>
+          <div class="si-time">⏰ ${ft(s.scheduled_at)}</div>
+        </div>
+      </div>
+      <div class="si-footer">
+        <span class="si-id">🆔 ${s.sched_id||'—'}</span>
+        <span class="badge ${sbadge(s.status)}">${slbl(s.status)}</span>
+        ${s.status==='pending'?`<button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')">🗑️ ডিলিট</button>`:''}
+      </div>
+    </div>`).join('');
+}
+async function delSched(id){
+  if(!confirm('এই সিডিউল পোস্ট ডিলিট করবেন?'))return;
+  const r=await api('/api/scheduled/delete/'+id,'DELETE');
+  if(r){D.scheduled=D.scheduled.filter(x=>x.sched_id!==id);filterSched(currentFilter);
+    const p=D.scheduled.filter(x=>x.status==='pending').length;
+    set('sb-badge',p);set('sb-badge-d',p);
+    const bnb=$('bn-badge');if(p>0){bnb.textContent=p;bnb.style.display='block'}else bnb.style.display='none';
+    toast('🗑️ সিডিউল ডিলিট হয়েছে','danger');
+  }else toast('❌ ডিলিট ব্যর্থ','danger');
+}
+
+// ══════════ CATEGORIES ══════════
+async function loadCats(){
+  const res=await api('/api/categories');
+  if(res) D.categories=res;
+  const el=$('cat-list');
+  if(!D.categories.length){el.innerHTML='<div class="empty"><span class="eico">📂</span><p>কোনো ক্যাটাগরি নেই<br>বটে /addcat দিয়ে তৈরি করুন</p></div>';return}
+  el.innerHTML=D.categories.map(c=>`
+    <div class="list-card">
+      <div class="list-card-row">
+        <div class="list-card-ico">📂</div>
+        <div class="list-card-info">
+          <div class="list-card-title">${c.name}</div>
+          <div class="list-card-sub">${(c.channels||[]).length}টি চ্যানেল</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">${(c.channels||[]).map(ch=>`<span class="tag">${ch.name||ch.channel_id}</span>`).join('')}</div>
+    </div>`).join('');
+}
+
+// ══════════ CHANNELS ══════════
+async function loadChs(){
+  const res=await api('/api/channels');
+  if(res) D.channels=res;
+  const el=$('ch-list');
+  if(!D.channels.length){el.innerHTML='<div class="empty"><span class="eico">📡</span><p>কোনো চ্যানেল নেই</p></div>';return}
+  el.innerHTML=D.channels.map(c=>`
+    <div class="list-card">
+      <div class="list-card-row">
+        <div class="list-card-ico">${c.type==='premium'?'💎':c.type==='log'?'📋':'📢'}</div>
+        <div class="list-card-info">
+          <div class="list-card-title">${c.name}</div>
+          <div class="list-card-sub">${c.channel_id}</div>
+        </div>
+        <span class="badge ${c.status==='on'?'b-g':'b-r'}">${c.status==='on'?'চালু':'বন্ধ'}</span>
+      </div>
+      <div class="list-card-actions">
+        <span class="badge ${c.type==='premium'?'b-c':c.type==='log'?'b-p':'b-y'}">${c.type==='premium'?'💎 Premium':c.type==='log'?'📋 Log':'📢 Ad'}</span>
+        <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="delCh('${c.ch_id}')">🗑️ সরান</button>
+      </div>
+    </div>`).join('');
+}
+async function delCh(id){
+  if(!confirm('চ্যানেলটি সরাবেন?'))return;
+  const r=await api('/api/channels/delete/'+id,'DELETE');
+  if(r?.ok){D.channels=D.channels.filter(x=>x.ch_id!==id);loadChs();toast('✅ চ্যানেল সরানো হয়েছে','success')}
+  else toast('❌ ব্যর্থ','danger');
+}
+
+// ══════════ ADMINS ══════════
+async function loadAdms(){
+  const res=await api('/api/admins');
+  if(res) D.admins=res;
+  const el=$('adm-list');
+  if(!D.admins.length){el.innerHTML='<div class="empty"><span class="eico">👑</span><p>কোনো এডমিন নেই</p></div>';return}
+  el.innerHTML=D.admins.map(a=>`
+    <div class="list-card">
+      <div class="list-card-row">
+        <div class="list-card-ico">${a.role==='super_admin'?'⭐':'👑'}</div>
+        <div class="list-card-info">
+          <div class="list-card-title"><span class="code">${a.chat_id}</span></div>
+          <div class="list-card-sub">${fd(a.added_at)}</div>
+        </div>
+        <span class="badge ${a.role==='super_admin'?'b-c':'b-p'}">${a.role==='super_admin'?'Super':'Admin'}</span>
+      </div>
+      ${a.role==='super_admin'?'':'<button class="btn btn-d btn-sm" onclick="delAdm(\''+a.chat_id+'\')">🗑️ এডমিন থেকে সরান</button>'}
+    </div>`).join('');
+}
+async function addAdmin(){
+  const id=$('new-adm').value.trim();
+  if(!id){toast('⚠️ Chat ID দিন','warn');return}
+  const r=await api('/api/admins/add','POST',{chat_id:id});
+  if(r?.ok){closeM('m-admin');loadAdms();toast('✅ এডমিন যোগ হয়েছে','success')}
+  else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+}
+async function delAdm(id){
+  if(!confirm('এই এডমিনকে সরাবেন?'))return;
+  const r=await api('/api/admins/delete/'+id,'DELETE');
+  if(r?.ok){loadAdms();toast('✅ এডমিন সরানো হয়েছে','success')}
+  else toast('❌ ব্যর্থ','danger');
+}
+
+// ══════════ USERS ══════════
+async function loadUsers(q=''){
+  const res=await api('/api/users?limit=50&q='+encodeURIComponent(q));
+  if(res) D.users=res;
+  const el=$('usr-list');
+  if(!D.users.length){el.innerHTML='<div class="empty"><span class="eico">👥</span><p>কোনো ইউজার পাওয়া যায়নি</p></div>';return}
+  el.innerHTML=D.users.map(u=>`
+    <div class="list-card">
+      <div class="list-card-row">
+        <div class="list-card-ico">👤</div>
+        <div class="list-card-info">
+          <div class="list-card-title"><span class="code">${u.chat_id}</span></div>
+          <div class="list-card-sub">যোগ: ${fd(u.joined_at)} • শেষ: ${fd(u.last_active)}</div>
+        </div>
+      </div>
+      <div class="list-card-actions">
+        <span class="badge b-p">⬆️ ${u.total_uploads||0}</span>
+        <span class="badge b-c">⬇️ ${u.total_downloads||0}</span>
+        <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="banU('${u.chat_id}')">🚫 ব্যান</button>
+      </div>
+    </div>`).join('');
+}
+let uTimer;
+function searchU(q){clearTimeout(uTimer);uTimer=setTimeout(()=>loadUsers(q),400)}
+async function banU(id){
+  if(!confirm(id+' কে ব্যান করবেন?'))return;
+  const r=await api('/api/users/ban','POST',{chat_id:id});
+  if(r?.ok) toast('✅ ব্যান হয়েছে','success');
+  else toast('❌ ব্যর্থ','danger');
+}
+
+// ══════════ FILES ══════════
+async function loadFiles(q=''){
+  const res=await api('/api/files?limit=50&q='+encodeURIComponent(q));
+  if(res) D.files=res;
+  const el=$('file-list');
+  if(!D.files.length){el.innerHTML='<div class="empty"><span class="eico">🗂️</span><p>কোনো ফাইল নেই</p></div>';return}
+  el.innerHTML=D.files.map(f=>`
+    <div class="list-card">
+      <div class="list-card-row">
+        <div class="list-card-ico">${mico(f.type)}</div>
+        <div class="list-card-info">
+          <div class="list-card-title"><span class="code">${f.file_key}</span></div>
+          <div class="list-card-sub">আপলোডার: ${f.uploader||'—'} • ${fd(f.uploaded_at)}</div>
+        </div>
+      </div>
+      <a href="https://t.me/${CFG.user||'Bot'}?start=${f.file_key}" target="_blank" class="btn btn-g btn-sm">🔗 লিংক খুলুন</a>
+    </div>`).join('');
+}
+let fTimer;
+function searchF(q){clearTimeout(fTimer);fTimer=setTimeout(()=>loadFiles(q),400)}
+
+// ══════════ SETTINGS ══════════
+async function loadSets(){
+  const res=await api('/api/settings');
+  if(!res){toast('⚠️ সেটিংস লোড হয়নি','warn');return}
+  const m={protect_content:'t-protect',short_link_on:'t-sl',force_sub_on:'t-fs',btn_download:'t-dl',btn_share:'t-sh',btn_tutorial:'t-tut'};
+  Object.entries(m).forEach(([k,id])=>{const el=document.getElementById(id);if(el)el.checked=!!res[k]});
+}
+async function saveSetting(key,val){
+  const r=await api('/api/settings','POST',{key,value:val});
+  toast(r?.ok?'✅ সেটিং সেভ হয়েছে':'❌ সেভ ব্যর্থ',r?.ok?'success':'danger');
+}
+
+// ══════════ FORCE SUB ══════════
+async function loadFS(){
+  const res=await api('/api/forcesub');
+  const el=$('fs-list');
+  if(!res||!res.length){el.innerHTML='<div class="empty"><span class="eico">🔒</span><p>কোনো Force Subscribe চ্যানেল নেই</p></div>';return}
+  el.innerHTML=res.map(f=>`
+    <div class="list-card">
+      <div class="list-card-row">
+        <div class="list-card-ico">🔒</div>
+        <div class="list-card-info">
+          <div class="list-card-title">${f.name}</div>
+          <div class="list-card-sub">${f.channel_id}</div>
+        </div>
+        <span class="badge ${f.status==='on'?'b-g':'b-r'}">${f.status==='on'?'চালু':'বন্ধ'}</span>
+      </div>
+      <div class="list-card-actions">
+        <a href="${f.url}" target="_blank" class="btn btn-g btn-sm">🔗 লিংক</a>
+        <button class="btn ${f.status==='on'?'btn-g':'btn-s'} btn-sm" onclick="toggleFS('${f.fs_id}')">${f.status==='on'?'⏸ বন্ধ':'▶ চালু'}</button>
+        <button class="btn btn-d btn-sm" onclick="deleteFS('${f.fs_id}')">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+async function addFS(){
+  const nm=$('fs-nm').value.trim();
+  const id=$('fs-id').value.trim();
+  const url=$('fs-url').value.trim();
+  if(!nm||!id||!url){toast('⚠️ সব তথ্য পূরণ করুন','warn');return}
+  toast('ℹ️ এই ফিচার শীঘ্রই — এখন বটে /addforcesub ব্যবহার করুন','info');
+  closeM('m-fs');
+}
+async function toggleFS(id){const r=await api('/api/forcesub/toggle/'+id,'POST');if(r?.ok){loadFS();toast('✅ পরিবর্তন হয়েছে','success')}}
+async function deleteFS(id){if(!confirm('মুছবেন?'))return;const r=await api('/api/forcesub/delete/'+id,'DELETE');if(r?.ok){loadFS();toast('🗑️ মুছে গেছে','danger')}}
+
+// ══════════ MODAL ══════════
+function openM(id){document.getElementById(id).classList.add('open');document.body.style.overflow='hidden'}
+function closeM(id){document.getElementById(id).classList.remove('open');document.body.style.overflow=''}
+document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m){m.classList.remove('open');document.body.style.overflow=''}}));
+
+// ══════════ TOAST ══════════
+function toast(msg,type='info'){
+  const C={info:'var(--cyan)',success:'var(--green)',warn:'var(--yellow)',danger:'var(--red)'};
+  const I={info:'ℹ️',success:'✅',warn:'⚠️',danger:'❌'};
+  const el=document.createElement('div');el.className='tm';
+  el.style.borderLeft='3px solid '+(C[type]||C.info);
+  el.innerHTML='<span>'+I[type]+'</span><span>'+msg+'</span>';
+  $('toast').appendChild(el);
+  setTimeout(()=>el.remove(),3500);
+}
+
+// ══════════ HELPERS ══════════
+function $(id){return document.getElementById(id)}
+function set(id,v){const e=$(id);if(e)e.textContent=v}
+function n(v){return (v||0).toLocaleString('bn-BD')}
+function mico(t){return{video:'🎬',photo:'🖼️',document:'📄',audio:'🎵'}[t]||'📁'}
+function sbadge(s){return{pending:'b-y',done:'b-g',error:'b-r'}[s]||'b-p'}
+function slbl(s){return{pending:'⏳ পেন্ডিং',done:'✅ সম্পন্ন',error:'❌ ব্যর্থ'}[s]||s}
+function ft(iso){if(!iso)return'—';try{return new Date(iso).toLocaleString('bn-BD',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}catch{return iso.slice(0,16).replace('T',' ')}}
+function fd(iso){if(!iso)return'—';try{return new Date(iso).toLocaleDateString('bn-BD')}catch{return iso.slice(0,10)}}
+</script>
+</body>
+</html>
