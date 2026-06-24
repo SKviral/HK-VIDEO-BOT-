@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EarnBot</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #0F0F1A;
+    --bg2: #1A1A2E;
+    --bg3: #16213E;
+    --card: #1E1E35;
+    --card2: #252540;
+    --accent: #7C3AED;
+    --accent2: #A855F7;
+    --gold: #F59E0B;
+    --gold2: #FCD34D;
+    --green: #10B981;
+    --red: #EF4444;
+    --text: #F1F5F9;
+    --text2: #94A3B8;
+    --text3: #64748B;
+    --border: rgba(124,58,237,0.2);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    font-family: -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    padding-bottom: 80px;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(15,15,26,0.92);
+    backdrop-filter: blur(12px);
+    padding: 14px 20px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-left { display:flex; align-items:center; gap:10px; }
+  .avatar {
+    width:36px; height:36px; border-radius:50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; font-weight:700; color:#fff;
+    flex-shrink:0;
+  }
+  .user-name { font-size:15px; font-weight:600; color:var(--text); }
+  .user-level { font-size:11px; color:var(--text2); margin-top:1px; }
+  .coin-pill {
+    display:flex; align-items:center; gap:5px;
+    background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(252,211,77,0.1));
+    border:1px solid rgba(245,158,11,0.3);
+    border-radius:20px; padding:6px 12px;
+  }
+  .coin-pill span:first-child { font-size:16px; }
+  .coin-pill .amount { font-size:14px; font-weight:700; color:var(--gold); }
+
+  /* ── PAGES ── */
+  .page { display:none; padding:0 16px; animation: fadeUp .25s ease; }
+  .page.active { display:block; }
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(8px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  /* ── HOME ── */
+  .hero {
+    margin: 16px 0 20px;
+    background: linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #1E1B4B 100%);
+    border-radius: 20px; padding: 24px 20px;
+    position:relative; overflow:hidden;
+    border: 1px solid rgba(124,58,237,0.4);
+  }
+  .hero::before {
+    content:''; position:absolute; top:-30px; right:-30px;
+    width:120px; height:120px; border-radius:50%;
+    background: radial-gradient(circle, rgba(168,85,247,0.3), transparent);
+  }
+  .hero::after {
+    content:''; position:absolute; bottom:-20px; left:20px;
+    width:80px; height:80px; border-radius:50%;
+    background: radial-gradient(circle, rgba(245,158,11,0.2), transparent);
+  }
+  .hero-label { font-size:12px; color:rgba(196,181,253,0.8); font-weight:500; letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px; }
+  .hero-balance { font-size:42px; font-weight:800; color:#fff; line-height:1; }
+  .hero-balance span { font-size:22px; color:var(--gold2); margin-right:4px; }
+  .hero-sub { font-size:13px; color:rgba(196,181,253,0.7); margin-top:6px; }
+  .hero-actions { display:flex; gap:10px; margin-top:18px; position:relative; z-index:1; }
+  .btn-hero {
+    flex:1; padding:11px; border-radius:12px; border:none; cursor:pointer;
+    font-size:13px; font-weight:600; transition: all .2s;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn-hero-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color:#fff;
+  }
+  .btn-hero-secondary {
+    background: rgba(255,255,255,0.1); color:#fff;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .btn-hero:active { transform:scale(0.97); }
+
+  /* Stats row */
+  .stats-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px; }
+  .stat-card {
+    background:var(--card); border-radius:var(--radius-sm);
+    padding:14px 12px; text-align:center;
+    border:1px solid var(--border);
+  }
+  .stat-icon { font-size:20px; margin-bottom:4px; }
+  .stat-val { font-size:18px; font-weight:700; color:var(--text); }
+  .stat-lbl { font-size:11px; color:var(--text2); margin-top:2px; }
+
+  /* Daily checkin */
+  .section-title { font-size:13px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; }
+  .checkin-card {
+    background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.05));
+    border:1px solid rgba(16,185,129,0.25); border-radius:var(--radius);
+    padding:16px 18px; display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:20px;
+  }
+  .checkin-info h4 { font-size:15px; font-weight:600; color:var(--text); }
+  .checkin-info p { font-size:12px; color:var(--text2); margin-top:3px; }
+  .btn-checkin {
+    background: linear-gradient(135deg, var(--green), #059669);
+    color:#fff; border:none; padding:9px 18px; border-radius:10px;
+    font-size:13px; font-weight:600; cursor:pointer; transition:.2s;
+    white-space:nowrap;
+  }
+  .btn-checkin:active { transform:scale(0.96); }
+  .btn-checkin:disabled { opacity:.5; cursor:default; }
+
+  /* ── TASKS ── */
+  .task-filters {
+    display:flex; gap:8px; margin:16px 0 14px;
+    overflow-x:auto; padding-bottom:4px; scrollbar-width:none;
+  }
+  .task-filters::-webkit-scrollbar { display:none; }
+  .filter-chip {
+    flex-shrink:0; padding:7px 14px; border-radius:20px;
+    font-size:12px; font-weight:600; cursor:pointer; border:none;
+    background:var(--card); color:var(--text2); border:1px solid var(--border);
+    transition:.2s;
+  }
+  .filter-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .task-list { display:flex; flex-direction:column; gap:10px; }
+  .task-card {
+    background:var(--card); border-radius:var(--radius);
+    border:1px solid var(--border); padding:14px 16px;
+    display:flex; align-items:center; gap:14px; transition:.2s;
+  }
+  .task-card.done { opacity:.5; }
+  .task-icon-wrap {
+    width:46px; height:46px; border-radius:12px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:22px;
+  }
+  .task-icon-wrap.type-channel { background:rgba(59,130,246,0.15); }
+  .task-icon-wrap.type-link    { background:rgba(168,85,247,0.15); }
+  .task-icon-wrap.type-ad      { background:rgba(245,158,11,0.15); }
+  .task-icon-wrap.type-share   { background:rgba(16,185,129,0.15); }
+  .task-body { flex:1; min-width:0; }
+  .task-title { font-size:14px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .task-desc { font-size:12px; color:var(--text2); margin-top:2px; }
+  .task-reward { display:flex; align-items:center; gap:3px; margin-top:5px; }
+  .task-reward span { font-size:12px; font-weight:700; color:var(--gold); }
+  .task-right { flex-shrink:0; }
+  .btn-task {
+    padding:8px 14px; border-radius:9px; border:none; cursor:pointer;
+    font-size:12px; font-weight:600; transition:.2s;
+    background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff;
+  }
+  .btn-task.done { background:var(--card2); color:var(--text2); cursor:default; }
+  .btn-task:active:not(.done) { transform:scale(0.95); }
+
+  /* ── REFERRAL ── */
+  .ref-hero {
+    background: linear-gradient(135deg, #1E3A2F, #134E34);
+    border:1px solid rgba(16,185,129,0.3); border-radius:20px;
+    padding:22px 20px; text-align:center; margin:16px 0 16px;
+  }
+  .ref-hero-icon { font-size:40px; margin-bottom:10px; }
+  .ref-hero h3 { font-size:18px; font-weight:700; color:#fff; }
+  .ref-hero p { font-size:13px; color:rgba(167,243,208,0.8); margin-top:5px; }
+  .ref-stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+  .ref-stat {
+    background:var(--card); border-radius:var(--radius-sm);
+    border:1px solid var(--border); padding:16px; text-align:center;
+  }
+  .ref-stat-val { font-size:24px; font-weight:800; color:var(--green); }
+  .ref-stat-lbl { font-size:11px; color:var(--text2); margin-top:4px; }
+  .ref-link-box {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:12px;
+  }
+  .ref-link-label { font-size:11px; color:var(--text2); margin-bottom:6px; font-weight:500; }
+  .ref-link-row { display:flex; gap:8px; align-items:center; }
+  .ref-link-text {
+    flex:1; font-size:12px; color:var(--accent2);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-family: monospace;
+  }
+  .btn-copy {
+    flex-shrink:0; padding:8px 14px; border-radius:9px; border:none;
+    background:var(--accent); color:#fff; font-size:12px; font-weight:600;
+    cursor:pointer; transition:.2s;
+  }
+  .btn-copy:active { transform:scale(0.95); }
+  .btn-share-ref {
+    width:100%; padding:13px; border-radius:12px; border:none;
+    background:linear-gradient(135deg, var(--green), #059669);
+    color:#fff; font-size:14px; font-weight:700; cursor:pointer; transition:.2s;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .btn-share-ref:active { transform:scale(0.98); }
+
+  /* ── LEADERBOARD ── */
+  .lb-header { margin:16px 0 14px; }
+  .lb-podium { display:grid; grid-template-columns:1fr 1.2fr 1fr; gap:8px; margin-bottom:16px; align-items:flex-end; }
+  .podium-item { text-align:center; }
+  .podium-avatar {
+    width:50px; height:50px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; font-weight:800; margin:0 auto 6px;
+    position:relative;
+  }
+  .podium-item.rank-1 .podium-avatar { width:60px; height:60px; font-size:24px; background:linear-gradient(135deg,#F59E0B,#FCD34D); color:#7C2D12; }
+  .podium-item.rank-2 .podium-avatar { background:linear-gradient(135deg,#94A3B8,#CBD5E1); color:#1E293B; }
+  .podium-item.rank-3 .podium-avatar { background:linear-gradient(135deg,#CD7C2F,#D97706); color:#fff; }
+  .podium-crown { position:absolute; top:-14px; left:50%; transform:translateX(-50%); font-size:16px; }
+  .podium-name { font-size:12px; font-weight:600; color:var(--text); }
+  .podium-coins { font-size:12px; color:var(--gold); font-weight:700; }
+  .podium-base {
+    border-radius:10px 10px 0 0; margin-top:8px;
+  }
+  .rank-1 .podium-base { background:rgba(245,158,11,0.2); height:60px; }
+  .rank-2 .podium-base { background:rgba(148,163,184,0.15); height:40px; }
+  .rank-3 .podium-base { background:rgba(205,124,47,0.15); height:28px; }
+  .lb-list { display:flex; flex-direction:column; gap:8px; }
+  .lb-item {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:12px 14px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .lb-rank { width:26px; font-size:13px; font-weight:700; color:var(--text2); text-align:center; }
+  .lb-avatar {
+    width:36px; height:36px; border-radius:50%;
+    background:linear-gradient(135deg, var(--accent), var(--accent2));
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:700; color:#fff; flex-shrink:0;
+  }
+  .lb-name { flex:1; font-size:14px; font-weight:600; color:var(--text); }
+  .lb-coins { font-size:13px; font-weight:700; color:var(--gold); }
+  .lb-item.me { border-color:rgba(124,58,237,0.5); background:rgba(124,58,237,0.08); }
+
+  /* ── PROFILE ── */
+  .profile-header {
+    text-align:center; padding:24px 20px 20px; margin-top:8px;
+  }
+  .profile-avatar {
+    width:72px; height:72px; border-radius:50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px; font-weight:800; color:#fff; margin:0 auto 12px;
+    border:3px solid rgba(124,58,237,0.4);
+  }
+  .profile-name { font-size:20px; font-weight:700; }
+  .profile-id { font-size:12px; color:var(--text2); margin-top:3px; }
+  .profile-coins {
+    display:inline-flex; align-items:center; gap:6px;
+    background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3);
+    border-radius:20px; padding:6px 16px; margin-top:10px;
+    font-size:18px; font-weight:800; color:var(--gold);
+  }
+  .withdraw-box {
+    background: linear-gradient(135deg, rgba(124,58,237,0.1), rgba(168,85,247,0.05));
+    border:1px solid rgba(124,58,237,0.3); border-radius:var(--radius);
+    padding:16px 18px; margin:16px 0;
+  }
+  .withdraw-box h4 { font-size:14px; font-weight:600; margin-bottom:4px; }
+  .withdraw-box p { font-size:12px; color:var(--text2); margin-bottom:12px; }
+  .withdraw-form { display:flex; flex-direction:column; gap:10px; }
+  .form-row { display:flex; flex-direction:column; gap:5px; }
+  .form-label { font-size:12px; color:var(--text2); font-weight:500; }
+  .form-select, .form-input {
+    background:var(--card2); border:1px solid var(--border);
+    border-radius:10px; padding:10px 12px; color:var(--text);
+    font-size:14px; outline:none; width:100%; font-family:inherit;
+  }
+  .form-select option { background:var(--card2); }
+  .form-input::placeholder { color:var(--text3); }
+  .btn-withdraw {
+    width:100%; padding:13px; border-radius:12px; border:none;
+    background:linear-gradient(135deg, var(--accent), var(--accent2));
+    color:#fff; font-size:14px; font-weight:700; cursor:pointer; transition:.2s;
+  }
+  .btn-withdraw:active { transform:scale(0.98); }
+  .btn-withdraw:disabled { opacity:.5; cursor:default; }
+  .history-list { display:flex; flex-direction:column; gap:8px; }
+  .history-item {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:12px 14px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .history-left { display:flex; align-items:center; gap:10px; }
+  .history-icon { font-size:20px; }
+  .history-title { font-size:13px; font-weight:600; color:var(--text); }
+  .history-time { font-size:11px; color:var(--text2); margin-top:2px; }
+  .history-amount { font-size:14px; font-weight:700; }
+  .history-amount.earn { color:var(--green); }
+  .history-amount.spend { color:var(--red); }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav {
+    position:fixed; bottom:0; left:0; right:0; z-index:100;
+    background:rgba(15,15,26,0.95);
+    backdrop-filter:blur(16px);
+    border-top:1px solid var(--border);
+    display:grid; grid-template-columns:repeat(5,1fr);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .nav-item {
+    display:flex; flex-direction:column; align-items:center;
+    padding:10px 4px 8px; cursor:pointer; transition:.2s;
+    border:none; background:none; color:var(--text3);
+    font-size:10px; font-weight:500; gap:3px;
+  }
+  .nav-item .nav-icon { font-size:22px; line-height:1; transition:.2s; }
+  .nav-item.active { color:var(--accent2); }
+  .nav-item.active .nav-icon { transform:scale(1.15); }
+
+  /* ── TOAST ── */
+  .toast {
+    position:fixed; top:70px; left:50%; transform:translateX(-50%) translateY(-10px);
+    background:var(--card2); border:1px solid var(--border);
+    border-radius:12px; padding:10px 18px;
+    font-size:13px; font-weight:600; color:var(--text);
+    z-index:999; opacity:0; transition:.3s; white-space:nowrap;
+    pointer-events:none; box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.success { border-color:rgba(16,185,129,0.5); color:var(--green); }
+  .toast.error   { border-color:rgba(239,68,68,0.5); color:var(--red); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display:none; position:fixed; inset:0; z-index:200;
+    background:rgba(0,0,0,0.7); backdrop-filter:blur(4px);
+    align-items:flex-end; justify-content:center;
+  }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:var(--bg2); border-radius:24px 24px 0 0;
+    padding:24px 20px 36px; width:100%; max-width:480px;
+    border-top:1px solid var(--border);
+    animation: slideUp .3s ease;
+  }
+  @keyframes slideUp {
+    from { transform:translateY(100%); }
+    to   { transform:translateY(0); }
+  }
+  .modal-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 20px; }
+  .modal-title { font-size:18px; font-weight:700; margin-bottom:6px; }
+  .modal-desc { font-size:13px; color:var(--text2); margin-bottom:20px; line-height:1.5; }
+  .modal-reward {
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3);
+    border-radius:12px; padding:12px; margin-bottom:20px;
+    font-size:22px; font-weight:800; color:var(--gold);
+  }
+  .btn-modal-action {
+    width:100%; padding:14px; border-radius:14px; border:none;
+    background:linear-gradient(135deg, var(--accent), var(--accent2));
+    color:#fff; font-size:15px; font-weight:700; cursor:pointer;
+    transition:.2s; margin-bottom:10px;
+  }
+  .btn-modal-cancel {
+    width:100%; padding:12px; border-radius:14px; border:none;
+    background:var(--card2); color:var(--text2);
+    font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .btn-modal-action:active { transform:scale(0.98); }
+
+  /* Empty state */
+  .empty { text-align:center; padding:48px 20px; color:var(--text2); }
+  .empty-icon { font-size:48px; margin-bottom:12px; }
+  .empty p { font-size:14px; }
+</style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="avatar" id="topAvatar">?</div>
+    <div>
+      <div class="user-name" id="topName">Loading...</div>
+      <div class="user-level" id="topLevel">Level 1 · Newbie</div>
+    </div>
+  </div>
+  <div class="coin-pill">
+    <span>🪙</span>
+    <span class="amount" id="topCoins">0</span>
+  </div>
+</div>
+
+<!-- PAGES -->
+
+<!-- HOME -->
+<div class="page active" id="page-home">
+  <div class="hero">
+    <div class="hero-label">Total Balance</div>
+    <div class="hero-balance"><span>🪙</span><span id="heroBalance">0</span></div>
+    <div class="hero-sub" id="heroSub">Earn more by completing tasks</div>
+    <div class="hero-actions">
+      <button class="btn-hero btn-hero-primary" onclick="navigate('tasks')">📋 Tasks</button>
+      <button class="btn-hero btn-hero-secondary" onclick="navigate('profile')">💸 Withdraw</button>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-val" id="statTasks">0</div>
+      <div class="stat-lbl">Tasks Done</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">👥</div>
+      <div class="stat-val" id="statRefs">0</div>
+      <div class="stat-lbl">Referrals</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🔥</div>
+      <div class="stat-val" id="statStreak">0</div>
+      <div class="stat-lbl">Day Streak</div>
+    </div>
+  </div>
+
+  <div class="section-title">Daily Bonus</div>
+  <div class="checkin-card">
+    <div class="checkin-info">
+      <h4>Daily Check-in</h4>
+      <p id="checkinStatus">Claim your 10 coins today</p>
+    </div>
+    <button class="btn-checkin" id="checkinBtn" onclick="doCheckin()">Claim</button>
+  </div>
+
+  <div class="section-title">Recent Earnings</div>
+  <div class="history-list" id="homeHistory"></div>
+</div>
+
+<!-- TASKS -->
+<div class="page" id="page-tasks">
+  <div class="task-filters">
+    <button class="filter-chip active" onclick="filterTasks('all',this)">All</button>
+    <button class="filter-chip" onclick="filterTasks('channel',this)">📢 Channel</button>
+    <button class="filter-chip" onclick="filterTasks('link',this)">🔗 Link</button>
+    <button class="filter-chip" onclick="filterTasks('ad',this)">📺 Ad</button>
+    <button class="filter-chip" onclick="filterTasks('share',this)">📤 Share</button>
+  </div>
+  <div class="task-list" id="taskList"></div>
+</div>
+
+<!-- REFERRAL -->
+<div class="page" id="page-referral">
+  <div class="ref-hero">
+    <div class="ref-hero-icon">🎁</div>
+    <h3>Invite Friends, Earn Together</h3>
+    <p>Get 100 coins for every friend who joins</p>
+  </div>
+  <div class="ref-stats">
+    <div class="ref-stat">
+      <div class="ref-stat-val" id="refCount">0</div>
+      <div class="ref-stat-lbl">Friends Invited</div>
+    </div>
+    <div class="ref-stat">
+      <div class="ref-stat-val" id="refEarned">0</div>
+      <div class="ref-stat-lbl">Coins Earned</div>
+    </div>
+  </div>
+  <div class="ref-link-box">
+    <div class="ref-link-label">YOUR REFERRAL LINK</div>
+    <div class="ref-link-row">
+      <div class="ref-link-text" id="refLink">Loading...</div>
+      <button class="btn-copy" onclick="copyRefLink()">Copy</button>
+    </div>
+  </div>
+  <button class="btn-share-ref" onclick="shareRefLink()">
+    📤 Share with Friends
+  </button>
+  <div style="margin-top:20px;">
+    <div class="section-title">How it works</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div class="history-item">
+        <div class="history-left"><span class="history-icon">1️⃣</span><div><div class="history-title">Share your link</div><div class="history-time">Send to friends on Telegram</div></div></div>
+      </div>
+      <div class="history-item">
+        <div class="history-left"><span class="history-icon">2️⃣</span><div><div class="history-title">Friend joins</div><div class="history-time">They open the bot and start earning</div></div></div>
+      </div>
+      <div class="history-item">
+        <div class="history-left"><span class="history-icon">3️⃣</span><div><div class="history-title">You get 100 coins</div><div class="history-time">Instantly credited to your balance</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LEADERBOARD -->
+<div class="page" id="page-leaderboard">
+  <div class="lb-header">
+    <div class="section-title" style="margin:16px 0 0">🏆 Top Earners This Week</div>
+  </div>
+  <div class="lb-podium" id="lbPodium"></div>
+  <div class="lb-list" id="lbList"></div>
+</div>
+
+<!-- PROFILE -->
+<div class="page" id="page-profile">
+  <div class="profile-header">
+    <div class="profile-avatar" id="profileAvatar">?</div>
+    <div class="profile-name" id="profileName">User</div>
+    <div class="profile-id" id="profileId">ID: —</div>
+    <div class="profile-coins">🪙 <span id="profileCoins">0</span> coins</div>
+  </div>
+
+  <div class="withdraw-box">
+    <h4>💸 Withdraw</h4>
+    <p>Minimum 500 coins required to withdraw</p>
+    <div class="withdraw-form">
+      <div class="form-row">
+        <div class="form-label">Payment Method</div>
+        <select class="form-select" id="withdrawMethod">
+          <option value="bkash">bKash</option>
+          <option value="nagad">Nagad</option>
+          <option value="rocket">Rocket</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-label">Phone Number</div>
+        <input type="tel" class="form-input" id="withdrawPhone" placeholder="01XXXXXXXXX">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Amount (coins)</div>
+        <input type="number" class="form-input" id="withdrawAmount" placeholder="Min 500">
+      </div>
+      <button class="btn-withdraw" onclick="doWithdraw()" id="withdrawBtn">Request Withdrawal</button>
+    </div>
+  </div>
+
+  <div class="section-title">Transaction History</div>
+  <div class="history-list" id="profileHistory"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <button class="nav-item active" onclick="navigate('home')" id="nav-home">
+    <span class="nav-icon">🏠</span><span>Home</span>
+  </button>
+  <button class="nav-item" onclick="navigate('tasks')" id="nav-tasks">
+    <span class="nav-icon">📋</span><span>Tasks</span>
+  </button>
+  <button class="nav-item" onclick="navigate('referral')" id="nav-referral">
+    <span class="nav-icon">👥</span><span>Referral</span>
+  </button>
+  <button class="nav-item" onclick="navigate('leaderboard')" id="nav-leaderboard">
+    <span class="nav-icon">🏆</span><span>Rank</span>
+  </button>
+  <button class="nav-item" onclick="navigate('profile')" id="nav-profile">
+    <span class="nav-icon">👤</span><span>Profile</span>
+  </button>
+</div>
+
+<!-- TASK DETAIL MODAL -->
+<div class="modal-overlay" id="taskModal" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modalTitle">Task</div>
+    <div class="modal-desc" id="modalDesc">Description</div>
+    <div class="modal-reward" id="modalReward">🪙 0 coins</div>
+    <button class="btn-modal-action" id="modalActionBtn" onclick="completeTask()">Go & Complete</button>
+    <button class="btn-modal-cancel" onclick="closeTaskModal()">Cancel</button>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+const BOT_USERNAME = 'YourBotUsername'; // Change this
+const API_BASE = 'https://your-bot.onrender.com/api'; // Change this
+
+// ── STATE ───────────────────────────────────────────────────────────────────
+let tg = window.Telegram?.WebApp;
+let userData = null;
+let currentPage = 'home';
+let currentTaskFilter = 'all';
+let activeTaskId = null;
+
+const DEMO_USER = { id: 123456789, username: 'demo_user', first_name: 'Demo', coins: 1250, tasks_done: 8, referrals: 3, streak: 5 };
+
+const TASKS = [
+  { id:1, type:'channel', title:'Join Official Channel', desc:'Subscribe to our Telegram channel for updates', reward:50, url:'https://t.me/example', done:false },
+  { id:2, type:'link',    title:'Visit Our Website',    desc:'Check out our website and explore features', reward:20, url:'https://example.com', done:false },
+  { id:3, type:'channel', title:'Join Discussion Group', desc:'Be part of our growing community group', reward:40, url:'https://t.me/example_group', done:true },
+  { id:4, type:'ad',      title:'Watch Short Video',    desc:'Watch a 30-second video to earn coins', reward:30, url:'#', done:false },
+  { id:5, type:'share',   title:'Share Our Bot',        desc:'Share this bot with your friends and family', reward:25, url:'#', done:false },
+  { id:6, type:'link',    title:'Follow on Twitter',    desc:'Follow our official Twitter/X account', reward:15, url:'https://twitter.com', done:false },
+  { id:7, type:'channel', title:'Join Announcements',   desc:'Get notified about new tasks and rewards', reward:35, url:'https://t.me/example_ann', done:false },
+];
+
+const LEADERBOARD = [
+  { rank:1, name:'RaHim_vai', coins:8950, initial:'R' },
+  { rank:2, name:'Sohel123',  coins:7200, initial:'S' },
+  { rank:3, name:'NahidBD',   coins:6100, initial:'N' },
+  { rank:4, name:'KarimX',    coins:5430, initial:'K' },
+  { rank:5, name:'TanvirPro', coins:4890, initial:'T' },
+  { rank:6, name:'MoumilaS',  coins:3720, initial:'M' },
+  { rank:7, name:'RubinBoss', coins:3100, initial:'R' },
+  { rank:8, name:'demo_user', coins:1250, initial:'D', isMe:true },
+];
+
+const HISTORY = [
+  { icon:'📢', title:'Joined Official Channel', time:'2 hours ago',  amount:+50 },
+  { icon:'🔗', title:'Visited Website',         time:'5 hours ago',  amount:+20 },
+  { icon:'✅', title:'Daily Check-in',          time:'Yesterday',    amount:+10 },
+  { icon:'👥', title:'Referral Bonus',          time:'2 days ago',   amount:+100 },
+  { icon:'📺', title:'Watched Video',           time:'3 days ago',   amount:+30 },
+];
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+function init() {
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    tg.setHeaderColor('#0F0F1A');
+    tg.setBackgroundColor('#0F0F1A');
+    const u = tg.initDataUnsafe?.user;
+    if (u) {
+      userData = { ...DEMO_USER, id: u.id, username: u.username || 'user', first_name: u.first_name || 'User' };
+    } else {
+      userData = DEMO_USER;
+    }
+  } else {
+    userData = DEMO_USER;
+  }
+  renderAll();
+}
+
+function renderAll() {
+  const u = userData;
+  const initials = (u.first_name || u.username || '?')[0].toUpperCase();
+
+  // Topbar
+  document.getElementById('topAvatar').textContent = initials;
+  document.getElementById('topName').textContent = u.first_name || u.username;
+  document.getElementById('topCoins').textContent = u.coins.toLocaleString();
+  const lvl = getLevel(u.coins);
+  document.getElementById('topLevel').textContent = `Level ${lvl.level} · ${lvl.name}`;
+
+  renderHome();
+  renderTasks();
+  renderReferral();
+  renderLeaderboard();
+  renderProfile();
+}
+
+function getLevel(coins) {
+  if (coins < 500)  return { level:1, name:'Newbie' };
+  if (coins < 1500) return { level:2, name:'Explorer' };
+  if (coins < 3000) return { level:3, name:'Hunter' };
+  if (coins < 6000) return { level:4, name:'Pro' };
+  return { level:5, name:'Legend' };
+}
+
+// ── HOME ────────────────────────────────────────────────────────────────────
+function renderHome() {
+  const u = userData;
+  document.getElementById('heroBalance').textContent = u.coins.toLocaleString();
+  document.getElementById('heroSub').textContent = `Rank #${LEADERBOARD.findIndex(x=>x.isMe)+1 || '—'} this week`;
+  document.getElementById('statTasks').textContent = u.tasks_done;
+  document.getElementById('statRefs').textContent = u.referrals;
+  document.getElementById('statStreak').textContent = u.streak;
+
+  const checked = localStorage.getItem('lastCheckin') === today();
+  document.getElementById('checkinStatus').textContent = checked ? '✅ Claimed today!' : 'Claim your 10 coins today';
+  const btn = document.getElementById('checkinBtn');
+  btn.disabled = checked;
+  btn.textContent = checked ? 'Done' : 'Claim';
+
+  const homeHist = document.getElementById('homeHistory');
+  homeHist.innerHTML = HISTORY.slice(0,3).map(renderHistoryItem).join('');
+}
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function doCheckin() {
+  if (localStorage.getItem('lastCheckin') === today()) return;
+  localStorage.setItem('lastCheckin', today());
+  userData.coins += 10;
+  userData.streak += 1;
+  HISTORY.unshift({ icon:'✅', title:'Daily Check-in', time:'Just now', amount:+10 });
+  renderAll();
+  showToast('🎉 +10 coins claimed!', 'success');
+}
+
+// ── TASKS ───────────────────────────────────────────────────────────────────
+function renderTasks() {
+  const filtered = currentTaskFilter === 'all'
+    ? TASKS
+    : TASKS.filter(t => t.type === currentTaskFilter);
+  document.getElementById('taskList').innerHTML = filtered.map(renderTaskCard).join('');
+}
+
+function renderTaskCard(t) {
+  const icons = { channel:'📢', link:'🔗', ad:'📺', share:'📤' };
+  return `
+  <div class="task-card ${t.done?'done':''}" onclick="${!t.done ? `openTask(${t.id})` : ''}">
+    <div class="task-icon-wrap type-${t.type}">${icons[t.type]||'📌'}</div>
+    <div class="task-body">
+      <div class="task-title">${t.title}</div>
+      <div class="task-desc">${t.desc}</div>
+      <div class="task-reward">🪙 <span>+${t.reward} coins</span></div>
+    </div>
+    <div class="task-right">
+      <button class="btn-task ${t.done?'done':''}" onclick="event.stopPropagation();${!t.done?`openTask(${t.id})`:''}">
+        ${t.done ? '✓ Done' : 'Start'}
+      </button>
+    </div>
+  </div>`;
+}
+
+function filterTasks(type, el) {
+  currentTaskFilter = type;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderTasks();
+}
+
+function openTask(id) {
+  const t = TASKS.find(x => x.id === id);
+  if (!t || t.done) return;
+  activeTaskId = id;
+  document.getElementById('modalTitle').textContent = t.title;
+  document.getElementById('modalDesc').textContent = t.desc;
+  document.getElementById('modalReward').innerHTML = `🪙 +${t.reward} coins`;
+  document.getElementById('modalActionBtn').textContent =
+    t.type === 'channel' ? '📢 Join Channel' :
+    t.type === 'link'    ? '🔗 Visit Link' :
+    t.type === 'ad'      ? '📺 Watch Video' :
+    t.type === 'share'   ? '📤 Share Now' : 'Go & Complete';
+  document.getElementById('taskModal').classList.add('open');
+}
+
+function completeTask() {
+  const t = TASKS.find(x => x.id === activeTaskId);
+  if (!t) return;
+
+  // Open URL if applicable
+  if (t.url && t.url !== '#') {
+    if (tg) tg.openLink(t.url);
+    else window.open(t.url, '_blank');
+  }
+
+  // Mark done after a brief delay (simulating verification)
+  closeTaskModal();
+  showToast('⏳ Verifying...', '');
+  setTimeout(() => {
+    t.done = true;
+    userData.coins += t.reward;
+    userData.tasks_done += 1;
+    HISTORY.unshift({ icon:'✅', title:t.title, time:'Just now', amount:+t.reward });
+    renderAll();
+    showToast(`🎉 +${t.reward} coins earned!`, 'success');
+  }, 1800);
+}
+
+function closeTaskModal() {
+  document.getElementById('taskModal').classList.remove('open');
+  activeTaskId = null;
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('taskModal')) closeTaskModal();
+}
+
+// ── REFERRAL ─────────────────────────────────────────────────────────────────
+function renderReferral() {
+  const u = userData;
+  document.getElementById('refCount').textContent = u.referrals;
+  document.getElementById('refEarned').textContent = (u.referrals * 100).toLocaleString();
+  const link = `https://t.me/${BOT_USERNAME}?start=ref_${u.id}`;
+  document.getElementById('refLink').textContent = link;
+  document.getElementById('refLink').dataset.link = link;
+}
+
+function copyRefLink() {
+  const link = document.getElementById('refLink').dataset.link;
+  if (navigator.clipboard) navigator.clipboard.writeText(link);
+  showToast('✅ Link copied!', 'success');
+}
+
+function shareRefLink() {
+  const u = userData;
+  const text = `🪙 Join EarnBot and earn coins by completing simple tasks!\nUse my referral link to get a 50 coin bonus:\nhttps://t.me/${BOT_USERNAME}?start=ref_${u.id}`;
+  if (tg) {
+    tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/${BOT_USERNAME}?start=ref_${u.id}&text=${encodeURIComponent(text)}`);
+  } else {
+    navigator.clipboard?.writeText(text);
+    showToast('✅ Share text copied!', 'success');
+  }
+}
+
+// ── LEADERBOARD ──────────────────────────────────────────────────────────────
+function renderLeaderboard() {
+  const top3 = LEADERBOARD.slice(0,3);
+  const rest  = LEADERBOARD.slice(3);
+  const rankOrder = [2, 1, 3]; // Display: 2nd, 1st, 3rd
+  const medals = ['🥈','🥇','🥉'];
+
+  document.getElementById('lbPodium').innerHTML = rankOrder.map((r, i) => {
+    const u = LEADERBOARD[r-1];
+    return `
+    <div class="podium-item rank-${r}">
+      <div class="podium-avatar">
+        ${r===1 ? '<span class="podium-crown">👑</span>' : ''}
+        ${u.initial}
+      </div>
+      <div class="podium-name">${u.name}</div>
+      <div class="podium-coins">🪙 ${u.coins.toLocaleString()}</div>
+      <div class="podium-base"></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('lbList').innerHTML = rest.map((u, i) => `
+    <div class="lb-item ${u.isMe ? 'me' : ''}">
+      <div class="lb-rank">${u.rank}</div>
+      <div class="lb-avatar">${u.initial}</div>
+      <div class="lb-name">${u.name} ${u.isMe ? '(You)' : ''}</div>
+      <div class="lb-coins">🪙 ${u.coins.toLocaleString()}</div>
+    </div>`).join('');
+}
+
+// ── PROFILE ─────────────────────────────────────────────────────────────────
+function renderProfile() {
+  const u = userData;
+  const initials = (u.first_name || u.username || '?')[0].toUpperCase();
+  document.getElementById('profileAvatar').textContent = initials;
+  document.getElementById('profileName').textContent = u.first_name || u.username;
+  document.getElementById('profileId').textContent = `ID: ${u.id}`;
+  document.getElementById('profileCoins').textContent = u.coins.toLocaleString();
+  document.getElementById('profileHistory').innerHTML = HISTORY.map(renderHistoryItem).join('');
+}
+
+function renderHistoryItem(h) {
+  const sign = h.amount > 0 ? '+' : '';
+  return `
+  <div class="history-item">
+    <div class="history-left">
+      <span class="history-icon">${h.icon}</span>
+      <div>
+        <div class="history-title">${h.title}</div>
+        <div class="history-time">${h.time}</div>
+      </div>
+    </div>
+    <div class="history-amount ${h.amount>0?'earn':'spend'}">${sign}${h.amount}</div>
+  </div>`;
+}
+
+function doWithdraw() {
+  const method = document.getElementById('withdrawMethod').value;
+  const phone  = document.getElementById('withdrawPhone').value.trim();
+  const amount = parseInt(document.getElementById('withdrawAmount').value);
+
+  if (!phone || phone.length < 11) { showToast('❌ Enter valid phone number', 'error'); return; }
+  if (!amount || amount < 500)     { showToast('❌ Minimum 500 coins required', 'error'); return; }
+  if (amount > userData.coins)     { showToast('❌ Insufficient coins', 'error'); return; }
+
+  const btn = document.getElementById('withdrawBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  // Simulate API call
+  setTimeout(() => {
+    userData.coins -= amount;
+    HISTORY.unshift({ icon:'💸', title:`Withdrawal via ${method}`, time:'Just now', amount:-amount });
+    renderAll();
+    document.getElementById('withdrawPhone').value = '';
+    document.getElementById('withdrawAmount').value = '';
+    btn.disabled = false;
+    btn.textContent = 'Request Withdrawal';
+    showToast('✅ Withdrawal request submitted!', 'success');
+  }, 1500);
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────────────────────
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  document.getElementById(`nav-${page}`).classList.add('active');
+  currentPage = page;
+}
+
+// ── TOAST ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── START ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
