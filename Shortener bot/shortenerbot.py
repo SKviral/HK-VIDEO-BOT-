@@ -55,8 +55,8 @@ stats_col         = db['bot_stats']
 banned_col        = db['banned_users']
 force_sub_col     = db['force_subscribe']
 settings_col      = db['bot_settings']
-categories_col    = db['categories']        
-scheduled_col     = db['scheduled_posts']   
+categories_col    = db['categories']
+scheduled_col     = db['scheduled_posts']
 
 users_col.create_index("chat_id", unique=True, background=True)
 files_col.create_index("file_key", background=True)
@@ -109,13 +109,18 @@ _DEFAULTS = {
     "auto_delete": 0, "pending_link": "", "pending_short_link": "",
     "step": "none", "batch_id": "",
     "btn_download": 1, "btn_share": 1, "btn_tutorial": 1,
-    "btn_link_in_caption": 1, "link_repeat_count": 1,
-    "auto_title_from_caption": 1, "custom_buttons": [],
+    "btn_link_in_caption": 0, # Ad Protection: Default OFF রাখা হলো
+    "link_repeat_count": 1, "auto_title_from_caption": 1,
+    "custom_text_1": "Watch Part 1", "custom_link_1": "",
+    "custom_text_2": "Watch Part 2", "custom_link_2": "",
+    "custom_buttons": [],
     "temp_media_id": "", "temp_media_type": "",
-    "joined_at": "", "last_active": "", "total_downloads": 0, "total_uploads": 0,
+    "joined_at": "", "last_active": "",
+    "total_downloads": 0, "total_uploads": 0,
     "link_filter": 0, "text_filter": 0,
     "pending_category": "", "pending_schedule": "", "temp_caption": "",
-    "pending_thumb_url": "", "pending_web_title": "", "pending_web_video_id": "", "pending_web_post_link": "",
+    "pending_thumb_url": "", "pending_web_title": "",
+    "pending_web_video_id": "", "pending_web_post_link": "",
 }
 
 def get_user(chat_id):
@@ -182,7 +187,8 @@ def send_force_sub_msg(chat_id, not_joined, file_key=None):
     for ch in not_joined:
         mk.add(InlineKeyboardButton(f"📢 {ch['name']} — Join করুন", url=ch['url']))
     mk.add(InlineKeyboardButton("✅ Join করেছি — যাচাই করুন", callback_data=f"check_sub_{file_key or 'none'}"))
-    bot.send_message(chat_id, "🔒 <b>ফাইল পেতে নিচের চ্যানেলগুলোতে Join করুন!</b>\n\nJoin করার পর ✅ বাটনে ক্লিক করুন।", reply_markup=mk)
+    bot.send_message(chat_id,
+        "🔒 <b>ফাইল পেতে নিচের চ্যানেলগুলোতে Join করুন!</b>\n\nJoin করার পর ✅ বাটনে ক্লিক করুন।", reply_markup=mk)
 
 # ══════════════════════════════════════════════════
 #  অটো-ডিলিট ওয়ার্কার
@@ -266,15 +272,14 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
         if ch_type == "premium":
             link = d_link
             links_str = "\n".join([link]*rpt)
+            # Premium-এ লিংক ক্যাপশনে থাকতে পারবে
             caption = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
             markup = _build_post_markup(user, d_link, d_link)
         elif ch_type == "log":
             caption = f"💾 <b>Backup</b> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
             markup = None
-        else:  # ad
-            link = s_link
-            links_str = "\n".join([link]*rpt)
-            caption = f"{ph_t}{fc_txt}🔗 <b>Download Link:</b>\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
+        else:  # ad - এখানে Ad Protection দেওয়া হলো, ক্যাপশনে কোনো লিংক থাকবে না
+            caption = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
             markup = _build_post_markup(user, s_link, s_link)
 
         try:
@@ -330,12 +335,15 @@ def _scheduled_post_worker():
                         file_count = _get_file_count_from_link(d_link)
                         fc_txt = f"📁 <b>মোট ফাইল: {file_count}টি</b>\n" if file_count > 0 else ""
 
-                        ad_links = "\n".join([s_link]*rpt)
-                        ad_cap = f"{ph_t}{fc_txt}🔗 <b>Download Link:</b>\n{ad_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{fc_txt}".strip()
+                        # Ad Protection: Ad চ্যানেলে লিংক বাদ
+                        ad_cap = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
                         ad_mk = _build_post_markup(user, s_link, s_link)
+                        
+                        # Premium-এ লিংক থাকতে পারবে
                         pr_links = "\n".join([d_link]*rpt)
                         pr_cap = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{fc_txt}".strip()
                         pr_mk = _build_post_markup(user, d_link, d_link)
+                        
                         count = 0
                         for ch in auto_channels_col.find({"type":"ad","status":"on"}):
                             try: _send_media(ch['channel_id'], mtype, mid_, ad_cap, ad_mk, protect); count+=1
@@ -393,7 +401,6 @@ def upload_photo_to_imgbb(file_id):
     return ""
 
 def _web_app_post_link(video_id):
-    # এটি ইউজারকে ব্রাউজারে না নিয়ে সরাসরি টেলিগ্রাম বটে Mini App ওপেন করবে
     return f"https://t.me/{WEBBOT_USERNAME}/app?startapp={video_id}"
 
 def create_web_video_entry(user, category_name="Others"):
@@ -408,16 +415,11 @@ def create_web_video_entry(user, category_name="Others"):
 
     title = (user.get("pending_web_title") or user.get("post_header") or "Untitled Video").strip()
     data = {
-        "title": title,
-        "category": category_name or "Others",
-        "thumb": user.get("pending_thumb_url", ""), # imgbb URL
-        "url": user.get("pending_link", ""), # ফ্রেশ ফাইল লিংক
-        "fullCollectionUrl": "",
-        "fullCollectionAds": 0,
-        "views": 0, "likes": 0, "dislikes": 0,
-        "posted": False,
-        "timestamp": int(time.time() * 1000),
-        "source": "shortener_bot",
+        "title": title, "category": category_name or "Others",
+        "thumb": user.get("pending_thumb_url", ""), "url": user.get("pending_link", ""),
+        "fullCollectionUrl": "", "fullCollectionAds": 0,
+        "views": 0, "likes": 0, "dislikes": 0, "posted": False,
+        "timestamp": int(time.time() * 1000), "source": "shortener_bot",
     }
     try:
         clean_url = FIREBASE_DB_URL.rstrip("/")
@@ -425,10 +427,7 @@ def create_web_video_entry(user, category_name="Others"):
         video_id = r.get("name")
         if video_id:
             post_link = _web_app_post_link(video_id)
-            update_user(user["chat_id"], {
-                "pending_web_video_id": video_id,
-                "pending_web_post_link": post_link,
-            })
+            update_user(user["chat_id"], {"pending_web_video_id": video_id, "pending_web_post_link": post_link})
             return post_link
         logger.warning(f"Firebase video create failed: {r}")
     except Exception as e:
@@ -441,36 +440,52 @@ def create_web_video_entry(user, category_name="Others"):
 def _build_post_markup(user, dl_link, share_text):
     mk = InlineKeyboardMarkup()
 
-    # ── টিউটোরিয়াল বাটন ──
     if user.get("btn_tutorial", 1):
         for tut in tutorials_col.find():
             mk.add(InlineKeyboardButton(f"📽️ {tut['name']}", url=tut['url']))
 
-    # ── কাস্টম বাটন ──
     for btn in user.get("custom_buttons", []):
         if btn.get("status") == "on":
             mk.add(InlineKeyboardButton(btn['name'], url=btn['url']))
 
-    # Download buttons
-    row = []
     if user.get("btn_download", 1):
         web_post_link = user.get("pending_web_post_link", "")
         second_link = user.get("pending_short_link") or dl_link
+        
+        # সারি ১: ডাউনলোড ১ ও কাস্টম টেক্সট ১
+        row1 = []
         if web_post_link:
-            # নতুন দুইটি ডাউনলোড বাটন
-            mk.row(
-                InlineKeyboardButton("ডাউনলোড ১", url=web_post_link),
-                InlineKeyboardButton("ডাউনলোড ২", url=second_link)
-            )
+            row1.append(InlineKeyboardButton("ডাউনলোড ১", url=web_post_link))
         else:
-            row.append(InlineKeyboardButton("📥 ডাউনলোড", url=dl_link))
-    
+            row1.append(InlineKeyboardButton("ডাউনলোড ১", callback_data="noop"))
+            
+        ct1_text = user.get("custom_text_1") or "কাস্টম টেক্সট ১"
+        ct1_url = user.get("custom_link_1")
+        if ct1_url:
+            row1.append(InlineKeyboardButton(ct1_text, url=ct1_url))
+        else:
+            row1.append(InlineKeyboardButton(ct1_text, callback_data="noop"))
+        mk.row(*row1)
+
+        # সারি ২: ডাউনলোড ২ ও কাস্টম টেক্সট ২
+        row2 = []
+        if second_link:
+            row2.append(InlineKeyboardButton("ডাউনলোড ২", url=second_link))
+        else:
+            row2.append(InlineKeyboardButton("ডাউনলোড ২", callback_data="noop"))
+            
+        ct2_text = user.get("custom_text_2") or "কাস্টম টেক্সট ২"
+        ct2_url = user.get("custom_link_2")
+        if ct2_url:
+            row2.append(InlineKeyboardButton(ct2_text, url=ct2_url))
+        else:
+            row2.append(InlineKeyboardButton(ct2_text, callback_data="noop"))
+        mk.row(*row2)
+
     if user.get("btn_share", 1):
         encoded = quote(share_text, safe='')
         share_url = f"https://t.me/share/url?url={encoded}&text="
-        row.append(InlineKeyboardButton("🔗 শেয়ার করুন", url=share_url))
-    if row:
-        mk.row(*row)
+        mk.row(InlineKeyboardButton("🔗 শেয়ার করুন", url=share_url))
 
     return mk
 
@@ -489,9 +504,7 @@ def _ask_post_options(chat_id, user, mtype, mid):
         m.add(_btn("📤 এখনই পোস্ট করো","postcat_all"))
     m.add(_btn("⏰ সিডিউল করুন","ask_schedule"))
     bot.send_message(chat_id,
-        "📂 <b>পোস্ট অপশন সিলেক্ট করুন</b>\n\n"
-        "কোন ক্যাটাগরিতে পোস্ট করবেন?\n"
-        "অথবা সিডিউল করতে ⏰ বাটনে চাপুন।",
+        "📂 <b>পোস্ট অপশন সিলেক্ট করুন</b>\n\nকোন ক্যাটাগরিতে পোস্ট করবেন?\nঅথবা সিডিউল করতে ⏰ বাটনে চাপুন।",
         reply_markup=m
     )
 
@@ -503,8 +516,7 @@ def _ask_web_title(chat_id, user, mtype, mid):
     m.add(InlineKeyboardButton("Skip", callback_data="skip_web_title"))
     bot.send_message(
         chat_id,
-        "ভিডিওর title/name দিন।\n"
-        "না দিতে চাইলে <code>/skip</code> লিখুন বা Skip বাটনে ক্লিক করুন।"
+        "ভিডিওর title/name দিন।\nনা দিতে চাইলে <code>/skip</code> লিখুন বা Skip বাটনে ক্লিক করুন।"
         f"{hint}",
         reply_markup=m
     )
@@ -529,9 +541,7 @@ def execute_channel_post(chat_id, user, mtype, mid, scheduled_at=None):
         })
         cat = get_category(user.get("pending_category","")) if user.get("pending_category") else None
         cat_name = f"📂 {cat['name']}" if cat else "🌐 সব চ্যানেল"
-        bot.send_message(chat_id,
-            f"⏰ <b>সিডিউল পোস্ট সেভ হয়েছে!</b>\n📅 সময়: <b>{scheduled_at[:16].replace('T',' ')}</b>\n📌 ক্যাটাগরি: {cat_name}\n🆔 ID: <code>{sched_id}</code>"
-        )
+        bot.send_message(chat_id, f"⏰ <b>সিডিউল পোস্ট সেভ হয়েছে!</b>\n📅 সময়: <b>{scheduled_at[:16].replace('T',' ')}</b>\n📌 ক্যাটাগরি: {cat_name}\n🆔 ID: <code>{sched_id}</code>")
         update_user(chat_id, {"step":"none","pending_link":"","pending_short_link":"","pending_category":"","pending_schedule":"","temp_media_id":"","temp_media_type":"","pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
         return
 
@@ -541,9 +551,7 @@ def execute_channel_post(chat_id, user, mtype, mid, scheduled_at=None):
         count = _post_to_category(cat_id, mtype, mid, user, d_link, s_link)
         protect = bool(get_setting("protect_content", 0))
         _inc_stat("uploads")
-        bot.send_message(chat_id,
-            f"✅ <b>পোস্ট সম্পন্ন!</b>\n📂 ক্যাটাগরি: <b>{cat['name'] if cat else 'Unknown'}</b>\n📤 <b>{count}</b>টি চ্যানেলে পোস্ট হয়েছে।\n🔒 Protect: {_ico(protect)} | 🔗 LF: {_ico(user.get('link_filter'))} | 📝 TF: {_ico(user.get('text_filter'))}"
-        )
+        bot.send_message(chat_id, f"✅ <b>পোস্ট সম্পন্ন!</b>\n📂 ক্যাটাগরি: <b>{cat['name'] if cat else 'Unknown'}</b>\n📤 <b>{count}</b>টি চ্যানেলে পোস্ট হয়েছে।\n🔒 Protect: {_ico(protect)} | 🔗 LF: {_ico(user.get('link_filter'))} | 📝 TF: {_ico(user.get('text_filter'))}")
         update_user(chat_id, {"step":"none","pending_link":"","pending_short_link":"","pending_category":"","temp_media_id":"","temp_media_type":"","pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
         return
 
@@ -570,20 +578,14 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
     file_count = _get_file_count_from_link(d_link)
     fc_txt = f"📁 <b>মোট ফাইল: {file_count}টি</b>\n" if file_count > 0 else ""
 
-    if user.get("btn_link_in_caption", 1):
-        rpt = max(1, min(user.get("link_repeat_count", 1), 5))
-        ad_links   = "\n".join([s_link]*rpt)
-        ad_caption = f"{ph_t}{fc_txt}🔗 <b>Download Link:</b>\n{ad_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
-    else:
-        ad_caption = f"{ph_t}{fc_txt}{pf_t}".strip()
+    # Ad Protection: Ad-তে লিংক বাদ
+    ad_caption = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
     ad_markup = _build_post_markup(user, s_link, s_link)
 
-    if user.get("btn_link_in_caption", 1):
-        rpt = max(1, min(user.get("link_repeat_count", 1), 5))
-        pr_links    = "\n".join([d_link]*rpt)
-        prem_caption= f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
-    else:
-        prem_caption = f"{ph_t}{fc_txt}{pf_t}".strip()
+    # Premium-এ লিংক থাকতে পারবে
+    rpt = max(1, min(user.get("link_repeat_count", 1), 5))
+    pr_links    = "\n".join([d_link]*rpt)
+    prem_caption= f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
     prem_markup = _build_post_markup(user, d_link, d_link)
 
     post_count = 0
@@ -602,9 +604,7 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
         except Exception as e: logger.warning(f"Log post: {e}")
 
     _inc_stat("uploads")
-    bot.send_message(chat_id,
-        f"✅ <b>পোস্ট সম্পন্ন!</b>\n📤 <b>{post_count}</b>টি চ্যানেলে পোস্ট হয়েছে।\n🔒 Protect: {_ico(protect)} | 🔗 LF: {_ico(user.get('link_filter'))} | 📝 TF: {_ico(user.get('text_filter'))}"
-    )
+    bot.send_message(chat_id, f"✅ <b>পোস্ট সম্পন্ন!</b>\n📤 <b>{post_count}</b>টি চ্যানেলে পোস্ট হয়েছে।\n🔒 Protect: {_ico(protect)} | 🔗 LF: {_ico(user.get('link_filter'))} | 📝 TF: {_ico(user.get('text_filter'))}")
     update_user(chat_id, {"step":"none","pending_link":"","pending_short_link":"","pending_category":"","temp_media_id":"","temp_media_type":"","post_header":"","post_footer":"","pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
 
 # ══════════════════════════════════════════════════
@@ -681,13 +681,15 @@ def _post_btn_menu(u):
     sh  = _ico(u.get("btn_share",1))
     tut = _ico(u.get("btn_tutorial",1))
     lc  = _ico(u.get("btn_link_in_caption",1))
+    at  = _ico(u.get("auto_title_from_caption",1))
     rc  = u.get("link_repeat_count",1)
 
     m = _mk()
     m.row(_btn(f"📥 ডাউনলোড বাটন {dl}",  "togbtn_download"), _btn(f"🔗 শেয়ার বাটন {sh}",    "togbtn_share"))
-    m.row(_btn(f"📽️ টিউটোরিয়াল {tut}",   "togbtn_tutorial"), _btn(f"📝 লিংক ক্যাপশনে {lc}", "togbtn_link_caption"))
-    m.add(_btn(f"🔄 লিংক রিপিট: {rc}x", "set_link_repeat"))
-    m.add(_btn("🔘 কাস্টম বাটন ম্যানেজ", "menu_custom_buttons"))
+    m.row(_btn(f"📽️ টিউটোরিয়াল {tut}",   "togbtn_tutorial"), _btn(f"📝 ক্যাপশনে লিংক {lc}", "togbtn_link_caption"))
+    m.row(_btn(f"🤖 অটো টাইটেল {at}",     "togbtn_auto_title"), _btn(f"🔄 লিংক রিপিট: {rc}x", "set_link_repeat"))
+    m.add(_btn("🔘 কাস্টম ডাউনলোড টেক্সট/লিংক", "menu_custom_dl"))
+    m.add(_btn("➕ সাধারণ কাস্টম বাটন", "menu_custom_buttons"))
     m.add(_back("menu_post_settings"))
     return m
 
@@ -719,21 +721,23 @@ def cb(call):
     if not is_admin(cid):
         bot.answer_callback_query(call.id, "⛔ এডমিন অ্যাক্সেস প্রয়োজন!", show_alert=True); return
 
-    # ── Thumbnail Confirm/Cancel ──
     if data == "confirm_vid_thumb":
         bot.delete_message(cid, mid)
         _ask_web_title(cid, user, user.get("temp_media_type"), user.get("temp_media_id")); return
-        
     if data == "cancel_vid_thumb":
         bot.delete_message(cid, mid)
         update_user(cid, {"step":"wait_thumbnail","temp_media_id":"","temp_media_type":""})
         bot.send_message(cid, "❌ বাতিল। নতুন থাম্বনেইল দিন।"); return
 
-    # ── Skip Web Title (নতুন যোগ করা হয়েছে) ──
+    # ── Skip Web Title ──
     if data == "skip_web_title":
         bot.delete_message(cid, mid)
         user = get_user(cid)
-        title = (user.get("post_header") or "Untitled Video").strip()
+        # Auto title চালু থাকলে ক্যাপশন ব্যবহার করবে, নাহলে Default
+        if user.get("auto_title_from_caption", 1):
+            title = (user.get("post_header") or "Untitled Video").strip()
+        else:
+            title = "Untitled Video"
         update_user(cid, {"pending_web_title": title, "step": "none"})
         user2 = get_user(cid)
         _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
@@ -879,7 +883,6 @@ def cb(call):
         ad_chs  = [c for c in channels if c.get("type")=="ad"]
         pr_chs  = [c for c in channels if c.get("type")=="premium"]
         log_chs = [c for c in channels if c.get("type")=="log"]
-
         txt = (f"📂 <b>ক্যাটাগরি: {cat['name']}</b>\n{'─'*26}\n📺 Ad চ্যানেল: <b>{len(ad_chs)}</b>টি\n💎 Premium: <b>{len(pr_chs)}</b>টি\n💾 Log: <b>{len(log_chs)}</b>টি")
         m = _mk()
         m.add(_btn(f"📺 Ad চ্যানেল ({len(ad_chs)}টি)", f"catlist_ad_{cat_id2}"))
@@ -895,7 +898,6 @@ def cb(call):
         cat = get_category(cat_id3)
         if not cat:
             bot.answer_callback_query(call.id,"⚠️ পাওয়া যায়নি!", show_alert=True); return
-
         channels = cat.get("channels",[])
         type_chs = [c for c in channels if c.get("type")==ch_type2]
         type_names = {"ad":"📺 Ad","premium":"💎 Premium","log":"💾 Log"}
@@ -943,7 +945,6 @@ def cb(call):
         cat6 = get_category(cat_id6)
         already_ids = [c.get("channel_id") for c in cat6.get("channels",[]) if c.get("type")==ch_type5] if cat6 else []
         available = [ch for ch in existing if ch.get("channel_id") not in already_ids]
-
         m = _mk()
         if available:
             for ch in available:
@@ -1029,18 +1030,56 @@ def cb(call):
     elif data == "menu_post_buttons":
         u = get_user(cid)
         bot.edit_message_text(
-            f"🔘 <b>পোস্ট বাটন কনফিগারেশন</b>\n{'─'*26}\n📥 ডাউনলোড বাটন   : {_ico(u.get('btn_download',1))}\n🔗 শেয়ার বাটন      : {_ico(u.get('btn_share',1))}\n📽️ টিউটোরিয়াল বাটন : {_ico(u.get('btn_tutorial',1))}\n📝 ক্যাপশনে লিংক   : {_ico(u.get('btn_link_in_caption',1))}\n🔄 লিংক রিপিট      : <b>{u.get('link_repeat_count',1)}x</b>",
+            f"🔘 <b>পোস্ট বাটন কনফিগারেশন</b>\n{'─'*26}\n📥 ডাউনলোড বাটন   : {_ico(u.get('btn_download',1))}\n🔗 শেয়ার বাটন      : {_ico(u.get('btn_share',1))}\n📽️ টিউটোরিয়াল বাটন : {_ico(u.get('btn_tutorial',1))}\n📝 ক্যাপশনে লিংক   : {_ico(u.get('btn_link_in_caption',1))}\n🔄 লিংক রিপিট      : <b>{u.get('link_repeat_count',1)}x</b>\n🤖 অটো টাইটেল     : {_ico(u.get('auto_title_from_caption',1))}",
             cid, mid, reply_markup=_post_btn_menu(u)
         )
 
     elif data.startswith("togbtn_"):
-        key_map = {"togbtn_download": "btn_download", "togbtn_share": "btn_share", "togbtn_tutorial": "btn_tutorial", "togbtn_link_caption": "btn_link_in_caption"}
+        key_map = {
+            "togbtn_download": "btn_download", "togbtn_share": "btn_share", 
+            "togbtn_tutorial": "btn_tutorial", "togbtn_link_caption": "btn_link_in_caption",
+            "togbtn_auto_title": "auto_title_from_caption"
+        }
         if data in key_map:
             k   = key_map[data]
             new = 1 - user.get(k, 1)
             update_user(cid, {k: new})
             bot.answer_callback_query(call.id, f"{_ico(new)} অপশন আপডেট হয়েছে!", show_alert=False)
             call.data = "menu_post_buttons"; cb(call)
+
+    # ════════════════════════════════════════
+    #  কাস্টম ডাউনলোড টেক্সট ও লিংক (নতুন)
+    # ════════════════════════════════════════
+    elif data == "menu_custom_dl":
+        u = get_user(cid)
+        ct1 = u.get("custom_text_1", "None")
+        cl1 = u.get("custom_link_1", "None")
+        ct2 = u.get("custom_text_2", "None")
+        cl2 = u.get("custom_link_2", "None")
+        
+        m = _mk()
+        m.add(_btn("✏️ টেক্সট ১ সেট করুন", "set_ct1"))
+        m.add(_btn("🔗 লিংক ১ সেট করুন", "set_cl1"))
+        m.add(_btn("✏️ টেক্সট ২ সেট করুন", "set_ct2"))
+        m.add(_btn("🔗 লিংক ২ সেট করুন", "set_cl2"))
+        m.add(_back("menu_post_buttons"))
+        
+        bot.edit_message_text(
+            f"🔘 <b>কাস্টম ডাউনলোড টেক্সট ও লিংক</b>\n"
+            f"{'─'*26}\n"
+            f"<b>বাটন ১:</b>\nটেক্সট: {ct1}\nলিংক: {cl1}\n\n"
+            f"<b>বাটন ২:</b>\nটেক্সট: {ct2}\nলিংক: {cl2}\n",
+            cid, mid, reply_markup=m
+        )
+
+    elif data == "set_ct1":
+        update_step(cid, "wait_set_ct1"); bot.send_message(cid, "১ নম্বর বাটনের জন্য টেক্সট লিখুন:")
+    elif data == "set_cl1":
+        update_step(cid, "wait_set_cl1"); bot.send_message(cid, "১ নম্বর বাটনের জন্য লিংক দিন:")
+    elif data == "set_ct2":
+        update_step(cid, "wait_set_ct2"); bot.send_message(cid, "২ নম্বর বাটনের জন্য টেক্সট লিখুন:")
+    elif data == "set_cl2":
+        update_step(cid, "wait_set_cl2"); bot.send_message(cid, "২ নম্বর বাটনের জন্য লিংক দিন:")
 
     elif data == "menu_file_settings":
         u  = get_user(cid)
@@ -1337,6 +1376,16 @@ def handle_message(message):
 
     step = user.get("step","none")
 
+    # ── Custom DL Text/Link Steps ──
+    if step == "wait_set_ct1" and text:
+        update_user(cid, {"custom_text_1": text, "step": "none"}); bot.send_message(cid, "✅ টেক্সট ১ সেট হয়েছে!"); return
+    if step == "wait_set_cl1" and text:
+        update_user(cid, {"custom_link_1": text, "step": "none"}); bot.send_message(cid, "✅ লিংক ১ সেট হয়েছে!"); return
+    if step == "wait_set_ct2" and text:
+        update_user(cid, {"custom_text_2": text, "step": "none"}); bot.send_message(cid, "✅ টেক্সট ২ সেট হয়েছে!"); return
+    if step == "wait_set_cl2" and text:
+        update_user(cid, {"custom_link_2": text, "step": "none"}); bot.send_message(cid, "✅ লিংক ২ সেট হয়েছে!"); return
+
     if step.startswith("wait_broadcast"):
         tgt = step.replace("wait_broadcast_","") if "_" in step else "all"
         update_step(cid,"none"); bot.send_message(cid,"⏳ ব্রডকাস্ট background-এ শুরু হচ্ছে...")
@@ -1471,7 +1520,10 @@ def handle_message(message):
     if step=="wait_web_title":
         title = "" if text == "/skip" else text.strip()
         if not title:
-            title = (user.get("post_header") or "Untitled Video").strip()
+            if user.get("auto_title_from_caption", 1):
+                title = (user.get("post_header") or "Untitled Video").strip()
+            else:
+                title = "Untitled Video"
         update_user(cid, {"pending_web_title": title, "step": "none"})
         user2 = get_user(cid)
         _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
