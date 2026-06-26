@@ -109,7 +109,7 @@ _DEFAULTS = {
     "auto_delete": 0, "pending_link": "", "pending_short_link": "",
     "step": "none", "batch_id": "",
     "btn_download": 1, "btn_share": 1, "btn_tutorial": 1,
-    "btn_link_in_caption": 0, # Ad Protection: Default OFF রাখা হলো
+    "btn_link_in_caption": 0, 
     "link_repeat_count": 1, "auto_title_from_caption": 1,
     "custom_text_1": "Watch Part 1", "custom_link_1": "",
     "custom_text_2": "Watch Part 2", "custom_link_2": "",
@@ -121,6 +121,7 @@ _DEFAULTS = {
     "pending_category": "", "pending_schedule": "", "temp_caption": "",
     "pending_thumb_url": "", "pending_web_title": "",
     "pending_web_video_id": "", "pending_web_post_link": "",
+    "pending_web_ads": 1, # কতটি অ্যাড দেখতে হবে
 }
 
 def get_user(chat_id):
@@ -187,8 +188,7 @@ def send_force_sub_msg(chat_id, not_joined, file_key=None):
     for ch in not_joined:
         mk.add(InlineKeyboardButton(f"📢 {ch['name']} — Join করুন", url=ch['url']))
     mk.add(InlineKeyboardButton("✅ Join করেছি — যাচাই করুন", callback_data=f"check_sub_{file_key or 'none'}"))
-    bot.send_message(chat_id,
-        "🔒 <b>ফাইল পেতে নিচের চ্যানেলগুলোতে Join করুন!</b>\n\nJoin করার পর ✅ বাটনে ক্লিক করুন।", reply_markup=mk)
+    bot.send_message(chat_id, "🔒 <b>ফাইল পেতে নিচের চ্যানেলগুলোতে Join করুন!</b>\n\nJoin করার পর ✅ বাটনে ক্লিক করুন।", reply_markup=mk)
 
 # ══════════════════════════════════════════════════
 #  অটো-ডিলিট ওয়ার্কার
@@ -237,7 +237,7 @@ def _broadcast_worker(admin_id, from_chat, msg_id, target="all"):
     except: pass
 
 # ══════════════════════════════════════════════════
-#  ক্যাটাগরি হেল্পার
+#  ক্যাটাগরি হেল্পার ও Firebase সিঙ্ক
 # ══════════════════════════════════════════════════
 def get_categories():
     return list(categories_col.find())
@@ -245,10 +245,15 @@ def get_categories():
 def get_category(cat_id):
     return categories_col.find_one({"cat_id": cat_id})
 
-def get_category_channels(cat_id, ch_type):
-    cat = get_category(cat_id)
-    if not cat: return []
-    return [c for c in cat.get("channels", []) if c.get("type") == ch_type and c.get("status") == "on"]
+def sync_categories_to_firebase():
+    """ওয়েবসাইটের জন্য ক্যাটাগরি লিস্ট Firebase-এ সিঙ্ক করে"""
+    if not FIREBASE_DB_URL: return
+    try:
+        cats = [c['name'] for c in get_categories()]
+        clean_url = FIREBASE_DB_URL.rstrip("/")
+        requests.put(f"{clean_url}/categories.json", json=cats, timeout=10)
+    except Exception as e:
+        logger.warning(f"Firebase category sync error: {e}")
 
 def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
     cat = get_category(cat_id)
@@ -272,13 +277,12 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
         if ch_type == "premium":
             link = d_link
             links_str = "\n".join([link]*rpt)
-            # Premium-এ লিংক ক্যাপশনে থাকতে পারবে
             caption = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
             markup = _build_post_markup(user, d_link, d_link)
         elif ch_type == "log":
             caption = f"💾 <b>Backup</b> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
             markup = None
-        else:  # ad - এখানে Ad Protection দেওয়া হলো, ক্যাপশনে কোনো লিংক থাকবে না
+        else:  # ad
             caption = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
             markup = _build_post_markup(user, s_link, s_link)
 
@@ -313,6 +317,7 @@ def _scheduled_post_worker():
                     user["pending_thumb_url"] = item.get("thumb_url", "")
                     user["pending_web_video_id"] = item.get("web_video_id", "")
                     user["pending_web_post_link"] = item.get("web_post_link", "")
+                    user["pending_web_ads"] = item.get("web_ads", 1)
 
                     if cat_id:
                         cat = get_category(cat_id)
@@ -335,15 +340,11 @@ def _scheduled_post_worker():
                         file_count = _get_file_count_from_link(d_link)
                         fc_txt = f"📁 <b>মোট ফাইল: {file_count}টি</b>\n" if file_count > 0 else ""
 
-                        # Ad Protection: Ad চ্যানেলে লিংক বাদ
                         ad_cap = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
                         ad_mk = _build_post_markup(user, s_link, s_link)
-                        
-                        # Premium-এ লিংক থাকতে পারবে
                         pr_links = "\n".join([d_link]*rpt)
                         pr_cap = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{fc_txt}".strip()
                         pr_mk = _build_post_markup(user, d_link, d_link)
-                        
                         count = 0
                         for ch in auto_channels_col.find({"type":"ad","status":"on"}):
                             try: _send_media(ch['channel_id'], mtype, mid_, ad_cap, ad_mk, protect); count+=1
@@ -415,9 +416,12 @@ def create_web_video_entry(user, category_name="Others"):
 
     title = (user.get("pending_web_title") or user.get("post_header") or "Untitled Video").strip()
     data = {
-        "title": title, "category": category_name or "Others",
-        "thumb": user.get("pending_thumb_url", ""), "url": user.get("pending_link", ""),
-        "fullCollectionUrl": "", "fullCollectionAds": 0,
+        "title": title, 
+        "category": category_name or "Others",
+        "thumb": user.get("pending_thumb_url", ""), 
+        "url": user.get("pending_link", ""),
+        "fullCollectionUrl": "", 
+        "fullCollectionAds": int(user.get("pending_web_ads", 1)), # অ্যাড সংখ্যা এখানে যাচ্ছে
         "views": 0, "likes": 0, "dislikes": 0, "posted": False,
         "timestamp": int(time.time() * 1000), "source": "shortener_bot",
     }
@@ -435,7 +439,7 @@ def create_web_video_entry(user, category_name="Others"):
     return ""
 
 # ══════════════════════════════════════════════════
-#  পোস্ট মার্কআপ বিল্ডার (আপডেট করা হয়েছে)
+#  পোস্ট মার্কআপ বিল্ডার
 # ══════════════════════════════════════════════════
 def _build_post_markup(user, dl_link, share_text):
     mk = InlineKeyboardMarkup()
@@ -452,7 +456,6 @@ def _build_post_markup(user, dl_link, share_text):
         web_post_link = user.get("pending_web_post_link", "")
         second_link = user.get("pending_short_link") or dl_link
         
-        # সারি ১: ডাউনলোড ১ ও কাস্টম টেক্সট ১
         row1 = []
         if web_post_link:
             row1.append(InlineKeyboardButton("ডাউনলোড ১", url=web_post_link))
@@ -467,7 +470,6 @@ def _build_post_markup(user, dl_link, share_text):
             row1.append(InlineKeyboardButton(ct1_text, callback_data="noop"))
         mk.row(*row1)
 
-        # সারি ২: ডাউনলোড ২ ও কাস্টম টেক্সট ২
         row2 = []
         if second_link:
             row2.append(InlineKeyboardButton("ডাউনলোড ২", url=second_link))
@@ -490,7 +492,7 @@ def _build_post_markup(user, dl_link, share_text):
     return mk
 
 # ══════════════════════════════════════════════════
-#  পোস্ট অপশন — ক্যাটাগরি ও সিডিউল
+#  পোস্ট অপশন
 # ══════════════════════════════════════════════════
 def _ask_post_options(chat_id, user, mtype, mid):
     update_user(chat_id, {"temp_media_id": mid, "temp_media_type": mtype, "step":"wait_post_options"})
@@ -502,6 +504,10 @@ def _ask_post_options(chat_id, user, mtype, mid):
         m.add(_btn("🌐 সব চ্যানেলে পোস্ট করো","postcat_all"))
     else:
         m.add(_btn("📤 এখনই পোস্ট করো","postcat_all"))
+    
+    # অ্যাড সংখ্যা সেট করার বাটন (নতুন)
+    m.add(_btn(f"🔢 অ্যাড সংখ্যা: {user.get('pending_web_ads', 1)}টি", "set_ads_count"))
+    
     m.add(_btn("⏰ সিডিউল করুন","ask_schedule"))
     bot.send_message(chat_id,
         "📂 <b>পোস্ট অপশন সিলেক্ট করুন</b>\n\nকোন ক্যাটাগরিতে পোস্ট করবেন?\nঅথবা সিডিউল করতে ⏰ বাটনে চাপুন।",
@@ -537,6 +543,7 @@ def execute_channel_post(chat_id, user, mtype, mid, scheduled_at=None):
             "d_link": d_link, "s_link": s_link, "category_id": user.get("pending_category",""),
             "web_title": user.get("pending_web_title", ""), "thumb_url": user.get("pending_thumb_url", ""),
             "web_video_id": user.get("pending_web_video_id", ""), "web_post_link": user.get("pending_web_post_link", ""),
+            "web_ads": user.get("pending_web_ads", 1),
             "scheduled_at": scheduled_at, "status": "pending", "created_at": datetime.now().isoformat()
         })
         cat = get_category(user.get("pending_category","")) if user.get("pending_category") else None
@@ -578,11 +585,9 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
     file_count = _get_file_count_from_link(d_link)
     fc_txt = f"📁 <b>মোট ফাইল: {file_count}টি</b>\n" if file_count > 0 else ""
 
-    # Ad Protection: Ad-তে লিংক বাদ
     ad_caption = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
     ad_markup = _build_post_markup(user, s_link, s_link)
 
-    # Premium-এ লিংক থাকতে পারবে
     rpt = max(1, min(user.get("link_repeat_count", 1), 5))
     pr_links    = "\n".join([d_link]*rpt)
     prem_caption= f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
@@ -729,11 +734,9 @@ def cb(call):
         update_user(cid, {"step":"wait_thumbnail","temp_media_id":"","temp_media_type":""})
         bot.send_message(cid, "❌ বাতিল। নতুন থাম্বনেইল দিন।"); return
 
-    # ── Skip Web Title ──
     if data == "skip_web_title":
         bot.delete_message(cid, mid)
         user = get_user(cid)
-        # Auto title চালু থাকলে ক্যাপশন ব্যবহার করবে, নাহলে Default
         if user.get("auto_title_from_caption", 1):
             title = (user.get("post_header") or "Untitled Video").strip()
         else:
@@ -741,6 +744,40 @@ def cb(call):
         update_user(cid, {"pending_web_title": title, "step": "none"})
         user2 = get_user(cid)
         _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
+        return
+
+    # ── Ads Count Selector (নতুন) ──
+    if data == "set_ads_count":
+        user = get_user(cid)
+        m = _mk()
+        for i in range(1, 6):
+            m.add(_btn(f"{i}টি অ্যাড", f"setads_{i}"))
+        m.add(_btn("✏️ কাস্টম সংখ্যা", "setads_custom"))
+        m.add(_btn("🔙 ব্যাক", "back_to_post_options"))
+        try:
+            bot.edit_message_text(f"🔢 <b>কতটি অ্যাড দেখতে হবে নির্বাচন করুন</b>\nবর্তমান: <b>{user.get('pending_web_ads', 1)}টি</b>", cid, mid, reply_markup=m)
+        except:
+            bot.send_message(cid, f"🔢 <b>কতটি অ্যাড দেখতে হবে নির্বাচন করুন</b>\nবর্তমান: <b>{user.get('pending_web_ads', 1)}টি</b>", reply_markup=m)
+        return
+        
+    elif data == "back_to_post_options":
+        try: bot.delete_message(cid, mid)
+        except: pass
+        user = get_user(cid)
+        _ask_post_options(cid, user, user.get("temp_media_type"), user.get("temp_media_id"))
+        return
+        
+    elif data.startswith("setads_"):
+        val = data[7:]
+        if val == "custom":
+            update_step(cid, "wait_custom_ads")
+            bot.send_message(cid, "✏️ কাস্টম অ্যাড সংখ্যা লিখুন (যেমন: 7):")
+        else:
+            update_user(cid, {"pending_web_ads": int(val)})
+            user = get_user(cid)
+            try: bot.delete_message(cid, mid)
+            except: pass
+            _ask_post_options(cid, user, user.get("temp_media_type"), user.get("temp_media_id"))
         return
 
     if data == "main_menu":
@@ -871,6 +908,7 @@ def cb(call):
         cat = get_category(cid2)
         if cat:
             categories_col.delete_one({"cat_id": cid2})
+            sync_categories_to_firebase() # ওয়েবসাইটে সিঙ্ক
             bot.answer_callback_query(call.id, f"✅ '{cat['name']}' মুছে ফেলা হয়েছে!", show_alert=True)
         call.data="menu_categories"; cb(call)
 
@@ -1047,28 +1085,20 @@ def cb(call):
             bot.answer_callback_query(call.id, f"{_ico(new)} অপশন আপডেট হয়েছে!", show_alert=False)
             call.data = "menu_post_buttons"; cb(call)
 
-    # ════════════════════════════════════════
-    #  কাস্টম ডাউনলোড টেক্সট ও লিংক (নতুন)
-    # ════════════════════════════════════════
     elif data == "menu_custom_dl":
         u = get_user(cid)
         ct1 = u.get("custom_text_1", "None")
         cl1 = u.get("custom_link_1", "None")
         ct2 = u.get("custom_text_2", "None")
         cl2 = u.get("custom_link_2", "None")
-        
         m = _mk()
         m.add(_btn("✏️ টেক্সট ১ সেট করুন", "set_ct1"))
         m.add(_btn("🔗 লিংক ১ সেট করুন", "set_cl1"))
         m.add(_btn("✏️ টেক্সট ২ সেট করুন", "set_ct2"))
         m.add(_btn("🔗 লিংক ২ সেট করুন", "set_cl2"))
         m.add(_back("menu_post_buttons"))
-        
         bot.edit_message_text(
-            f"🔘 <b>কাস্টম ডাউনলোড টেক্সট ও লিংক</b>\n"
-            f"{'─'*26}\n"
-            f"<b>বাটন ১:</b>\nটেক্সট: {ct1}\nলিংক: {cl1}\n\n"
-            f"<b>বাটন ২:</b>\nটেক্সট: {ct2}\nলিংক: {cl2}\n",
+            f"🔘 <b>কাস্টম ডাউনলোড টেক্সট ও লিংক</b>\n{'─'*26}\n<b>বাটন ১:</b>\nটেক্সট: {ct1}\nলিংক: {cl1}\n\n<b>বাটন ২:</b>\nটেক্সট: {ct2}\nলিংক: {cl2}\n",
             cid, mid, reply_markup=m
         )
 
@@ -1385,6 +1415,17 @@ def handle_message(message):
         update_user(cid, {"custom_text_2": text, "step": "none"}); bot.send_message(cid, "✅ টেক্সট ২ সেট হয়েছে!"); return
     if step == "wait_set_cl2" and text:
         update_user(cid, {"custom_link_2": text, "step": "none"}); bot.send_message(cid, "✅ লিংক ২ সেট হয়েছে!"); return
+        
+    # ── Custom Ads Count Step ──
+    if step == "wait_custom_ads":
+        if text.isdigit() and int(text) > 0:
+            update_user(cid, {"pending_web_ads": int(text), "step": "none"})
+            bot.send_message(cid, f"✅ অ্যাড সংখ্যা সেট হয়েছে: {text}টি")
+            user = get_user(cid)
+            _ask_post_options(cid, user, user.get("temp_media_type"), user.get("temp_media_id"))
+        else:
+            bot.send_message(cid, "⚠️ সঠিক সংখ্যা লিখুন!")
+        return
 
     if step.startswith("wait_broadcast"):
         tgt = step.replace("wait_broadcast_","") if "_" in step else "all"
@@ -1396,6 +1437,7 @@ def handle_message(message):
         if name:
             cat_id = str(uuid.uuid4().hex)[:8]
             categories_col.insert_one({"cat_id":cat_id,"name":name,"channels":[],"created_at":datetime.now().isoformat()})
+            sync_categories_to_firebase() # ওয়েবসাইটে সিঙ্ক
             update_step(cid,"none")
             bot.send_message(cid, f"✅ <b>ক্যাটাগরি তৈরি হয়েছে!</b>\n📂 নাম: <b>{name}</b>")
         else: bot.send_message(cid,"⚠️ নাম খালি রাখা যাবে না।")
@@ -1695,7 +1737,7 @@ def api_add_admin():
 @require_auth
 def api_delete_admin(chat_id):
     if str(chat_id) == str(MAIN_ADMIN_ID):
-        return jsonify({"ok": False, "error": "Super Admin সরানো যাবে না"}), 403
+        return jsonify({"ok": False, "error": "Super Admin সরানা যাবে না"}), 403
     admins_col.delete_one({"chat_id": str(chat_id)})
     return jsonify({"ok": True})
 
