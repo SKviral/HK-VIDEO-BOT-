@@ -870,7 +870,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // অ্যাডভার্টাইজমেন্ট সেটিংস এবং ভেরিয়েবলসমূহ
+    // বিজ্ঞাপন সেটিংস এবং ভেরিয়েবলসমূহ
     let monetagZone = ""; 
     let adsgramId = ""; 
     let tgAppUrl = ""; 
@@ -990,9 +990,54 @@
     const list = document.getElementById('video-list');
     let firstVideoLoaded = false;
 
-    // ভিডিও লিস্ট এড করা
+    // বাটন ও প্রোগ্রেস রেন্ডারিং হেল্পার ফাংশন (ডাইনামিক রিস্টার্ট সমস্যা সমাধান)
+    function renderActionRow(id, v) {
+        const actionRow = document.getElementById('action-row-' + id);
+        if (!actionRow) return;
+
+        let fcHtml = '';
+        let copyBtnStyle = 'flex: 1; font-weight: 700; font-size: 13px;';
+        let copyBtnContent = '<i class="fa-solid fa-share-nodes"></i> Share';
+
+        if (v.fullCollectionUrl && v.fullCollectionUrl.trim() !== "") {
+            // ডাটা টাইপ ইন্টিজারে রূপান্তর নিশ্চিতকরণ
+            let reqAds = parseInt(v.fullCollectionAds) || 0;
+            let currentProgress = parseInt(localStorage.getItem('fc_progress_' + id)) || 0;
+            
+            let btnText = currentProgress >= reqAds ? '<i class="fa-solid fa-unlock"></i> Full Collection' : `<i class="fa-solid fa-lock"></i> Unlock Full (${currentProgress}/${reqAds})`;
+            let btnColor = currentProgress >= reqAds ? 'linear-gradient(135deg, #00c853, #00e676)' : 'linear-gradient(135deg, var(--accent), #ff8800)';
+            let btnShadow = currentProgress >= reqAds ? 'rgba(0, 200, 83, 0.3)' : 'rgba(255, 174, 0, 0.3)';
+            
+            fcHtml = `<button class="btn-full-collection" id="fc-btn-${id}" style="background:${btnColor}; box-shadow: 0 4px 15px ${btnShadow};">${btnText}</button>`;
+            copyBtnStyle = 'width: 45px; font-size: 16px; flex-shrink: 0;';
+            copyBtnContent = '<i class="fa-solid fa-share-nodes"></i>';
+        }
+
+        actionRow.innerHTML = `
+            ${fcHtml}
+            <button class="copy-btn-small" id="copy-btn-${id}" style="${copyBtnStyle}">${copyBtnContent}</button>
+        `;
+
+        // কপি বাটন ক্লিক ইভেন্ট প্রোগ্রাম্যাটিকাল অ্যাসাইন
+        const copyBtn = document.getElementById('copy-btn-' + id);
+        if (copyBtn) {
+            copyBtn.onclick = function() {
+                copyLink(id);
+            };
+        }
+
+        // ফুল কালেকশন বাটন ক্লিক ইভেন্ট প্রোগ্রাম্যাটিকাল অ্যাসাইন
+        const fcBtn = document.getElementById('fc-btn-' + id);
+        if (fcBtn) {
+            let reqAds = parseInt(v.fullCollectionAds) || 0;
+            fcBtn.onclick = function() {
+                handleFC(id, v.fullCollectionUrl, reqAds);
+            };
+        }
+    }
+
+    // ফায়ারবেস থেকে ভিডিও লিস্ট লোড হওয়া
     db.ref('videos').on('child_added', (snapshot) => {
-        // প্রথম কন্টেন্ট লোড হওয়ার সাথে সাথে স্কেলিটন বা লোডার স্ক্রিন রিমুভ করা হবে
         if(!firstVideoLoaded) {
             list.innerHTML = '';
             firstVideoLoaded = true;
@@ -1001,28 +1046,11 @@
         const id = snapshot.key; 
         const v = snapshot.val();
         let commentCount = v.comments ? Object.keys(v.comments).length : 0;
-        
-        let fcHtml = '';
-        let copyBtnStyle = 'flex: 1; font-weight: 700; font-size: 13px;';
-        let copyBtnContent = '<i class="fa-solid fa-share-nodes"></i> Share';
-
-        if (v.fullCollectionUrl && v.fullCollectionUrl.trim() !== "") {
-            let reqAds = parseInt(v.fullCollectionAds) || 0;
-            let currentProgress = parseInt(localStorage.getItem('fc_progress_' + id)) || 0;
-            
-            let btnText = currentProgress >= reqAds ? '<i class="fa-solid fa-unlock"></i> Full Collection' : `<i class="fa-solid fa-lock"></i> Unlock Full (${currentProgress}/${reqAds})`;
-            let btnColor = currentProgress >= reqAds ? 'linear-gradient(135deg, #00c853, #00e676)' : 'linear-gradient(135deg, var(--accent), #ff8800)';
-            let btnShadow = currentProgress >= reqAds ? 'rgba(0, 200, 83, 0.3)' : 'rgba(255, 174, 0, 0.3)';
-            
-            fcHtml = `<button class="btn-full-collection" id="fc-btn-${id}" style="background:${btnColor}; box-shadow: 0 4px 15px ${btnShadow};" onclick="handleFC('${id}', '${v.fullCollectionUrl}', ${reqAds})">${btnText}</button>`;
-            copyBtnStyle = 'width: 45px; font-size: 16px; flex-shrink: 0;';
-            copyBtnContent = '<i class="fa-solid fa-share-nodes"></i>';
-        }
 
         // কার্ড ইন্টারফেস রেন্ডারিং
         list.insertAdjacentHTML('afterbegin', `
             <div class="card" id="card-${id}" data-title="${v.title.toLowerCase()}" data-category="${v.category || 'Others'}">
-                <div class="video-wrapper" onclick="watchVideo('${id}', '${v.url}')">
+                <div class="video-wrapper">
                     <span class="quality-badge"><i class="fa-solid fa-bolt"></i> HD PREMIUM</span>
                     <img src="${v.thumb || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=500'}" id="img-${id}" draggable="false" alt="thumbnail">
                     <div class="play-overlay">
@@ -1046,15 +1074,31 @@
                         <button class="react-btn comment-btn" onclick="openComments('${id}')"><i class="fa-solid fa-comment-dots"></i> <span id="comments-count-${id}">${commentCount}</span></button>
                     </div>
                     
-                    <button class="btn-unlock" id="btn-${id}" onclick="watchVideo('${id}', '${v.url}')"><i class="fa-solid fa-circle-play"></i> Watch Video</button>
+                    <button class="btn-unlock" id="btn-${id}"><i class="fa-solid fa-circle-play"></i> Watch Video</button>
                     
-                    <div class="action-row">
-                        ${fcHtml}
-                        <button class="copy-btn-small" onclick="copyLink('${id}')" style="${copyBtnStyle}">${copyBtnContent}</button>
-                    </div>
+                    <!-- ডাইনামিক অ্যাকশন কন্টেইনার -->
+                    <div class="action-row" id="action-row-${id}"></div>
                 </div>
             </div>
         `);
+
+        // ইমেজ ও ওয়াচ বাটন ইভেন্ট প্রোগ্রাম্যাটিক বাইন্ডিং (কোটেশন এরর এড়াতে)
+        const thumbDiv = document.querySelector(`#card-${id} .video-wrapper`);
+        if (thumbDiv) {
+            thumbDiv.onclick = function() {
+                watchVideo(id, v.url);
+            };
+        }
+
+        const watchBtn = document.getElementById('btn-' + id);
+        if (watchBtn) {
+            watchBtn.onclick = function() {
+                watchVideo(id, v.url);
+            };
+        }
+
+        // প্রোগ্রেস বাটন রেন্ডারিং করা
+        renderActionRow(id, v);
 
         if(localStorage.getItem('react_' + id)) { 
             document.getElementById('like-btn-' + id).disabled = true; 
@@ -1074,6 +1118,7 @@
         }
     });
 
+    // ড্যাশবোর্ডে লাইভ চেঞ্জ হলে ইনস্ট্যান্ট প্রোগ্রেস রি-রেন্ডার করা
     db.ref('videos').on('child_changed', (snapshot) => {
         const id = snapshot.key; 
         const v = snapshot.val();
@@ -1085,21 +1130,8 @@
             renderComments(v.comments); 
         }
 
-        let fcBtn = document.getElementById('fc-btn-' + id);
-        if(fcBtn && v.fullCollectionUrl) {
-            let reqAds = parseInt(v.fullCollectionAds) || 0;
-            let currentProgress = parseInt(localStorage.getItem('fc_progress_' + id)) || 0;
-            if(currentProgress >= reqAds) {
-                fcBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection'; 
-                fcBtn.style.background = 'linear-gradient(135deg, #00c853, #00e676)';
-                fcBtn.style.boxShadow = '0 4px 15px rgba(0, 200, 83, 0.3)';
-            } else {
-                fcBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${currentProgress}/${reqAds})`; 
-                fcBtn.style.background = 'linear-gradient(135deg, var(--accent), #ff8800)';
-                fcBtn.style.boxShadow = '0 4px 15px rgba(255, 174, 0, 0.3)';
-            }
-            fcBtn.onclick = function() { handleFC(id, v.fullCollectionUrl, reqAds); };
-        }
+        // রি-রেন্ডার করে বাটন লিঙ্ক ও প্রোগ্রেস আপডেট রাখা
+        renderActionRow(id, v);
     });
 
     db.ref('videos').on('child_removed', (snapshot) => { 
@@ -1151,7 +1183,7 @@
         showToast("আপনার প্রতিক্রিয়া সংরক্ষিত হয়েছে!", "success");
     }
 
-    // অ্যাড দেখার পর ফাইল বা লিঙ্ক আনলক হওয়ার মূল লজিক (সম্পূর্ণ সংরক্ষিত)
+    // অ্যাড দেখার পর ফাইল বা লিঙ্ক আনলক হওয়ার মূল লজিক (সংরক্ষিত)
     function watchVideo(id, url) {
         if (!localStorage.getItem('viewed_' + id)) {
             db.ref('videos/' + id + '/views').transaction(v => (v || 0) + 1);
@@ -1169,10 +1201,12 @@
         });
     }
 
-    // Full Collection Unlock Logic (বিজ্ঞাপন কাউন্ট লক - সংরক্ষিত)
+    // Full Collection Unlock Logic (সম্পূর্ণ কোটেশন-সেফ এবং ইনটিজার-টাইপ সেফ)
     function handleFC(id, url, reqAds) {
+        let limit = parseInt(reqAds) || 0;
         let prog = parseInt(localStorage.getItem('fc_progress_' + id)) || 0;
-        if (prog >= reqAds) {
+
+        if (prog >= limit) {
             if (window.Telegram?.WebApp?.openLink) {
                 window.Telegram.WebApp.openLink(url);
             } else {
@@ -1184,13 +1218,15 @@
                 prog++;
                 localStorage.setItem('fc_progress_' + id, prog);
                 let btn = document.getElementById('fc-btn-' + id);
-                if(prog >= reqAds) {
-                    btn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection';
-                    btn.style.background = 'linear-gradient(135deg, #00c853, #00e676)';
-                    btn.style.boxShadow = '0 4px 15px rgba(0, 200, 83, 0.3)';
-                    showToast("🎉 কালেকশন আনলক সম্পন্ন হয়েছে!", "success");
-                } else {
-                    btn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+                if (btn) {
+                    if (prog >= limit) {
+                        btn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection';
+                        btn.style.background = 'linear-gradient(135deg, #00c853, #00e676)';
+                        btn.style.boxShadow = '0 4px 15px rgba(0, 200, 83, 0.3)';
+                        showToast("🎉 কালেকশন আনলক সম্পন্ন হয়েছে!", "success");
+                    } else {
+                        btn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${limit})`;
+                    }
                 }
             });
         }
