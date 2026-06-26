@@ -1,249 +1,1294 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>StreamX Video Portal</title>
+    <title id="site-title">StreamX - Premium Video Portal</title>
+    
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background-color: #0f0f15;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
+        :root {
+            --primary: #ff0055;
+            --primary-glow: rgba(255, 0, 85, 0.4);
+            --bg: #090613;
+            --card: rgba(20, 15, 35, 0.6);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #f3effa;
+            --text-muted: #a49cb5;
+            --success: #00ffd5;
+            --accent: #ffae00;
+            --purple-glow: rgba(163, 0, 255, 0.3);
         }
-        .header {
-            width: 100%;
-            padding: 20px 15px;
-            text-align: center;
-            background: linear-gradient(135deg, #1a1a24 0%, #0f0f15 100%);
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', 'Segoe UI', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(91, 37, 245, 0.15) 0%, transparent 45%),
+                radial-gradient(circle at 90% 80%, rgba(255, 0, 85, 0.12) 0%, transparent 45%);
+            background-attachment: fixed;
+            color: var(--text);
+            padding-bottom: 60px;
+            min-height: 100vh;
+            -webkit-user-select: none;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        /* Glassmorphic Header */
+        header {
+            background: rgba(13, 9, 24, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 16px;
             position: sticky;
             top: 0;
-            z-index: 10;
-            border-bottom: 1px solid #2a2a3a;
+            border-bottom: 1px solid rgba(255, 0, 85, 0.25);
+            z-index: 1000;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
         }
-        .header h1 { font-size: 18px; font-weight: 600; color: #ff4080; }
-        .video-list {
+
+        header h2 {
+            font-size: 26px;
+            font-weight: 800;
+            background: linear-gradient(45deg, #ff0055, #a300ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 1.5px;
+            text-shadow: 0 0 35px rgba(255, 0, 85, 0.3);
+        }
+
+        .live-status {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+        }
+
+        .dot {
+            height: 9px;
+            width: 9px;
+            background-color: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 12px var(--success);
+            animation: blink 1.2s infinite;
+        }
+
+        .user-count-badge {
+            color: var(--success);
+            font-weight: 700;
+            background: rgba(0, 255, 213, 0.1);
+            padding: 1px 8px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 255, 213, 0.2);
+        }
+
+        @keyframes blink {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Search Box */
+        .search-box {
             width: 100%;
-            max-width: 450px;
-            padding: 15px;
+            max-width: 500px;
+            margin: 15px auto 5px auto;
+            position: relative;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 16px;
+            pointer-events: none;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 20px 12px 46px;
+            border-radius: 30px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: white;
+            outline: none;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        .search-box input:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        /* Category Bar */
+        .category-bar {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 12px 5px;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            scrollbar-width: none;
+        }
+
+        .category-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .cat-btn {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            padding: 8px 18px;
+            border-radius: 30px;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .cat-btn:hover {
+            color: #fff;
+            border-color: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .cat-btn.active {
+            background: linear-gradient(135deg, var(--primary), #a300ff);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        /* Grid Container */
+        .container {
+            max-width: 1100px;
+            margin: 20px auto;
+            padding: 0 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        /* Skeleton Loading Cards */
+        .skeleton-card {
+            background: var(--card);
+            border-radius: 18px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            padding: 0;
             display: flex;
             flex-direction: column;
             gap: 15px;
-            padding-bottom: 50px;
         }
-        .video-card {
-            background: #1a1a24;
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        .video-card:active { transform: scale(0.98); }
-        .thumb-container {
-            position: relative;
+
+        .skeleton-thumb {
             width: 100%;
-            padding-top: 56.25%;
-            background-color: #000;
+            aspect-ratio: 16/9;
+            background: linear-gradient(90deg, #181427 25%, #25203a 50%, #181427 75%);
+            background-size: 200% 100%;
+            animation: loading-animation 1.5s infinite;
         }
-        .thumb-container img {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover;
+
+        .skeleton-text {
+            height: 18px;
+            width: 80%;
+            margin: 0 15px;
+            background: linear-gradient(90deg, #181427 25%, #25203a 50%, #181427 75%);
+            background-size: 200% 100%;
+            animation: loading-animation 1.5s infinite;
+            border-radius: 4px;
         }
-        .video-info { padding: 15px; }
-        .video-title { font-size: 16px; font-weight: 600; margin-bottom: 5px; }
-        .video-meta { font-size: 12px; color: #888; display: flex; gap: 15px; flex-wrap: wrap;}
-        .video-meta span { display: flex; align-items: center; gap: 4px; }
-        
-        .unlock-section {
-            padding: 15px;
-            background: #15151e;
+
+        .skeleton-btn {
+            height: 42px;
+            width: 90%;
+            margin: 10px auto 18px auto;
+            background: linear-gradient(90deg, #181427 25%, #25203a 50%, #181427 75%);
+            background-size: 200% 100%;
+            animation: loading-animation 1.5s infinite;
+            border-radius: 10px;
+        }
+
+        @keyframes loading-animation {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Card Design */
+        .card {
+            background: var(--card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 18px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            position: relative;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
-        .unlock-btn {
-            background: linear-gradient(90deg, #ff4080, #e91e63);
+
+        .card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(255, 0, 85, 0.4);
+            box-shadow: 0 15px 35px rgba(255, 0, 85, 0.2), 0 0 15px var(--purple-glow);
+        }
+        
+        /* Thumbnail with Play Hover Overlay */
+        .video-wrapper {
+            width: 100%;
+            aspect-ratio: 16/9;
+            position: relative;
+            background: #050308;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .video-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.6s ease;
+        }
+
+        .card:hover .video-wrapper img {
+            transform: scale(1.06);
+        }
+
+        .play-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(9, 6, 19, 0.45);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0.8;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover .play-overlay {
+            background: rgba(9, 6, 19, 0.55);
+            opacity: 1;
+        }
+
+        .play-btn-circle {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #a300ff);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.6);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .play-btn-circle i {
+            color: white;
+            font-size: 20px;
+            margin-left: 4px;
+        }
+
+        .card:hover .play-btn-circle {
+            transform: scale(1.12);
+        }
+
+        /* HD/Quality Tag on Thumbnail */
+        .quality-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(255, 0, 85, 0.85);
+            color: white;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            z-index: 5;
+        }
+
+        /* Card Content */
+        .info {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .info h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1.4;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            height: 44px;
+            transition: color 0.3s ease;
+        }
+
+        .card:hover .info h3 {
+            color: #ff3b7e;
+        }
+
+        .v-time {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 12px;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .views-count {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .cat-tag {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        /* React Groups */
+        .react-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .react-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 15px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .react-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .react-btn.active-like {
+            background: rgba(0, 255, 213, 0.15);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .react-btn.active-dislike {
+            background: rgba(255, 0, 85, 0.15);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .react-btn.comment-btn {
+            background: rgba(163, 0, 255, 0.05);
+            border-color: rgba(163, 0, 255, 0.2);
+        }
+
+        .react-btn.comment-btn:hover {
+            background: rgba(163, 0, 255, 0.1);
+        }
+
+        .react-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* Action Buttons */
+        .btn-unlock {
+            background: linear-gradient(135deg, var(--primary), #a300ff);
+            color: #fff;
+            border: none;
+            padding: 12px;
+            width: 100%;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .btn-unlock:hover {
+            transform: scale(0.98);
+            opacity: 0.95;
+        }
+        
+        .action-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .btn-full-collection {
+            background: linear-gradient(135deg, var(--accent), #ff8800);
+            color: #fff;
+            border: none;
+            padding: 12px;
+            flex: 1;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 174, 0, 0.3);
+        }
+
+        .btn-full-collection:hover {
+            transform: scale(0.98);
+            opacity: 0.95;
+        }
+
+        .copy-btn-small {
+            background: rgba(255, 255, 255, 0.04);
+            color: #fff;
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .copy-btn-small:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        /* Comment Modal (Slide Up) */
+        .comment-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 3, 10, 0.85);
+            backdrop-filter: blur(12px);
+            z-index: 2000;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .comment-content {
+            background: #110d1c;
+            width: 100%;
+            max-width: 600px;
+            height: 75vh;
+            border-radius: 24px 24px 0 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            border-top: 1px solid rgba(255, 0, 85, 0.35);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.9);
+            animation: slideUp 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .comment-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .close-comment {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            border: 1px solid var(--border);
+        }
+
+        .close-comment:hover {
+            background: rgba(255, 0, 85, 0.1);
+            color: var(--primary);
+            border-color: rgba(255, 0, 85, 0.2);
+        }
+
+        .comment-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .comment-item {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 15px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            border-left: 3px solid rgba(163, 0, 255, 0.5);
+        }
+
+        .comment-item strong {
+            color: var(--primary);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .comment-item p {
+            font-size: 14px;
+            margin-top: 6px;
+            color: #e2dcee;
+            line-height: 1.5;
+        }
+
+        .admin-reply {
+            margin-top: 10px;
+            background: rgba(0, 255, 213, 0.03);
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px dashed rgba(0, 255, 213, 0.2);
+            border-left: 3px solid var(--success);
+            font-size: 13px;
+            color: #d1f7f1;
+        }
+
+        .admin-reply strong {
+            color: var(--success);
+        }
+
+        .comment-input-area {
+            padding: 15px 20px;
+            background: #0d0a15;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        .comment-input-area input {
+            flex: 1;
+            padding: 12px 18px;
+            border-radius: 30px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: white;
+            outline: none;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .comment-input-area input:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        .comment-input-area button {
+            background: linear-gradient(135deg, var(--primary), #a300ff);
             color: white;
             border: none;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            text-align: center;
-            transition: transform 0.2s;
-        }
-        .unlock-btn:active { transform: scale(0.98); }
-        .unlock-btn.unlocked { background: linear-gradient(90deg, #00c6ff, #0072ff); }
-        .play-btn {
-            background: #ffffff;
-            color: #000;
-            border: none;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            text-align: center;
-            text-decoration: none;
-            display: block;
-        }
-        .loader {
-            text-align: center;
-            padding: 50px;
-            color: #888;
-        }
-        .back-btn {
-            background: transparent;
-            border: 1px solid #444;
-            color: #fff;
-            padding: 8px 15px;
-            border-radius: 20px;
-            margin-bottom: 15px;
+            padding: 0 22px;
+            border-radius: 30px;
+            font-weight: 700;
             cursor: pointer;
             font-size: 14px;
-            align-self: flex-start;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px var(--primary-glow);
+        }
+
+        .comment-input-area button:hover {
+            transform: scale(0.96);
+        }
+
+        /* Idle Ad Popup UI */
+        .idle-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 3, 10, 0.9);
+            backdrop-filter: blur(12px);
+            z-index: 3000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .idle-box {
+            background: #141021;
+            border: 1px solid rgba(255, 0, 85, 0.3);
+            padding: 35px 25px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(255, 0, 85, 0.15);
+        }
+
+        .idle-box p {
+            font-size: 16px;
+            margin-bottom: 25px;
+            color: #fff;
+            line-height: 1.6;
+            font-weight: 600;
+        }
+
+        .idle-btn {
+            background: linear-gradient(135deg, var(--primary), #a300ff);
+            color: #fff;
+            border: none;
+            padding: 12px 35px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .idle-btn:hover {
+            transform: scale(0.96);
+            opacity: 0.95;
+        }
+
+        /* Custom Toast Notification */
+        .custom-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translate(-50%, -30px);
+            z-index: 9999;
+            background: rgba(20, 16, 33, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 30px;
+            padding: 12px 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom: 2px solid var(--primary);
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: max-content;
+            max-width: 90%;
+        }
+
+        .custom-toast.show {
+            transform: translate(-50%, 0);
+            opacity: 1;
+        }
+
+        .toast-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .toast-content i {
+            font-size: 16px;
+        }
+        
+        .toast-success {
+            border-bottom-color: var(--success);
+        }
+        .toast-success i {
+            color: var(--success);
+        }
+        .toast-error {
+            border-bottom-color: var(--primary);
+        }
+        .toast-error i {
+            color: var(--primary);
         }
     </style>
 </head>
-<body>
-    <div class="header">
-        <h1>StreamX Video Portal</h1>
+<body oncontextmenu="return false;" ondragstart="return false;" ondrop="return false;">
+
+<header>
+    <h2 id="site-name">STREAMX 🎥</h2>
+    <div class="live-status">
+        <span class="dot"></span> 
+        <span id="user-count" class="user-count-badge">0</span> জন অনলাইনে আছেন
     </div>
-    
-    <div id="content" class="video-list loader">Loading videos...</div>
+    <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="searchInput" placeholder="ভিডিও খুঁজুন..." onkeyup="searchVideo()">
+    </div>
+    <div class="category-bar" id="category-container">
+        <button class="cat-btn active" id="cat-btn-All" onclick="filterCategory('All', this)">All</button>
+    </div>
+</header>
 
-    <script>
-        // Firebase ডেটাবেস URL
-        const FIREBASE_DB_URL = "https://telegram-bot-ca2a6-default-rtdb.firebaseio.com/videos";
-        const tg = window.Telegram.WebApp;
-        if (tg) tg.expand();
+<!-- ভিডিও কন্টেইনার (লঞ্চের সময় স্কেলিটন কার্ডগুলো লোড হবে) -->
+<div class="container" id="video-list">
+    <div class="skeleton-card">
+        <div class="skeleton-thumb"></div>
+        <div class="skeleton-text"></div>
+        <div class="skeleton-text" style="width: 50%;"></div>
+        <div class="skeleton-btn"></div>
+    </div>
+    <div class="skeleton-card">
+        <div class="skeleton-thumb"></div>
+        <div class="skeleton-text"></div>
+        <div class="skeleton-text" style="width: 50%;"></div>
+        <div class="skeleton-btn"></div>
+    </div>
+    <div class="skeleton-card">
+        <div class="skeleton-thumb"></div>
+        <div class="skeleton-text"></div>
+        <div class="skeleton-text" style="width: 50%;"></div>
+        <div class="skeleton-btn"></div>
+    </div>
+</div>
 
-        let currentVideoId = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-        if (!currentVideoId) {
-            const urlParams = new URLSearchParams(window.location.search);
-            currentVideoId = urlParams.get('id') || urlParams.get('startapp');
+<!-- Comment Modal -->
+<div id="commentModal" class="comment-modal">
+    <div class="comment-content">
+        <div class="comment-header">
+            <span>💬 কমেন্টস (<span id="modal-comment-count">0</span>)</span>
+            <div class="close-comment" onclick="closeComments()">&times;</div>
+        </div>
+        <div class="comment-list" id="comment-list-container"></div>
+        <div class="comment-input-area">
+            <input type="text" id="new-comment-text" placeholder="আপনার মতামত লিখুন...">
+            <button onclick="postComment()">সেন্ড</button>
+        </div>
+    </div>
+</div>
+
+<!-- Idle Ads Prompt Modal -->
+<div id="idle-popup" class="idle-modal">
+    <div class="idle-box">
+        <p>আপনি কি ভিডিও দেখতে চান বা ওয়েবসাইটে থাকতে চান?</p>
+        <button class="idle-btn" onclick="handleIdlePopupContinue()">কন্টিনিউ করুন</button>
+    </div>
+</div>
+
+<script>
+    // রাইট ক্লিক ও কী-বোর্ড শর্টকাট ডিসেবল
+    document.addEventListener('keydown', e => { 
+        if (e.ctrlKey && ['c','s','u','p'].includes(e.key)) e.preventDefault(); 
+    });
+    if (window.Telegram && window.Telegram.WebApp) { 
+        window.Telegram.WebApp.expand(); 
+    }
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB_jnlb1nBmE97XXJoM5406mPO-XohEZBE",
+        authDomain: "telegram-bot-ca2a6.firebaseapp.com",
+        projectId: "telegram-bot-ca2a6",
+        storageBucket: "telegram-bot-ca2a6.firebasestorage.app",
+        messagingSenderId: "146679908038",
+        appId: "1:146679908038:web:aff6867b1d7ed806aa79c7"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // অ্যাডভার্টাইজমেন্ট সেটিংস এবং ভেরিয়েবলসমূহ
+    let monetagZone = ""; 
+    let adsgramId = ""; 
+    let tgAppUrl = ""; 
+    let adsgramController = null;
+    let currentVideoForComment = null; 
+    let tgUserName = "Anonymous User";
+    let idleTimeout = null; 
+    let idleAdInterval = 0; 
+    let idleAdsgramId = ""; 
+    let idleAdsgramController = null;
+
+    if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+        let u = window.Telegram.WebApp.initDataUnsafe.user;
+        tgUserName = (u.first_name + " " + (u.last_name || "")).trim();
+    }
+
+    // কাস্টম টোস্ট মেসেজ
+    function showToast(message, type = 'success') {
+        const activeToast = document.querySelector('.custom-toast');
+        if (activeToast) activeToast.remove();
+
+        const toast = document.createElement('div');
+        toast.className = `custom-toast toast-${type}`;
+        toast.innerHTML = `
+            <div class="toast-content">
+                <i class="${type === 'success' ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-xmark'}"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 10);
+        
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 400);
+        }, 3000);
+    }
+
+    // ব্যাকএন্ড সেটিংস রিয়েলটাইম রিড
+    db.ref('settings').on('value', (snap) => {
+        const data = snap.val() || {};
+        document.getElementById('site-name').innerText = data.siteName || "STREAMX 🎥";
+        tgAppUrl = data.tgAppUrl || ""; 
+        
+        if (data.adsgramId && data.adsgramId !== adsgramId) {
+            adsgramId = data.adsgramId;
+            if (window.Adsgram) { 
+                adsgramController = window.Adsgram.init({ blockId: adsgramId }); 
+            }
         }
 
-        const contentDiv = document.getElementById('content');
-
-        // ভিডিও লিস্ট পেজ লোড করার ফাংশন
-        function loadVideoList() {
-            contentDiv.innerHTML = '<div class="loader">Loading videos...</div>';
-            // orderBy সরিয়ে সব ভিডিও লোড করা হচ্ছে
-            fetch(`${FIREBASE_DB_URL}.json`)
-            .then(res => res.json())
-            .then(data => {
-                if (!data) {
-                    contentDiv.innerHTML = '<div class="loader">No videos found!</div>';
-                    return;
-                }
-                
-                // ভিডিওগুলোকে অ্যারেতে রূপান্তর করে সময় অনুযায়ী সাজানো হচ্ছে (নতুনগুলো উপরে)
-                const videos = Object.entries(data).sort((a, b) => {
-                    const timeA = a[1].timestamp || 0;
-                    const timeB = b[1].timestamp || 0;
-                    return timeB - timeA;
-                });
-
-                let html = '';
-                videos.forEach(([id, v]) => {
-                    html += `
-                        <div class="video-card" onclick="openVideo('${id}')">
-                            <div class="thumb-container">
-                                <img src="${v.thumb || 'https://via.placeholder.com/450x250'}" alt="Thumbnail">
-                            </div>
-                            <div class="video-info">
-                                <div class="video-title">${v.title || 'Untitled Video'}</div>
-                                <div class="video-meta">
-                                    <span>👁️ ${v.views || 0} views</span>
-                                    <span>❤️ ${v.likes || 0} likes</span>
-                                    <span>📂 ${v.category || 'Others'}</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-                contentDiv.innerHTML = html || '<div class="loader">No videos found!</div>';
-            })
-            .catch(err => {
-                contentDiv.innerHTML = '<div class="loader">Error loading videos.</div>';
-            });
+        if (data.monetagZone && data.monetagZone !== monetagZone) {
+            monetagZone = data.monetagZone;
+            let oldScript = document.getElementById('monetag-script'); 
+            if(oldScript) oldScript.remove();
+            let script = document.createElement('script'); 
+            script.id = 'monetag-script'; 
+            script.src = '//libtl.com/sdk.js';
+            script.setAttribute('data-zone', monetagZone); 
+            script.setAttribute('data-sdk', `show_${monetagZone}`);
+            document.head.appendChild(script);
         }
 
-        // একক ভিডিও পেজ লোড করার ফাংশন
-        function openVideo(videoId) {
-            contentDiv.innerHTML = '<div class="loader">Loading video...</div>';
-            fetch(`${FIREBASE_DB_URL}/${videoId}.json`)
-            .then(res => res.json())
-            .then(video => {
-                if (!video) {
-                    contentDiv.innerHTML = '<div class="loader">Video not found!</div>';
-                    return;
-                }
+        idleAdInterval = parseInt(data.idleAdInterval) || 0;
+        if(data.idleAdsgramId && data.idleAdsgramId !== idleAdsgramId) {
+            idleAdsgramId = data.idleAdsgramId;
+            if(window.Adsgram) {
+                idleAdsgramController = window.Adsgram.init({ blockId: idleAdsgramId });
+            }
+        }
+        resetIdleTimer();
+    });
 
-                let adsNeeded = video.fullCollectionAds || 1; // এখানে ফায়ারবেস থেকে অ্যাড সংখ্যা আসছে
-                let adsWatched = 0;
-                let videoUrl = video.url || "#"; 
+    // রিয়েল-টাইম লাইভ ইউজার ট্র্যাকিং
+    const userRef = db.ref('online_users').push();
+    db.ref('.info/connected').on('value', s => { 
+        if(s.val()){ 
+            userRef.onDisconnect().remove(); 
+            userRef.set(true); 
+        }
+    });
+    db.ref('online_users').on('value', s => { 
+        document.getElementById('user-count').innerText = s.numChildren(); 
+    });
 
-                contentDiv.innerHTML = `
-                    <button class="back-btn" onclick="loadVideoList()">🔙 Back to List</button>
-                    <div class="video-card" style="cursor: default;">
-                        <div class="thumb-container">
-                            <img src="${video.thumb || 'https://via.placeholder.com/450x250'}" alt="Thumbnail">
-                        </div>
-                        <div class="video-info">
-                            <div class="video-title">${video.title || 'Untitled Video'}</div>
-                            <div class="video-meta">
-                                <span>👁️ ${video.views || 0} views</span>
-                                <span>❤️ ${video.likes || 0} likes</span>
-                                <span>📂 ${video.category || 'Others'}</span>
-                            </div>
-                        </div>
-                        <div class="unlock-section">
-                            <button id="unlockBtn" class="unlock-btn">UNLOCK — 0/${adsNeeded} ADS</button>
-                            <div id="playArea"></div>
+    let targetVideoId = new URLSearchParams(window.location.search).get('v') || window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+    let scrolledToTarget = false;
+
+    // ক্যাটাগরি লোড করা
+    db.ref('categories').on('value', snap => {
+        const catContainer = document.getElementById('category-container');
+        catContainer.innerHTML = `<button class="cat-btn active" id="cat-btn-All" onclick="filterCategory('All', this)">All</button>`;
+        const cats = snap.val();
+        if(cats) { 
+            Object.values(cats).forEach(c => { 
+                catContainer.innerHTML += `<button class="cat-btn" onclick="filterCategory('${c.name}', this)">${c.name}</button>`; 
+            }); 
+        }
+    });
+
+    function timeAgo(time) {
+        if(!time) return '';
+        const seconds = Math.floor((new Date() - time) / 1000);
+        let interval = seconds / 31536000; 
+        if (interval > 1) return Math.floor(interval) + " বছর আগে";
+        interval = seconds / 2592000; 
+        if (interval > 1) return Math.floor(interval) + " মাস আগে";
+        interval = seconds / 86400; 
+        if (interval > 1) return Math.floor(interval) + " দিন আগে";
+        interval = seconds / 3600; 
+        if (interval > 1) return Math.floor(interval) + " ঘণ্টা আগে";
+        interval = seconds / 60; 
+        if (interval > 1) return Math.floor(interval) + " মিনিট আগে";
+        return "কয়েক সেকেন্ড আগে";
+    }
+
+    const list = document.getElementById('video-list');
+    let firstVideoLoaded = false;
+
+    // ভিডিও লিস্ট এড করা
+    db.ref('videos').on('child_added', (snapshot) => {
+        // প্রথম কন্টেন্ট লোড হওয়ার সাথে সাথে স্কেলিটন বা লোডার স্ক্রিন রিমুভ করা হবে
+        if(!firstVideoLoaded) {
+            list.innerHTML = '';
+            firstVideoLoaded = true;
+        }
+
+        const id = snapshot.key; 
+        const v = snapshot.val();
+        let commentCount = v.comments ? Object.keys(v.comments).length : 0;
+        
+        let fcHtml = '';
+        let copyBtnStyle = 'flex: 1; font-weight: 700; font-size: 13px;';
+        let copyBtnContent = '<i class="fa-solid fa-share-nodes"></i> Share';
+
+        if (v.fullCollectionUrl && v.fullCollectionUrl.trim() !== "") {
+            let reqAds = parseInt(v.fullCollectionAds) || 0;
+            let currentProgress = parseInt(localStorage.getItem('fc_progress_' + id)) || 0;
+            
+            let btnText = currentProgress >= reqAds ? '<i class="fa-solid fa-unlock"></i> Full Collection' : `<i class="fa-solid fa-lock"></i> Unlock Full (${currentProgress}/${reqAds})`;
+            let btnColor = currentProgress >= reqAds ? 'linear-gradient(135deg, #00c853, #00e676)' : 'linear-gradient(135deg, var(--accent), #ff8800)';
+            let btnShadow = currentProgress >= reqAds ? 'rgba(0, 200, 83, 0.3)' : 'rgba(255, 174, 0, 0.3)';
+            
+            fcHtml = `<button class="btn-full-collection" id="fc-btn-${id}" style="background:${btnColor}; box-shadow: 0 4px 15px ${btnShadow};" onclick="handleFC('${id}', '${v.fullCollectionUrl}', ${reqAds})">${btnText}</button>`;
+            copyBtnStyle = 'width: 45px; font-size: 16px; flex-shrink: 0;';
+            copyBtnContent = '<i class="fa-solid fa-share-nodes"></i>';
+        }
+
+        // কার্ড ইন্টারফেস রেন্ডারিং
+        list.insertAdjacentHTML('afterbegin', `
+            <div class="card" id="card-${id}" data-title="${v.title.toLowerCase()}" data-category="${v.category || 'Others'}">
+                <div class="video-wrapper" onclick="watchVideo('${id}', '${v.url}')">
+                    <span class="quality-badge"><i class="fa-solid fa-bolt"></i> HD PREMIUM</span>
+                    <img src="${v.thumb || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=500'}" id="img-${id}" draggable="false" alt="thumbnail">
+                    <div class="play-overlay">
+                        <div class="play-btn-circle">
+                            <i class="fa-solid fa-play"></i>
                         </div>
                     </div>
-                `;
+                </div>
+                <div class="info">
+                    <h3 id="title-${id}">${v.title}</h3>
+                    <span class="v-time"><i class="fa-regular fa-clock"></i> ${timeAgo(v.timestamp)}</span>
+                    
+                    <div class="stats-row">
+                        <div class="views-count">👁️ <span id="views-${id}">${v.views || 0}</span> Views</div>
+                        <span id="cat-tag-${id}" class="cat-tag">${v.category || 'Others'}</span>
+                    </div>
 
-                const unlockBtn = document.getElementById('unlockBtn');
-                const playArea = document.getElementById('playArea');
+                    <div class="react-group">
+                        <button id="like-btn-${id}" class="react-btn" onclick="handleReact('${id}', 'like')"><i class="fa-solid fa-thumbs-up"></i> <span id="likes-${id}">${v.likes || 0}</span></button>
+                        <button id="dislike-btn-${id}" class="react-btn" onclick="handleReact('${id}', 'dislike')"><i class="fa-solid fa-thumbs-down"></i></button>
+                        <button class="react-btn comment-btn" onclick="openComments('${id}')"><i class="fa-solid fa-comment-dots"></i> <span id="comments-count-${id}">${commentCount}</span></button>
+                    </div>
+                    
+                    <button class="btn-unlock" id="btn-${id}" onclick="watchVideo('${id}', '${v.url}')"><i class="fa-solid fa-circle-play"></i> Watch Video</button>
+                    
+                    <div class="action-row">
+                        ${fcHtml}
+                        <button class="copy-btn-small" onclick="copyLink('${id}')" style="${copyBtnStyle}">${copyBtnContent}</button>
+                    </div>
+                </div>
+            </div>
+        `);
 
-                unlockBtn.onclick = () => {
-                    if (adsWatched < adsNeeded) {
-                        // এখানে অ্যাড লিংক ওপেন হবে (ভিডিওর url বা শর্ট লিংক)
-                        window.open(videoUrl, '_blank'); 
-                        adsWatched++;
-                        unlockBtn.innerText = `UNLOCK — ${adsWatched}/${adsNeeded} ADS`;
+        if(localStorage.getItem('react_' + id)) { 
+            document.getElementById('like-btn-' + id).disabled = true; 
+            document.getElementById('dislike-btn-' + id).disabled = true; 
+        }
 
-                        if (adsWatched === adsNeeded) {
-                            unlockBtn.classList.add('unlocked');
-                            unlockBtn.innerText = "✅ UNLOCKED";
-                            // ভিডিও আনলক হওয়ার পর ডাউনলোড/ওয়াচ বাটন দেখানো
-                            playArea.innerHTML = `<a href="${videoUrl}" target="_blank" class="play-btn">▶️ Watch / Download Now</a>`;
-                        }
-                    }
-                };
-            })
-            .catch(err => {
-                contentDiv.innerHTML = '<div class="loader">Error loading data.</div>';
+        if (targetVideoId === id && !scrolledToTarget) {
+            scrolledToTarget = true;
+            setTimeout(() => {
+                const element = document.getElementById('card-' + id);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.style.borderColor = 'var(--primary)';
+                    element.style.boxShadow = '0 0 20px rgba(255, 0, 85, 0.4), 0 0 15px var(--purple-glow)';
+                }
+            }, 800);
+        }
+    });
+
+    db.ref('videos').on('child_changed', (snapshot) => {
+        const id = snapshot.key; 
+        const v = snapshot.val();
+        if(document.getElementById('views-'+id)) document.getElementById('views-'+id).innerText = v.views || 0;
+        if(document.getElementById('likes-'+id)) document.getElementById('likes-'+id).innerText = v.likes || 0;
+        let cCount = v.comments ? Object.keys(v.comments).length : 0;
+        if(document.getElementById('comments-count-'+id)) document.getElementById('comments-count-'+id).innerText = cCount;
+        if(currentVideoForComment === id) { 
+            renderComments(v.comments); 
+        }
+
+        let fcBtn = document.getElementById('fc-btn-' + id);
+        if(fcBtn && v.fullCollectionUrl) {
+            let reqAds = parseInt(v.fullCollectionAds) || 0;
+            let currentProgress = parseInt(localStorage.getItem('fc_progress_' + id)) || 0;
+            if(currentProgress >= reqAds) {
+                fcBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection'; 
+                fcBtn.style.background = 'linear-gradient(135deg, #00c853, #00e676)';
+                fcBtn.style.boxShadow = '0 4px 15px rgba(0, 200, 83, 0.3)';
+            } else {
+                fcBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${currentProgress}/${reqAds})`; 
+                fcBtn.style.background = 'linear-gradient(135deg, var(--accent), #ff8800)';
+                fcBtn.style.boxShadow = '0 4px 15px rgba(255, 174, 0, 0.3)';
+            }
+            fcBtn.onclick = function() { handleFC(id, v.fullCollectionUrl, reqAds); };
+        }
+    });
+
+    db.ref('videos').on('child_removed', (snapshot) => { 
+        if(document.getElementById('card-' + snapshot.key)) {
+            document.getElementById('card-' + snapshot.key).remove(); 
+        }
+    });
+
+    // Idle Ad Logic
+    function resetIdleTimer() {
+        if(idleTimeout) clearTimeout(idleTimeout);
+        if(idleAdInterval <= 0) return;
+        idleTimeout = setTimeout(() => {
+            if(idleAdsgramController) { 
+                document.getElementById('idle-popup').style.display = 'flex'; 
+            }
+        }, idleAdInterval * 1000);
+    }
+    
+    ['mousemove', 'mousedown', 'keypress', 'touchmove', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetIdleTimer, true);
+    });
+
+    function handleIdlePopupContinue() {
+        document.getElementById('idle-popup').style.display = 'none';
+        if(idleAdsgramController) {
+            idleAdsgramController.show()
+                .then(() => {
+                    idleAdsgramController.show().then(() => resetIdleTimer()).catch(() => resetIdleTimer());
+                })
+                .catch(() => {
+                    idleAdsgramController.show().then(() => resetIdleTimer()).catch(() => resetIdleTimer());
+                });
+        } else {
+            resetIdleTimer();
+        }
+    }
+
+    // React logic
+    function handleReact(id, type) {
+        if(localStorage.getItem('react_' + id)) return;
+        db.ref('videos/' + id + '/' + type + 's').transaction(v => (v || 0) + 1);
+        localStorage.setItem('react_' + id, type);
+        document.getElementById('like-btn-' + id).disabled = true; 
+        document.getElementById('dislike-btn-' + id).disabled = true;
+        
+        const btn = document.getElementById(`${type}-btn-${id}`);
+        if (btn) btn.classList.add(`active-${type}`);
+        showToast("আপনার প্রতিক্রিয়া সংরক্ষিত হয়েছে!", "success");
+    }
+
+    // অ্যাড দেখার পর ফাইল বা লিঙ্ক আনলক হওয়ার মূল লজিক (সম্পূর্ণ সংরক্ষিত)
+    function watchVideo(id, url) {
+        if (!localStorage.getItem('viewed_' + id)) {
+            db.ref('videos/' + id + '/views').transaction(v => (v || 0) + 1);
+            localStorage.setItem('viewed_' + id, 'true');
+        }
+
+        showToast("অনুগ্রহ করে লোডিং হওয়া বিজ্ঞাপনটি শেষ পর্যন্ত দেখুন...", "success");
+
+        showAdNetwork(() => {
+            if (window.Telegram?.WebApp?.openLink) {
+                window.Telegram.WebApp.openLink(url);
+            } else {
+                window.open(url, '_blank');
+            }
+        });
+    }
+
+    // Full Collection Unlock Logic (বিজ্ঞাপন কাউন্ট লক - সংরক্ষিত)
+    function handleFC(id, url, reqAds) {
+        let prog = parseInt(localStorage.getItem('fc_progress_' + id)) || 0;
+        if (prog >= reqAds) {
+            if (window.Telegram?.WebApp?.openLink) {
+                window.Telegram.WebApp.openLink(url);
+            } else {
+                window.open(url, '_blank');
+            }
+        } else {
+            showToast("কালেকশন আনলক করতে অ্যাড লোড হচ্ছে, সম্পূর্ণ দেখুন...", "success");
+            showAdNetwork(() => {
+                prog++;
+                localStorage.setItem('fc_progress_' + id, prog);
+                let btn = document.getElementById('fc-btn-' + id);
+                if(prog >= reqAds) {
+                    btn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection';
+                    btn.style.background = 'linear-gradient(135deg, #00c853, #00e676)';
+                    btn.style.boxShadow = '0 4px 15px rgba(0, 200, 83, 0.3)';
+                    showToast("🎉 কালেকশন আনলক সম্পন্ন হয়েছে!", "success");
+                } else {
+                    btn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+                }
             });
         }
+    }
 
-        // পেজ লোড হলে কী দেখাবে তার লজিক
-        if (currentVideoId) {
-            openVideo(currentVideoId);
-        } else {
-            loadVideoList();
+    // Universal Ad Function (সংরক্ষিত)
+    function showAdNetwork(callback) {
+        let monetagFunc = window[`show_${monetagZone}`];
+        if (adsgramController) {
+            adsgramController.show().then(callback).catch(() => {
+                if (typeof monetagFunc === 'function') { 
+                    monetagFunc().then(callback).catch(callback); 
+                } else { 
+                    callback(); 
+                }
+            });
+        } else if (typeof monetagFunc === 'function') {
+            monetagFunc().then(callback).catch(callback);
+        } else { 
+            callback(); 
         }
-    </script>
+    }
+
+    // Comment Modal System (সংরক্ষিত)
+    function openComments(id) { 
+        currentVideoForComment = id; 
+        document.getElementById('commentModal').style.display = 'flex'; 
+        db.ref('videos/' + id + '/comments').once('value', snap => renderComments(snap.val())); 
+    }
+    
+    function closeComments() { 
+        document.getElementById('commentModal').style.display = 'none'; 
+        currentVideoForComment = null; 
+    }
+
+    function renderComments(commentsObj) {
+        const listContainer = document.getElementById('comment-list-container'); 
+        listContainer.innerHTML = '';
+        if(!commentsObj) {
+            document.getElementById('modal-comment-count').innerText = "0";
+            listContainer.innerHTML = '<p style="text-align:center; color:var(--text-muted); margin-top:20px; font-size:14px;">প্রথম কমেন্টটি আপনি করুন!</p>'; 
+            return;
+        }
+        const keys = Object.keys(commentsObj).reverse();
+        document.getElementById('modal-comment-count').innerText = keys.length;
+        keys.forEach(k => {
+            let c = commentsObj[k];
+            let adminReplyHtml = c.adminReply ? `<div class="admin-reply"><strong>Admin 🛡️ :</strong> ${c.adminReply}</div>` : '';
+            listContainer.innerHTML += `
+                <div class="comment-item">
+                    <strong><i class="fa-solid fa-user-circle"></i> ${c.userName || 'Anonymous'}</strong>
+                    <p>${c.text}</p>
+                    ${adminReplyHtml}
+                </div>`;
+        });
+    }
+
+    function postComment() {
+        if(!currentVideoForComment) return;
+        const input = document.getElementById('new-comment-text'); 
+        const text = input.value.trim(); 
+        if(text === "") return;
+        
+        db.ref('videos/' + currentVideoForComment + '/comments').push({ 
+            userName: tgUserName, 
+            text: text, 
+            timestamp: Date.now() 
+        }).then(() => { 
+            input.value = ''; 
+            showToast("কমেন্ট পোস্ট করা হয়েছে!", "success");
+        });
+    }
+
+    function searchVideo() {
+        let input = document.getElementById('searchInput').value.toLowerCase();
+        for (let card of document.getElementsByClassName('card')) { 
+            card.style.display = card.getAttribute('data-title').includes(input) ? "flex" : "none"; 
+        }
+    }
+    
+    function filterCategory(category, btnElement) {
+        document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active')); 
+        btnElement.classList.add('active');
+        for (let card of document.getElementsByClassName('card')) { 
+            card.style.display = (category === 'All' || card.getAttribute('data-category') === category) ? "flex" : "none"; 
+        }
+    }
+    
+    function copyLink(id) {
+        let shareUrl = (tgAppUrl && tgAppUrl.trim() !== "") ? tgAppUrl.split('?')[0] + "?startapp=" + id : window.location.origin + window.location.pathname + "?v=" + id;
+        const tempInput = document.createElement("input"); 
+        document.body.appendChild(tempInput); 
+        tempInput.value = shareUrl; 
+        tempInput.select(); 
+        document.execCommand("copy"); 
+        document.body.removeChild(tempInput);
+        showToast("শেয়ার লিংক ক্লিপবোর্ডে কপি হয়েছে!", "success");
+    }
+</script>
 </body>
 </html>
