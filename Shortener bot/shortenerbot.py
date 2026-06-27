@@ -415,13 +415,15 @@ def create_web_video_entry(user, category_name="Others"):
         return ""
 
     title = (user.get("pending_web_title") or user.get("post_header") or "Untitled Video").strip()
+    ads_count = int(user.get("pending_web_ads", 1))
     data = {
         "title": title, 
         "category": category_name or "Others",
         "thumb": user.get("pending_thumb_url", ""), 
         "url": user.get("pending_link", ""),
+        "watchAds": ads_count,          # ✅ মেইন আনলক বাটনের জন্য অ্যাড সংখ্যা
         "fullCollectionUrl": "", 
-        "fullCollectionAds": int(user.get("pending_web_ads", 1)), # অ্যাড সংখ্যা এখানে যাচ্ছে
+        "fullCollectionAds": ads_count, # Full Collection এর জন্য অ্যাড সংখ্যা
         "views": 0, "likes": 0, "dislikes": 0, "posted": False,
         "timestamp": int(time.time() * 1000), "source": "shortener_bot",
     }
