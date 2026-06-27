@@ -1075,13 +1075,13 @@
         const likeCount = v.likes || 0;
         const timeStr = timeAgo(v.timestamp);
 
-        // UNLOCK button text
-        const unlockAds = parseInt(v.watchAds) || 3;
+        // UNLOCK button text - Firebase এ 'watchAds' field থেকে নেওয়া হচ্ছে
+        const unlockAds = parseInt(v.watchAds) || parseInt(v.fullCollectionAds) || 3;
         const unlockProg = parseInt(localStorage.getItem('unlock_progress_' + id)) || 0;
         const unlockDone = unlockProg >= unlockAds;
 
         list.insertAdjacentHTML('afterbegin', `
-        <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}">
+        <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}" data-watch-ads="${unlockAds}" data-url="${v.url}">
             
             <!-- Collage Thumbnail -->
             <div class="thumb-collage" onclick="watchVideo('${id}','${v.url}')">
@@ -1223,28 +1223,48 @@
     }
 
     function watchVideo(id, url) {
+        const card = document.getElementById('card-'+id);
+        const unlockBtn = document.getElementById('btn-'+id);
+
+        // Firebase থেকে সেট করা real ad count নেওয়া হচ্ছে
+        const unlockAds = parseInt(card ? card.getAttribute('data-watch-ads') : '3') || 3;
+        let prog = parseInt(localStorage.getItem('unlock_progress_'+id)) || 0;
+
+        // যদি ইতিমধ্যে সব অ্যাড দেখা হয়ে গেছে, সরাসরি লিংক ওপেন করো
+        if (prog >= unlockAds) {
+            if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
+            else window.open(url, '_blank');
+            return;
+        }
+
+        // ভিউ কাউন্ট বাড়ানো (প্রথমবার)
         if(!localStorage.getItem('viewed_'+id)) {
             db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
             localStorage.setItem('viewed_'+id, 'true');
         }
-        // Update unlock progress on button
-        const unlockBtn = document.getElementById('btn-'+id);
-        let unlockAds = 3; // default; ideally read from v
-        let prog = parseInt(localStorage.getItem('unlock_progress_'+id))||0;
 
-        showToast("ভিডিও লিংক ওপেন হচ্ছে, অ্যাডটি সম্পূর্ণ দেখুন...", "success");
+        showToast(`অ্যাড দেখুন (${prog+1}/${unlockAds}) — তারপর ভিডিও ওপেন হবে`, "success");
+
         showAdNetwork(() => {
-            prog = Math.min(prog+1, unlockAds);
+            prog = prog + 1;
             localStorage.setItem('unlock_progress_'+id, prog);
+
             if(unlockBtn) {
                 if(prog >= unlockAds) {
-                    unlockBtn.innerHTML = `<i class="fa-solid fa-lock-open"></i> UNLOCK — ${prog}/${unlockAds} ADS`;
+                    // সব অ্যাড শেষ — আনলক হয়েছে
+                    unlockBtn.innerHTML = `<i class="fa-solid fa-lock-open"></i> UNLOCKED — ${prog}/${unlockAds} ADS ✅`;
+                    unlockBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+                    showToast("🎉 আনলক হয়েছে! ভিডিও ওপেন হচ্ছে...", "success");
+                    setTimeout(() => {
+                        if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
+                        else window.open(url, '_blank');
+                    }, 800);
                 } else {
-                    unlockBtn.innerHTML = `<i class="fa-solid fa-lock-open"></i> UNLOCK — ${prog}/${unlockAds} ADS`;
+                    // আরো অ্যাড বাকি আছে
+                    unlockBtn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK — ${prog}/${unlockAds} ADS`;
+                    showToast(`আরো ${unlockAds - prog}টি অ্যাড দেখতে হবে`, "success");
                 }
             }
-            if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
-            else window.open(url, '_blank');
         });
     }
 
