@@ -507,7 +507,19 @@
                     </div>
                 </div>
 
-                <div class="section-label"><i class="fa-solid fa-rectangle-ad"></i> ভিডিও মিড-রোল অ্যাড (অ্যাডমিন ট্র্যাকিং)</div>
+                <div class="section-label"><i class="fa-solid fa-rectangle-ad"></i> অ্যাড সেটিংস</div>
+                <div class="grid-2">
+                    <div class="input-group">
+                        <label>Full Ad — Adsgram Block ID <span style="color:#fb3a68;">★</span></label>
+                        <div class="input-wrapper"><i class="fa-solid fa-ad"></i><input type="text" id="set-adsgram-id" placeholder="নতুন ভিডিও আনলকের জন্য Full Ad ID"></div>
+                        <p class="field-hint">প্রথমবার ভিডিও আনলক করতে এই অ্যাড দেখতে হবে।</p>
+                    </div>
+                    <div class="input-group">
+                        <label>Repeat Ad — Adsgram Block ID <span style="color:#8b5cf6;">↻</span></label>
+                        <div class="input-wrapper"><i class="fa-solid fa-rotate-right"></i><input type="text" id="set-repeat-adsgram-id" placeholder="পুরনো ভিডিও re-access এর জন্য Repeat Ad ID"></div>
+                        <p class="field-hint">আগে আনলক করা ভিডিও পুনরায় দেখতে এই অ্যাড।</p>
+                    </div>
+                </div>
                 <div class="grid-2">
                     <div class="input-group">
                         <label>অ্যাড টাইম (সেকেন্ড - ঐচ্ছিক)</label>
@@ -515,15 +527,10 @@
                         <p class="field-hint">খালি রাখলে মিড-রোল অ্যাড বন্ধ থাকবে।</p>
                     </div>
                     <div class="input-group">
-                        <label>ভিডিও Adsgram Block ID</label>
-                        <div class="input-wrapper"><i class="fa-solid fa-ad"></i><input type="text" id="set-adsgram-id" placeholder="Adsgram ID"></div>
+                        <label>Monetag (libtl) Zone ID</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-bullhorn"></i><input type="text" id="set-monetag-zone" placeholder="Zone ID (e.g. 9326895)"></div>
                     </div>
                 </div>
-                <div class="input-group">
-                    <label>Monetag (libtl) Zone ID</label>
-                    <div class="input-wrapper"><i class="fa-solid fa-bullhorn"></i><input type="text" id="set-monetag-zone" placeholder="Zone ID (e.g. 9326895)"></div>
-                </div>
-
                 <div class="section-label"><i class="fa-regular fa-clock"></i> আইডল অ্যাড (ওয়েবসাইট আইডল হলে পপআপ আসবে)</div>
                 <div class="grid-2">
                     <div class="input-group">
@@ -750,6 +757,7 @@
             document.getElementById('set-monetag-zone').value = data.monetagZone || "";
             document.getElementById('set-idle-time').value = data.idleAdInterval || "";
             document.getElementById('set-idle-adsgram-id').value = data.idleAdsgramId || "";
+            document.getElementById('set-repeat-adsgram-id').value = data.repeatAdsgramId || "";
             document.getElementById('dash-site-name').innerText = data.siteName || "StreamX";
         }
     });
@@ -762,7 +770,8 @@
             adsgramId: document.getElementById('set-adsgram-id').value,
             monetagZone: document.getElementById('set-monetag-zone').value,
             idleAdInterval: document.getElementById('set-idle-time').value,
-            idleAdsgramId: document.getElementById('set-idle-adsgram-id').value
+            idleAdsgramId: document.getElementById('set-idle-adsgram-id').value,
+            repeatAdsgramId: document.getElementById('set-repeat-adsgram-id').value
         }).then(() => showToast("সেটিংস সফলভাবে সেভ হয়েছে!", "success"));
     }
 
