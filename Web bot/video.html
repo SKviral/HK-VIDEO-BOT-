@@ -151,19 +151,223 @@
         .user-info-pill {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 0 16px 8px;
+            gap: 10px;
+            padding: 8px 16px 12px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.01);
         }
 
         .user-info-pill .user-name-text {
-            font-size: 12px;
-            color: var(--text-secondary);
-            font-weight: 600;
+            font-size: 13px;
+            color: var(--text);
+            font-weight: 700;
         }
 
         .user-info-pill .user-id-text {
             font-size: 11px;
+            color: var(--primary);
+            font-weight: 600;
+            background: rgba(233,30,140,0.1);
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1px solid rgba(233,30,140,0.25);
+        }
+
+        /* ─── PROFILE MODAL ─── */
+        .profile-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .profile-content {
+            background: #161616;
+            width: 100%;
+            max-width: 450px;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+            animation: modalFadeIn 0.3s ease;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .profile-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .close-profile {
+            background: rgba(255,255,255,0.06);
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 18px;
+            border: 1px solid var(--border);
+        }
+
+        .profile-body {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-y: auto;
+            max-height: 75vh;
+        }
+
+        .profile-avatar-large {
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, var(--primary), #a855f7);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 16px;
+            border: 3px solid rgba(233,30,140,0.5);
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(233, 30, 140, 0.3);
+        }
+
+        .profile-avatar-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-body h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+
+        .profile-body p {
+            font-size: 13px;
             color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        .profile-stats {
+            display: flex;
+            width: 100%;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-box {
+            flex: 1;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stat-num {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-lbl {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .profile-unlocked-section {
+            width: 100%;
+            text-align: left;
+        }
+
+        .profile-unlocked-section h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .unlocked-videos-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+            padding-right: 4px;
+        }
+
+        .unlocked-video-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .unlocked-video-item:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: var(--primary);
+        }
+
+        .unlocked-video-thumb {
+            width: 50px;
+            height: 30px;
+            object-fit: cover;
+            border-radius: 4px;
+            background: #111;
+        }
+
+        .unlocked-video-title {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #eee;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+
+        .no-videos {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 12.5px;
+            padding: 20px 0;
+            width: 100%;
         }
 
         /* Category/Filter row */
@@ -948,7 +1152,7 @@
                 <span class="notif-dot"></span>
             </div>
             <!-- Avatar: shows TG photo or initials -->
-            <div class="avatar-circle" id="user-avatar">
+            <div class="avatar-circle" id="user-avatar" onclick="openProfileModal()">
                 <span id="user-initials">?</span>
             </div>
         </div>
@@ -956,11 +1160,11 @@
 
     <!-- User info pill (name + ID) -->
     <div class="user-info-pill" id="user-info-pill" style="display:none;">
-        <div class="avatar-circle" style="width:24px;height:24px;font-size:10px;" id="user-avatar-mini">
+        <div class="avatar-circle" style="width:24px;height:24px;font-size:10px;" id="user-avatar-mini" onclick="openProfileModal()">
             <span id="user-initials-mini">?</span>
         </div>
-        <span class="user-name-text" id="user-name-display">Loading...</span>
-        <span class="user-id-text" id="user-id-display"></span>
+        <span class="user-name-text" id="user-name-display" onclick="openProfileModal()" style="cursor:pointer;">Loading...</span>
+        <span class="user-id-text" id="user-id-display" onclick="openProfileModal()" style="cursor:pointer;"></span>
     </div>
 
     <div class="search-wrap" id="search-area" style="display:none;">
@@ -998,11 +1202,46 @@
         <i class="fa-solid fa-arrow-up-right-from-square"></i>
         <span>লিংক</span>
     </button>
-    <button class="nav-item">
+    <button class="nav-item" onclick="openProfileModal()">
         <i class="fa-regular fa-user"></i>
         <span>প্রোফাইল</span>
     </button>
 </nav>
+
+<!-- ─── PROFILE MODAL ─── -->
+<div id="profileModal" class="profile-modal">
+    <div class="profile-content">
+        <div class="profile-header">
+            <span>👤 আমার প্রোফাইল</span>
+            <div class="close-profile" onclick="closeProfileModal()">&times;</div>
+        </div>
+        <div class="profile-body">
+            <div class="profile-avatar-large" id="profile-avatar-large">
+                <span id="profile-initials-large">?</span>
+            </div>
+            <h2 id="profile-name">Loading...</h2>
+            <p id="profile-id">ID: </p>
+            
+            <div class="profile-stats">
+                <div class="stat-box">
+                    <span class="stat-num" id="unlocked-count">0</span>
+                    <span class="stat-lbl">আনলকড ভিডিও</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-num" id="views-count-user">0</span>
+                    <span class="stat-lbl">মোট ভিউস</span>
+                </div>
+            </div>
+            
+            <div class="profile-unlocked-section">
+                <h3>🔓 আপনার আনলক করা ভিডিওসমূহ</h3>
+                <div class="unlocked-videos-list" id="unlocked-videos-list">
+                    <p class="no-videos">এখনো কোনো ভিডিও আনলক করা হয়নি</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- ─── COMMENT MODAL ─── -->
 <div id="commentModal" class="comment-modal">
@@ -1066,6 +1305,7 @@
     let tgUserName = "Anonymous User";
     let tgUserId = null;  // Telegram user ID (string)
     let idleTimeout = null, idleAdInterval = 0, idleAdsgramId = "", idleAdsgramController = null;
+    const videoUrls = {}; // Map of videoId -> targetUrl
 
     // ─── Telegram User Identity ───
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
@@ -1104,9 +1344,15 @@
         });
     } else {
         // Fallback for browser testing
-        tgUserId = "guest_" + Math.random().toString(36).slice(2, 8);
+        tgUserId = "guest_12345";
+        tgUserName = "Guest User";
         document.getElementById('user-initials').textContent = "G";
         document.getElementById('user-initials-mini').textContent = "G";
+
+        // Show user info pill for guest
+        document.getElementById('user-info-pill').style.display = 'flex';
+        document.getElementById('user-name-display').textContent = tgUserName;
+        document.getElementById('user-id-display').textContent = `#${tgUserId}`;
     }
 
     // ─── Helper: get initials ───
@@ -1253,13 +1499,29 @@
         const mFunc = window[`show_${monetagZone}`];
 
         const done = () => { hideAdOverlay(); callback(); };
-        const fallback = () => {
-            if(typeof mFunc === 'function') mFunc().then(done).catch(done);
-            else done();
+        const handleAdResult = (result) => {
+            if (result && result.done) {
+                done();
+            } else {
+                hideAdOverlay();
+                showToast("অ্যাড সম্পূর্ণ দেখা হয়নি!", "error");
+            }
+        };
+        const fallback = (err) => {
+            if(typeof mFunc === 'function') {
+                mFunc().then(done).catch(done);
+            } else {
+                if (err && err.description === "User closed ad") {
+                    hideAdOverlay();
+                    showToast("অ্যাডটি বন্ধ করা হয়েছে! সম্পূর্ণ না দেখলে ভিডিও পাবেন না।", "error");
+                } else {
+                    done(); // Graceful bypass for no fill/adblock/load error
+                }
+            }
         };
 
         if (adsgramController) {
-            adsgramController.show().then(done).catch(fallback);
+            adsgramController.show().then(handleAdResult).catch(fallback);
         } else fallback();
     }
 
@@ -1269,16 +1531,32 @@
         const mFunc = window[`show_${monetagZone}`];
 
         const done = () => { hideAdOverlay(); callback(); };
-        const fallback = () => {
-            if(typeof mFunc === 'function') mFunc().then(done).catch(done);
-            else done();
+        const handleAdResult = (result) => {
+            if (result && result.done) {
+                done();
+            } else {
+                hideAdOverlay();
+                showToast("অ্যাড সম্পূর্ণ দেখা হয়নি!", "error");
+            }
+        };
+        const fallback = (err) => {
+            if(typeof mFunc === 'function') {
+                mFunc().then(done).catch(done);
+            } else {
+                if (err && err.description === "User closed ad") {
+                    hideAdOverlay();
+                    showToast("অ্যাডটি বন্ধ করা হয়েছে! সম্পূর্ণ না দেখলে ভিডিও পাবেন না।", "error");
+                } else {
+                    done(); // Graceful bypass for no fill/adblock/load error
+                }
+            }
         };
 
         if (repeatAdsgramController) {
-            repeatAdsgramController.show().then(done).catch(fallback);
+            repeatAdsgramController.show().then(handleAdResult).catch(fallback);
         } else if (adsgramController) {
             // fallback to full ad controller if repeat not configured
-            adsgramController.show().then(done).catch(fallback);
+            adsgramController.show().then(handleAdResult).catch(fallback);
         } else fallback();
     }
 
@@ -1370,6 +1648,7 @@
         db.ref('videos').on('child_added', (snapshot) => {
             const id = snapshot.key;
             const v = snapshot.val();
+            videoUrls[id] = v.url; // store target url in map
             let commentCount = v.comments ? Object.keys(v.comments).length : 0;
 
             if(loadedCount === 0) list.innerHTML = '';
@@ -1609,6 +1888,62 @@
         tmp.value = url; tmp.select(); document.execCommand('copy');
         document.body.removeChild(tmp);
         showToast("শেয়ার লিংক কপি হয়েছে!", "success");
+    }
+
+    // ─── Profile Modal JS Functions ───
+    function openProfileModal() {
+        document.getElementById('profileModal').style.display = 'flex';
+        
+        // Populate profile details
+        document.getElementById('profile-name').textContent = tgUserName;
+        document.getElementById('profile-id').textContent = `ID: ${tgUserId}`;
+        
+        // Large avatar details
+        const largeAvatar = document.getElementById('profile-avatar-large');
+        const photoUrl = (tgUser && tgUser.photo_url) ? tgUser.photo_url : null;
+        if (photoUrl) {
+            largeAvatar.innerHTML = `<img src="${photoUrl}" alt="avatar" onerror="this.parentNode.innerHTML='<span id=\\'profile-initials-large\\'>${getInitials(tgUserName)}</span>'">`;
+        } else {
+            largeAvatar.innerHTML = `<span id="profile-initials-large">${getInitials(tgUserName)}</span>`;
+        }
+        
+        // Unlocked count
+        const unlockedIds = Object.keys(userUnlockCache).filter(key => userUnlockCache[key] === true);
+        document.getElementById('unlocked-count').textContent = unlockedIds.length;
+        
+        // Total views of this user - let's count from viewed cache
+        const viewedIds = Object.keys(userViewedCache).filter(key => userViewedCache[key] === true);
+        document.getElementById('views-count-user').textContent = viewedIds.length;
+        
+        // Populate list of unlocked videos
+        const listContainer = document.getElementById('unlocked-videos-list');
+        listContainer.innerHTML = '';
+        
+        if (unlockedIds.length === 0) {
+            listContainer.innerHTML = '<p class="no-videos">এখনো কোনো ভিডিও আনলক করা হয়নি</p>';
+            return;
+        }
+        
+        unlockedIds.forEach(vidId => {
+            const cardTitleEl = document.getElementById('title-' + vidId);
+            const cardImgEl = document.getElementById('img-' + vidId);
+            
+            const title = cardTitleEl ? cardTitleEl.textContent : 'ভিডিও #' + vidId;
+            const thumb = cardImgEl ? cardImgEl.src : '';
+            
+            const itemHtml = `
+                <div class="unlocked-video-item" onclick="closeProfileModal(); watchVideo('${vidId}', videoUrls['${vidId}'])">
+                    ${thumb ? `<img class="unlocked-video-thumb" src="${thumb}" alt="">` : ''}
+                    <span class="unlocked-video-title">${title}</span>
+                    <i class="fa-solid fa-play" style="color:var(--success); font-size:12px;"></i>
+                </div>
+            `;
+            listContainer.insertAdjacentHTML('beforeend', itemHtml);
+        });
+    }
+    
+    function closeProfileModal() {
+        document.getElementById('profileModal').style.display = 'none';
     }
 </script>
 </body>
