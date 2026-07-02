@@ -1404,13 +1404,19 @@
         // Full Ad (new video) — adsgramId
         if (data.adsgramId && data.adsgramId !== adsgramId) {
             adsgramId = data.adsgramId;
-            if (window.Adsgram) adsgramController = window.Adsgram.init({ blockId: adsgramId });
+            if (window.Adsgram) {
+                adsgramController = window.Adsgram.init({ blockId: adsgramId });
+                adsgramController.load().catch(() => {});
+            }
         }
 
         // Repeat Ad (re-access unlocked video) — repeatAdsgramId
         if (data.repeatAdsgramId && data.repeatAdsgramId !== repeatAdsgramId) {
             repeatAdsgramId = data.repeatAdsgramId;
-            if (window.Adsgram) repeatAdsgramController = window.Adsgram.init({ blockId: repeatAdsgramId });
+            if (window.Adsgram) {
+                repeatAdsgramController = window.Adsgram.init({ blockId: repeatAdsgramId });
+                repeatAdsgramController.load().catch(() => {});
+            }
         }
 
         // Monetag
@@ -1498,7 +1504,11 @@
         showAdOverlay("ফুল অ্যাড লোড হচ্ছে...");
         const mFunc = window[`show_${monetagZone}`];
 
-        const done = () => { hideAdOverlay(); callback(); };
+        const done = () => {
+            hideAdOverlay();
+            if (adsgramController) adsgramController.load().catch(() => {}); // pre-load next ad
+            callback();
+        };
         const handleAdResult = (result) => {
             if (result && result.done) {
                 done();
@@ -1530,7 +1540,11 @@
         showAdOverlay("রিপিট অ্যাড লোড হচ্ছে...");
         const mFunc = window[`show_${monetagZone}`];
 
-        const done = () => { hideAdOverlay(); callback(); };
+        const done = () => {
+            hideAdOverlay();
+            if (repeatAdsgramController) repeatAdsgramController.load().catch(() => {}); // pre-load next repeat ad
+            callback();
+        };
         const handleAdResult = (result) => {
             if (result && result.done) {
                 done();
@@ -1561,7 +1575,7 @@
     }
 
     // ─── Watch Video (main unlock logic) ───
-    function watchVideo(id, url) {
+    function watchVideo(id, url, reqAds = 1) {
         if (isUnlocked(id)) {
             // Already unlocked → show Repeat Ad
             showRepeatAd(() => {
@@ -1569,15 +1583,35 @@
                 openUrl(url);
             });
         } else {
-            // New video → show Full Ad, then unlock
-            showFullAd(() => {
-                markUnlocked(id);
-                markViewed(id);
-                // Update views in Firebase
-                db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
-                showToast("🎉 আনলক সম্পন্ন! ভিডিও খুলছে...", "success");
-                openUrl(url);
-            });
+            if (reqAds > 1) {
+                let prog = parseInt(localStorage.getItem('unlock_progress_' + id)) || 0;
+                showFullAd(() => {
+                    prog++;
+                    localStorage.setItem('unlock_progress_' + id, prog);
+                    
+                    const btn = document.getElementById('btn-' + id);
+                    if (prog >= reqAds) {
+                        markUnlocked(id);
+                        markViewed(id);
+                        db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
+                        showToast("🎉 আনলক সম্পন্ন! ভিডিও খুলছে...", "success");
+                        openUrl(url);
+                    } else {
+                        if (btn) btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
+                        showToast(`অ্যাড সম্পন্ন! আর ${reqAds - prog}টি অ্যাড দেখতে হবে।`, "info");
+                    }
+                });
+            } else {
+                // New video (1 ad required) → show Full Ad, then unlock
+                showFullAd(() => {
+                    markUnlocked(id);
+                    markViewed(id);
+                    // Update views in Firebase
+                    db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
+                    showToast("🎉 আনলক সম্পন্ন! ভিডিও খুলছে...", "success");
+                    openUrl(url);
+                });
+            }
         }
     }
 
@@ -1680,10 +1714,21 @@
             const fcVisible = !!(v.fullCollectionUrl && v.fullCollectionUrl.trim());
 
             // Unlock button state
+            let reqAds = parseInt(v.fullCollectionAds) || 1;
+            if (reqAds < 1) reqAds = 1;
+
             const btnClass = unlocked ? 'btn-unlock btn-repeat' : 'btn-unlock';
-            const btnContent = unlocked
-                ? `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`
-                : `<i class="fa-solid fa-lock"></i> UNLOCK — Full Ad দেখুন`;
+            let btnContent = "";
+            if (unlocked) {
+                btnContent = `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`;
+            } else {
+                if (reqAds > 1) {
+                    let prog = parseInt(localStorage.getItem('unlock_progress_' + id)) || 0;
+                    btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
+                } else {
+                    btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK — Full Ad দেখুন`;
+                }
+            }
 
             const badgeClass = unlocked ? 'unlock-badge unlocked' : 'unlock-badge locked';
             const badgeContent = unlocked
@@ -1694,7 +1739,7 @@
             <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}">
                 
                 <!-- Collage Thumbnail -->
-                <div class="thumb-collage" onclick="watchVideo('${id}','${v.url}')">
+                <div class="thumb-collage" onclick="watchVideo('${id}','${v.url}', ${reqAds})">
                     <img class="main-img" src="${thumbMain}" id="img-${id}" draggable="false" alt="thumb">
                     <div class="thumb-divider"></div>
                     <div class="side-imgs">
@@ -1745,7 +1790,7 @@
 
                 <!-- Unlock Button -->
                 <div class="card-actions">
-                    <button class="${btnClass}" id="btn-${id}" onclick="watchVideo('${id}','${v.url}')">
+                    <button class="${btnClass}" id="btn-${id}" onclick="watchVideo('${id}','${v.url}', ${reqAds})">
                         ${btnContent}
                     </button>
                     ${fcVisible ? '' : `<button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>`}
