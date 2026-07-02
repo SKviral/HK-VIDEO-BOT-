@@ -1306,6 +1306,8 @@
     let tgUserId = null;  // Telegram user ID (string)
     let idleTimeout = null, idleAdInterval = 0, idleAdsgramId = "", idleAdsgramController = null;
     const videoUrls = {}; // Map of videoId -> targetUrl
+    let repeatAdDelay = 0; // Repeat ad cooldown delay in minutes
+    const videoCategoriesMap = {}; // Map of videoId -> category name
 
     // ─── Telegram User Identity ───
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
@@ -1395,28 +1397,40 @@
         document.getElementById('ad-loading-overlay').classList.remove('show');
     }
 
+    function initAdsgram() {
+        if (!window.Adsgram) return false;
+        if (adsgramId && !adsgramController) {
+            adsgramController = window.Adsgram.init({ blockId: adsgramId });
+            adsgramController.load().catch(() => {});
+        }
+        if (repeatAdsgramId && !repeatAdsgramController) {
+            repeatAdsgramController = window.Adsgram.init({ blockId: repeatAdsgramId });
+            repeatAdsgramController.load().catch(() => {});
+        }
+        if (idleAdsgramId && !idleAdsgramController) {
+            idleAdsgramController = window.Adsgram.init({ blockId: idleAdsgramId });
+            idleAdsgramController.load().catch(() => {});
+        }
+        return true;
+    }
+
     // ─── Firebase settings ───
     db.ref('settings').on('value', (snap) => {
         const data = snap.val() || {};
         document.getElementById('site-name').innerText = data.siteName || "VIDEO CALL LINKS";
         tgAppUrl = data.tgAppUrl || "";
+        repeatAdDelay = parseInt(data.repeatAdDelay) || 0;
 
         // Full Ad (new video) — adsgramId
         if (data.adsgramId && data.adsgramId !== adsgramId) {
             adsgramId = data.adsgramId;
-            if (window.Adsgram) {
-                adsgramController = window.Adsgram.init({ blockId: adsgramId });
-                adsgramController.load().catch(() => {});
-            }
+            adsgramController = null;
         }
 
         // Repeat Ad (re-access unlocked video) — repeatAdsgramId
         if (data.repeatAdsgramId && data.repeatAdsgramId !== repeatAdsgramId) {
             repeatAdsgramId = data.repeatAdsgramId;
-            if (window.Adsgram) {
-                repeatAdsgramController = window.Adsgram.init({ blockId: repeatAdsgramId });
-                repeatAdsgramController.load().catch(() => {});
-            }
+            repeatAdsgramController = null;
         }
 
         // Monetag
@@ -1435,8 +1449,9 @@
         idleAdInterval = parseInt(data.idleAdInterval) || 0;
         if(data.idleAdsgramId && data.idleAdsgramId !== idleAdsgramId) {
             idleAdsgramId = data.idleAdsgramId;
-            if(window.Adsgram) idleAdsgramController = window.Adsgram.init({ blockId: idleAdsgramId });
+            idleAdsgramController = null;
         }
+        initAdsgram();
         resetIdleTimer();
     });
 
@@ -1463,8 +1478,20 @@
         });
     }
 
+    function getUnlockedTimestamp(videoId) {
+        return userUnlockCache[videoId] || 0;
+    }
+
     function isUnlocked(videoId) {
         return !!userUnlockCache[videoId];
+    }
+
+    function isWithinCooldown(videoId) {
+        const timestamp = getUnlockedTimestamp(videoId);
+        if (!timestamp) return false;
+        if (!repeatAdDelay || repeatAdDelay <= 0) return false; // delay not set
+        const elapsedMinutes = (Date.now() - timestamp) / 60000;
+        return elapsedMinutes < repeatAdDelay;
     }
 
     function hasViewed(videoId) {
@@ -1472,8 +1499,9 @@
     }
 
     function markUnlocked(videoId) {
-        userUnlockCache[videoId] = true;
-        if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${videoId}`).set(true);
+        const now = Date.now();
+        userUnlockCache[videoId] = now;
+        if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${videoId}`).set(now);
         refreshCardButton(videoId);
     }
 
@@ -1501,6 +1529,7 @@
 
     // ─── Show Full Ad (new video) ───
     function showFullAd(callback) {
+        initAdsgram();
         showAdOverlay("ফুল অ্যাড লোড হচ্ছে...");
         const mFunc = window[`show_${monetagZone}`];
 
@@ -1537,6 +1566,7 @@
 
     // ─── Show Repeat Ad (re-access) ───
     function showRepeatAd(callback) {
+        initAdsgram();
         showAdOverlay("রিপিট অ্যাড লোড হচ্ছে...");
         const mFunc = window[`show_${monetagZone}`];
 
@@ -1577,11 +1607,21 @@
     // ─── Watch Video (main unlock logic) ───
     function watchVideo(id, url, reqAds = 1) {
         if (isUnlocked(id)) {
-            // Already unlocked → show Repeat Ad
-            showRepeatAd(() => {
+            if (isWithinCooldown(id)) {
+                // Within cooldown → play directly without ads
                 markViewed(id);
                 openUrl(url);
-            });
+            } else {
+                // Cooldown expired → show Repeat Ad, then reset cooldown
+                showRepeatAd(() => {
+                    markViewed(id);
+                    const now = Date.now();
+                    userUnlockCache[id] = now;
+                    if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
+                    refreshCardButton(id);
+                    openUrl(url);
+                });
+            }
         } else {
             if (reqAds > 1) {
                 let prog = parseInt(localStorage.getItem('unlock_progress_' + id)) || 0;
@@ -1591,10 +1631,13 @@
                     
                     const btn = document.getElementById('btn-' + id);
                     if (prog >= reqAds) {
-                        markUnlocked(id);
+                        const now = Date.now();
+                        userUnlockCache[id] = now;
+                        if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
                         markViewed(id);
                         db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
                         showToast("🎉 আনলক সম্পন্ন! ভিডিও খুলছে...", "success");
+                        refreshCardButton(id);
                         openUrl(url);
                     } else {
                         if (btn) btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
@@ -1604,11 +1647,14 @@
             } else {
                 // New video (1 ad required) → show Full Ad, then unlock
                 showFullAd(() => {
-                    markUnlocked(id);
+                    const now = Date.now();
+                    userUnlockCache[id] = now;
+                    if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
                     markViewed(id);
                     // Update views in Firebase
                     db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
                     showToast("🎉 আনলক সম্পন্ন! ভিডিও খুলছে...", "success");
+                    refreshCardButton(id);
                     openUrl(url);
                 });
             }
@@ -1662,13 +1708,47 @@
     }
 
     // ─── Categories ───
+    const renderedCategories = new Set(['All']);
+    function ensureCategoryButton(catName) {
+        if (!catName) return;
+        if (renderedCategories.has(catName)) return;
+        renderedCategories.add(catName);
+        
+        const cc = document.getElementById('category-container');
+        cc.insertAdjacentHTML('beforeend', `<button class="cat-btn" onclick="filterCategory('${catName}', this)">${catName}</button>`);
+    }
+
     db.ref('categories').on('value', snap => {
         const cc = document.getElementById('category-container');
-        cc.innerHTML = `<button class="cat-btn active" onclick="filterCategory('All', this)">All</button>`;
+        const activeBtn = cc.querySelector('.cat-btn.active');
+        const activeCat = activeBtn ? activeBtn.textContent : 'All';
+        
+        cc.innerHTML = `<button class="cat-btn ${activeCat === 'All' ? 'active' : ''}" onclick="filterCategory('All', this)">All</button>`;
+        renderedCategories.clear();
+        renderedCategories.add('All');
+        
         const cats = snap.val();
         if(cats) Object.values(cats).forEach(c => {
-            cc.innerHTML += `<button class="cat-btn" onclick="filterCategory('${c.name}', this)">${c.name}</button>`;
+            if (c.name) ensureCategoryButton(c.name);
         });
+        
+        // Also ensure categories from loaded videos are displayed
+        Object.values(videoCategoriesMap).forEach(cat => {
+            ensureCategoryButton(cat);
+        });
+        
+        // Restore active state
+        const btns = cc.querySelectorAll('.cat-btn');
+        let restored = false;
+        btns.forEach(btn => {
+            if (btn.textContent === activeCat) {
+                btn.classList.add('active');
+                restored = true;
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        if (!restored && btns.length > 0) btns[0].classList.add('active');
     });
 
     // ─── Video list ───
@@ -1683,6 +1763,12 @@
             const id = snapshot.key;
             const v = snapshot.val();
             videoUrls[id] = v.url; // store target url in map
+            
+            // Map category and ensure button
+            const cat = v.category || 'Others';
+            videoCategoriesMap[id] = cat;
+            ensureCategoryButton(cat);
+
             let commentCount = v.comments ? Object.keys(v.comments).length : 0;
 
             if(loadedCount === 0) list.innerHTML = '';
@@ -1717,11 +1803,18 @@
             let reqAds = parseInt(v.fullCollectionAds) || 1;
             if (reqAds < 1) reqAds = 1;
 
-            const btnClass = unlocked ? 'btn-unlock btn-repeat' : 'btn-unlock';
+            let btnClass = "";
             let btnContent = "";
             if (unlocked) {
-                btnContent = `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`;
+                if (isWithinCooldown(id)) {
+                    btnClass = 'btn-unlock btn-unlocked';
+                    btnContent = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
+                } else {
+                    btnClass = 'btn-unlock btn-repeat';
+                    btnContent = `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`;
+                }
             } else {
+                btnClass = 'btn-unlock';
                 if (reqAds > 1) {
                     let prog = parseInt(localStorage.getItem('unlock_progress_' + id)) || 0;
                     btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
@@ -1736,7 +1829,7 @@
                 : `<i class="fa-solid fa-lock"></i> Locked`;
 
             list.insertAdjacentHTML('afterbegin', `
-            <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}">
+            <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}" data-req-ads="${reqAds}">
                 
                 <!-- Collage Thumbnail -->
                 <div class="thumb-collage" onclick="watchVideo('${id}','${v.url}', ${reqAds})">
