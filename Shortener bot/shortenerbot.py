@@ -108,7 +108,7 @@ _DEFAULTS = {
     "header": "", "footer": "", "post_header": "", "post_footer": "",
     "auto_delete": 0, "pending_link": "", "pending_short_link": "",
     "step": "none", "batch_id": "",
-    "btn_download": 1, "btn_share": 1, "btn_tutorial": 1,
+    "btn_download": 1, "btn_download_1": 1, "btn_download_2": 1, "btn_share": 1, "btn_tutorial": 1,
     "btn_link_in_caption": 0, 
     "link_repeat_count": 1, "auto_title_from_caption": 1,
     "custom_text_1": "Watch Part 1", "custom_link_1": "",
@@ -278,7 +278,7 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
             link = d_link
             links_str = "\n".join([link]*rpt)
             caption = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
-            markup = _build_post_markup(user, d_link, d_link)
+            markup = _build_post_markup(user, d_link, d_link, is_premium=True)
         elif ch_type == "log":
             caption = f"💾 <b>Backup</b> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
             markup = None
@@ -344,7 +344,7 @@ def _scheduled_post_worker():
                         ad_mk = _build_post_markup(user, s_link, s_link)
                         pr_links = "\n".join([d_link]*rpt)
                         pr_cap = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{fc_txt}".strip()
-                        pr_mk = _build_post_markup(user, d_link, d_link)
+                        pr_mk = _build_post_markup(user, d_link, d_link, is_premium=True)
                         count = 0
                         for ch in auto_channels_col.find({"type":"ad","status":"on"}):
                             try: _send_media(ch['channel_id'], mtype, mid_, ad_cap, ad_mk, protect); count+=1
@@ -443,7 +443,7 @@ def create_web_video_entry(user, category_name="Others"):
 # ══════════════════════════════════════════════════
 #  পোস্ট মার্কআপ বিল্ডার
 # ══════════════════════════════════════════════════
-def _build_post_markup(user, dl_link, share_text):
+def _build_post_markup(user, dl_link, share_text, is_premium=False):
     mk = InlineKeyboardMarkup()
 
     if user.get("btn_tutorial", 1):
@@ -455,36 +455,42 @@ def _build_post_markup(user, dl_link, share_text):
             mk.add(InlineKeyboardButton(btn['name'], url=btn['url']))
 
     if user.get("btn_download", 1):
-        web_post_link = user.get("pending_web_post_link", "")
-        second_link = user.get("pending_short_link") or dl_link
+        if is_premium:
+            web_post_link = dl_link
+            second_link = dl_link
+        else:
+            web_post_link = user.get("pending_web_post_link", "")
+            second_link = user.get("pending_short_link") or dl_link
         
-        row1 = []
-        if web_post_link:
-            row1.append(InlineKeyboardButton("ডাউনলোড ১", url=web_post_link))
-        else:
-            row1.append(InlineKeyboardButton("ডাউনলোড ১", callback_data="noop"))
-            
-        ct1_text = user.get("custom_text_1") or "কাস্টম টেক্সট ১"
-        ct1_url = user.get("custom_link_1")
-        if ct1_url:
-            row1.append(InlineKeyboardButton(ct1_text, url=ct1_url))
-        else:
-            row1.append(InlineKeyboardButton(ct1_text, callback_data="noop"))
-        mk.row(*row1)
+        if user.get("btn_download_1", 1):
+            row1 = []
+            if web_post_link:
+                row1.append(InlineKeyboardButton("ডাউনলোড ১", url=web_post_link))
+            else:
+                row1.append(InlineKeyboardButton("ডাউনলোড ১", callback_data="noop"))
+                
+            ct1_text = user.get("custom_text_1") or "কাস্টম টেক্সট ১"
+            ct1_url = user.get("custom_link_1")
+            if ct1_url:
+                row1.append(InlineKeyboardButton(ct1_text, url=ct1_url))
+            else:
+                row1.append(InlineKeyboardButton(ct1_text, callback_data="noop"))
+            mk.row(*row1)
 
-        row2 = []
-        if second_link:
-            row2.append(InlineKeyboardButton("ডাউনলোড ২", url=second_link))
-        else:
-            row2.append(InlineKeyboardButton("ডাউনলোড ২", callback_data="noop"))
-            
-        ct2_text = user.get("custom_text_2") or "কাস্টম টেক্সট ২"
-        ct2_url = user.get("custom_link_2")
-        if ct2_url:
-            row2.append(InlineKeyboardButton(ct2_text, url=ct2_url))
-        else:
-            row2.append(InlineKeyboardButton(ct2_text, callback_data="noop"))
-        mk.row(*row2)
+        if user.get("btn_download_2", 1):
+            row2 = []
+            if second_link:
+                row2.append(InlineKeyboardButton("ডাউনলোড ২", url=second_link))
+            else:
+                row2.append(InlineKeyboardButton("ডাউনলোড ২", callback_data="noop"))
+                
+            ct2_text = user.get("custom_text_2") or "কাস্টম টেক্সট ২"
+            ct2_url = user.get("custom_link_2")
+            if ct2_url:
+                row2.append(InlineKeyboardButton(ct2_text, url=ct2_url))
+            else:
+                row2.append(InlineKeyboardButton(ct2_text, callback_data="noop"))
+            mk.row(*row2)
 
     if user.get("btn_share", 1):
         encoded = quote(share_text, safe='')
@@ -593,7 +599,7 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
     rpt = max(1, min(user.get("link_repeat_count", 1), 5))
     pr_links    = "\n".join([d_link]*rpt)
     prem_caption= f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
-    prem_markup = _build_post_markup(user, d_link, d_link)
+    prem_markup = _build_post_markup(user, d_link, d_link, is_premium=True)
 
     post_count = 0
     for ch in auto_channels_col.find({"type": "ad", "status": "on"}):
@@ -685,6 +691,8 @@ def _main_menu():
 
 def _post_btn_menu(u):
     dl  = _ico(u.get("btn_download",1))
+    dl1 = _ico(u.get("btn_download_1",1))
+    dl2 = _ico(u.get("btn_download_2",1))
     sh  = _ico(u.get("btn_share",1))
     tut = _ico(u.get("btn_tutorial",1))
     lc  = _ico(u.get("btn_link_in_caption",1))
@@ -692,7 +700,8 @@ def _post_btn_menu(u):
     rc  = u.get("link_repeat_count",1)
 
     m = _mk()
-    m.row(_btn(f"📥 ডাউনলোড বাটন {dl}",  "togbtn_download"), _btn(f"🔗 শেয়ার বাটন {sh}",    "togbtn_share"))
+    m.row(_btn(f"📥 ডাউনলোড ১ বাটন {dl1}", "togbtn_download_1"), _btn(f"📥 ডাউনলোড ২ বাটন {dl2}", "togbtn_download_2"))
+    m.row(_btn(f"📥 মাষ্টার ডাউনলোড {dl}", "togbtn_download"), _btn(f"🔗 শেয়ার বাটন {sh}",    "togbtn_share"))
     m.row(_btn(f"📽️ টিউটোরিয়াল {tut}",   "togbtn_tutorial"), _btn(f"📝 ক্যাপশনে লিংক {lc}", "togbtn_link_caption"))
     m.row(_btn(f"🤖 অটো টাইটেল {at}",     "togbtn_auto_title"), _btn(f"🔄 লিংক রিপিট: {rc}x", "set_link_repeat"))
     m.add(_btn("🔘 কাস্টম ডাউনলোড টেক্সট/লিংক", "menu_custom_dl"))
@@ -1070,13 +1079,16 @@ def cb(call):
     elif data == "menu_post_buttons":
         u = get_user(cid)
         bot.edit_message_text(
-            f"🔘 <b>পোস্ট বাটন কনফিগারেশন</b>\n{'─'*26}\n📥 ডাউনলোড বাটন   : {_ico(u.get('btn_download',1))}\n🔗 শেয়ার বাটন      : {_ico(u.get('btn_share',1))}\n📽️ টিউটোরিয়াল বাটন : {_ico(u.get('btn_tutorial',1))}\n📝 ক্যাপশনে লিংক   : {_ico(u.get('btn_link_in_caption',1))}\n🔄 লিংক রিপিট      : <b>{u.get('link_repeat_count',1)}x</b>\n🤖 অটো টাইটেল     : {_ico(u.get('auto_title_from_caption',1))}",
+            f"🔘 <b>পোস্ট বাটন কনফিগারেশন</b>\n{'─'*26}\n📥 মাষ্টার ডাউনলোড : {_ico(u.get('btn_download',1))}\n📥 ডাউনলোড ১ বাটন : {_ico(u.get('btn_download_1',1))}\n📥 ডাউনলোড ২ বাটন : {_ico(u.get('btn_download_2',1))}\n🔗 শেয়ার বাটন      : {_ico(u.get('btn_share',1))}\n📽️ টিউটোরিয়াল বাটন : {_ico(u.get('btn_tutorial',1))}\n📝 ক্যাপশনে লিংক   : {_ico(u.get('btn_link_in_caption',1))}\n🔄 লিংক রিপিট      : <b>{u.get('link_repeat_count',1)}x</b>\n🤖 অটো টাইটেল     : {_ico(u.get('auto_title_from_caption',1))}",
             cid, mid, reply_markup=_post_btn_menu(u)
         )
 
     elif data.startswith("togbtn_"):
         key_map = {
-            "togbtn_download": "btn_download", "togbtn_share": "btn_share", 
+            "togbtn_download": "btn_download", 
+            "togbtn_download_1": "btn_download_1",
+            "togbtn_download_2": "btn_download_2",
+            "togbtn_share": "btn_share", 
             "togbtn_tutorial": "btn_tutorial", "togbtn_link_caption": "btn_link_in_caption",
             "togbtn_auto_title": "auto_title_from_caption"
         }
@@ -1581,7 +1593,30 @@ def handle_message(message):
             thumb_caption = message.caption or ""
             if thumb_caption:
                 update_user(cid, {"post_header": thumb_caption})
-            update_user(cid,{"temp_media_id":message.video.file_id,"temp_media_type":"video"})
+            bot.send_message(cid, "⏳ ভিডিও থাম্বেইল আপলোড হচ্ছে...")
+            
+            thumb_file_id = None
+            if hasattr(message.video, 'thumbnail') and message.video.thumbnail:
+                thumb_file_id = message.video.thumbnail.file_id
+            elif hasattr(message.video, 'thumb') and message.video.thumb:
+                thumb_file_id = message.video.thumb.file_id
+                
+            thumb_url = ""
+            if thumb_file_id:
+                thumb_url = upload_photo_to_imgbb(thumb_file_id)
+                
+            updates = {
+                "temp_media_id": message.video.file_id,
+                "temp_media_type": "video",
+                "pending_thumb_url": thumb_url
+            }
+            update_user(cid, updates)
+            
+            if thumb_url:
+                bot.send_message(cid, "✅ ভিডিও থাম্বেইল ইমেজ তৈরি হয়েছে।")
+            else:
+                bot.send_message(cid, "⚠️ ভিডিও থাম্বেইল তৈরি করা যায়নি, তবুও পোস্ট flow চলবে।")
+
             m=InlineKeyboardMarkup()
             m.row(InlineKeyboardButton("✅ Confirm",callback_data="confirm_vid_thumb"),InlineKeyboardButton("❌ বাতিল",callback_data="cancel_vid_thumb"))
             preview = (f"📝 ক্যাপশন সেট: <b>{thumb_caption[:50]}</b>\n\n") if thumb_caption else ""
