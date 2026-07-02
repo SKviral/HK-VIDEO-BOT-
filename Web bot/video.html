@@ -1186,19 +1186,19 @@
 
 <!-- ─── BOTTOM NAV ─── -->
 <nav class="bottom-nav">
-    <button class="nav-item active" onclick="filterCategory('All', document.querySelector('.cat-btn'))">
+    <button class="nav-item active" id="bn-home" onclick="showHome(this)">
         <i class="fa-solid fa-house"></i>
         <span>হোম</span>
     </button>
-    <button class="nav-item" onclick="">
+    <button class="nav-item" onclick="showFavorites(this)">
         <i class="fa-regular fa-heart"></i>
         <span>পছন্দের</span>
     </button>
-    <button class="nav-item" style="position:relative;">
+    <button class="nav-item" onclick="openTutorial()">
         <i class="fa-solid fa-circle-info"></i>
         <span>টিউটোরিয়াল</span>
     </button>
-    <button class="nav-item">
+    <button class="nav-item" onclick="copyAppLink()">
         <i class="fa-solid fa-arrow-up-right-from-square"></i>
         <span>লিংক</span>
     </button>
@@ -1307,7 +1307,9 @@
     let idleTimeout = null, idleAdInterval = 0, idleAdsgramId = "", idleAdsgramController = null;
     const videoUrls = {}; // Map of videoId -> targetUrl
     let repeatAdDelay = 0; // Repeat ad cooldown delay in minutes
+    let adInterval = 0;    // Ad interval cooldown in seconds
     const videoCategoriesMap = {}; // Map of videoId -> category name
+    const adCooldowns = {}; // Map of videoId -> timer interval ID
 
     // ─── Telegram User Identity ───
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
@@ -1420,6 +1422,7 @@
         document.getElementById('site-name').innerText = data.siteName || "VIDEO CALL LINKS";
         tgAppUrl = data.tgAppUrl || "";
         repeatAdDelay = parseInt(data.repeatAdDelay) || 0;
+        adInterval = parseInt(data.adInterval) || 0;
 
         // Full Ad (new video) — adsgramId
         if (data.adsgramId && data.adsgramId !== adsgramId) {
@@ -1604,6 +1607,65 @@
         } else fallback();
     }
 
+    function startButtonCooldown(id, duration, reqAds, prog) {
+        const btn = document.getElementById('btn-' + id);
+        if (!btn) return;
+        
+        btn.disabled = true;
+        btn.classList.add('disabled');
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+        
+        let timeLeft = duration;
+        btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
+        
+        if (adCooldowns[id]) clearInterval(adCooldowns[id]);
+        
+        const timer = setInterval(() => {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                delete adCooldowns[id];
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
+            }
+        }, 1000);
+        
+        adCooldowns[id] = timer;
+    }
+
+    function startFcButtonCooldown(id, duration, reqAds, prog) {
+        const btn = document.getElementById('fc-btn-' + id);
+        if (!btn) return;
+        
+        btn.disabled = true;
+        btn.classList.add('disabled');
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+        
+        let timeLeft = duration;
+        btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
+        
+        const timer = setInterval(() => {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                btn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
+            }
+        }, 1000);
+    }
+
     // ─── Watch Video (main unlock logic) ───
     function watchVideo(id, url, reqAds = 1) {
         if (isUnlocked(id)) {
@@ -1640,8 +1702,12 @@
                         refreshCardButton(id);
                         openUrl(url);
                     } else {
-                        if (btn) btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
                         showToast(`অ্যাড সম্পন্ন! আর ${reqAds - prog}টি অ্যাড দেখতে হবে।`, "info");
+                        if (adInterval > 0) {
+                            startButtonCooldown(id, adInterval, reqAds, prog);
+                        } else {
+                            if (btn) btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
+                        }
                     }
                 });
             } else {
@@ -1682,7 +1748,11 @@
                     showToast("🎉 কালেকশন আনলক সম্পন্ন!", "success");
                     openUrl(url);
                 } else {
-                    if(btn) btn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+                    if (adInterval > 0) {
+                        startFcButtonCooldown(id, adInterval, reqAds, prog);
+                    } else {
+                        if(btn) btn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+                    }
                 }
             });
         }
@@ -2006,14 +2076,61 @@
         });
     }
 
+    let activeTab = 'home';
+    function showFavorites(el) {
+        activeTab = 'favorites';
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
+        el.classList.add('active');
+        
+        const cards = document.querySelectorAll('.card');
+        let count = 0;
+        cards.forEach(card => {
+            const id = card.id.replace('card-', '');
+            if (localStorage.getItem('react_' + id) === 'like') {
+                card.style.display = '';
+                count++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        
+        if (count === 0) {
+            showToast("আপনার পছন্দের তালিকায় কোনো ভিডিও নেই!", "info");
+        }
+    }
+
+    function showHome(el) {
+        activeTab = 'home';
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
+        el.classList.add('active');
+        filterCategory('All', document.querySelector('.cat-btn'));
+    }
+
+    function openTutorial() {
+        if (tgAppUrl) openUrl(tgAppUrl);
+        else showToast("টিউটোরিয়াল লিঙ্ক সেট করা নেই!", "info");
+    }
+
+    function copyAppLink() {
+        const shareUrl = window.location.href;
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            showToast("🔗 লিঙ্কটি ক্লিপবোর্ডে কপি করা হয়েছে!", "success");
+        }).catch(() => {
+            showToast("কপি করা যায়নি, লিঙ্কটি হলো: " + shareUrl, "info");
+        });
+    }
+
     function filterCategory(cat, btnEl) {
+        activeTab = 'home';
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
+        const homeNav = document.getElementById('bn-home');
+        if (homeNav) homeNav.classList.add('active');
+
         document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-        btnEl.classList.add('active');
+        if (btnEl) btnEl.classList.add('active');
         document.querySelectorAll('.card').forEach(card => {
             card.style.display = (cat==='All' || card.getAttribute('data-category')===cat) ? '' : 'none';
         });
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.querySelector('.nav-item').classList.add('active');
     }
 
     // ─── Copy share link ───
