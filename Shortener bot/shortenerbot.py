@@ -94,6 +94,10 @@ def filter_links(text):
     if not text: return text
     return re.sub(r'\n{3,}', '\n\n', URL_RE.sub('', text)).strip()
 
+def clean_html(text):
+    if not text: return ""
+    return re.sub(r'<[^>]+>', '', text)
+
 def apply_filters(text, uploader_id):
     u = get_user(uploader_id)
     if not text: return text
@@ -278,13 +282,16 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
             link = d_link
             links_str = "\n".join([link]*rpt)
             caption = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
-            markup = _build_post_markup(user, d_link, d_link, is_premium=True)
+            clean_cap = clean_html(caption)
+            markup = _build_post_markup(user, d_link, clean_cap, is_premium=True)
         elif ch_type == "log":
             caption = f"💾 <b>Backup</b> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
             markup = None
         else:  # ad
             caption = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
-            markup = _build_post_markup(user, s_link, s_link)
+            dl_share_link = user.get("pending_web_post_link") or s_link
+            clean_cap = clean_html(caption) + f"\n\n⬇️ ডাউনলোড করুন:\n{dl_share_link}"
+            markup = _build_post_markup(user, s_link, clean_cap)
 
         try:
             _send_media(ch['channel_id'], mtype, mid, caption, markup, protect if ch_type!="log" else False)
@@ -341,10 +348,14 @@ def _scheduled_post_worker():
                         fc_txt = f"📁 <b>মোট ফাইল: {file_count}টি</b>\n" if file_count > 0 else ""
 
                         ad_cap = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
-                        ad_mk = _build_post_markup(user, s_link, s_link)
+                        dl_share_link = user.get("pending_web_post_link") or s_link
+                        ad_share = clean_html(ad_cap) + f"\n\n⬇️ ডাউনলোড করুন:\n{dl_share_link}"
+                        ad_mk = _build_post_markup(user, s_link, ad_share)
+                        
                         pr_links = "\n".join([d_link]*rpt)
                         pr_cap = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{fc_txt}".strip()
-                        pr_mk = _build_post_markup(user, d_link, d_link, is_premium=True)
+                        pr_share = clean_html(pr_cap)
+                        pr_mk = _build_post_markup(user, d_link, pr_share, is_premium=True)
                         count = 0
                         for ch in auto_channels_col.find({"type":"ad","status":"on"}):
                             try: _send_media(ch['channel_id'], mtype, mid_, ad_cap, ad_mk, protect); count+=1
@@ -415,6 +426,10 @@ def create_web_video_entry(user, category_name="Others"):
         return ""
 
     title = (user.get("pending_web_title") or user.get("post_header") or "Untitled Video").strip()
+    title = apply_filters(title, user["chat_id"])
+    if not title:
+        title = "Untitled Video"
+        
     ads_count = int(user.get("pending_web_ads", 1))
     data = {
         "title": title, 
@@ -494,7 +509,7 @@ def _build_post_markup(user, dl_link, share_text, is_premium=False):
 
     if user.get("btn_share", 1):
         encoded = quote(share_text, safe='')
-        share_url = f"https://t.me/share/url?url={encoded}&text="
+        share_url = f"https://t.me/share/url?url=&text={encoded}"
         mk.row(InlineKeyboardButton("🔗 শেয়ার করুন", url=share_url))
 
     return mk
@@ -594,12 +609,15 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
     fc_txt = f"📁 <b>মোট ফাইল: {file_count}টি</b>\n" if file_count > 0 else ""
 
     ad_caption = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
-    ad_markup = _build_post_markup(user, s_link, s_link)
+    dl_share_link = user.get("pending_web_post_link") or s_link
+    ad_share = clean_html(ad_caption) + f"\n\n⬇️ ডাউনলোড করুন:\n{dl_share_link}"
+    ad_markup = _build_post_markup(user, s_link, ad_share)
 
     rpt = max(1, min(user.get("link_repeat_count", 1), 5))
     pr_links    = "\n".join([d_link]*rpt)
     prem_caption= f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
-    prem_markup = _build_post_markup(user, d_link, d_link, is_premium=True)
+    pr_share = clean_html(prem_caption)
+    prem_markup = _build_post_markup(user, d_link, pr_share, is_premium=True)
 
     post_count = 0
     for ch in auto_channels_col.find({"type": "ad", "status": "on"}):
@@ -1844,8 +1862,82 @@ def api_settings():
             set_setting(key, value)
             return jsonify({"ok": True, "key": key, "value": value})
         return jsonify({"ok": False, "error": "key দিন"}), 400
-    keys = ['protect_content','short_link_on','force_sub_on','btn_download','btn_share','btn_tutorial']
+    keys = ['protect_content','short_link_on','force_sub_on','btn_download','btn_download_1','btn_download_2','btn_share','btn_tutorial']
     return jsonify({k: get_setting(k, 0) for k in keys})
+
+@shortener_bp.route('/api/files/delete/<file_key>', methods=['DELETE','OPTIONS'])
+@require_auth
+def api_delete_file(file_key):
+    files_col.delete_one({"file_key": file_key})
+    return jsonify({"ok": True})
+
+@shortener_bp.route('/api/channels/add', methods=['POST','OPTIONS'])
+@require_auth
+def api_add_channel():
+    data = request.json or {}
+    name = data.get("name", "").strip()
+    channel_id = str(data.get("channel_id", "")).strip()
+    type_ = data.get("type", "ad").strip()
+    if not name or not channel_id:
+        return jsonify({"ok": False, "error": "নাম এবং আইডি দিন"}), 400
+    ch_id = str(uuid.uuid4().hex)[:8]
+    auto_channels_col.insert_one({
+        "ch_id": ch_id,
+        "type": type_,
+        "name": name,
+        "channel_id": channel_id,
+        "status": "on"
+    })
+    return jsonify({"ok": True})
+
+@shortener_bp.route('/api/categories/add', methods=['POST','OPTIONS'])
+@require_auth
+def api_add_category():
+    data = request.json or {}
+    name = data.get("name", "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "নাম দিন"}), 400
+    cat_id = str(uuid.uuid4().hex)[:8]
+    categories_col.insert_one({
+        "cat_id": cat_id,
+        "name": name,
+        "channels": [],
+        "created_at": datetime.now().isoformat()
+    })
+    return jsonify({"ok": True})
+
+@shortener_bp.route('/api/categories/delete/<cat_id>', methods=['DELETE','OPTIONS'])
+@require_auth
+def api_delete_category(cat_id):
+    categories_col.delete_one({"cat_id": cat_id})
+    return jsonify({"ok": True})
+
+@shortener_bp.route('/api/categories/update_channels/<cat_id>', methods=['POST','OPTIONS'])
+@require_auth
+def api_update_category_channels(cat_id):
+    data = request.json or {}
+    channels = data.get("channels", [])
+    categories_col.update_one({"cat_id": cat_id}, {"$set": {"channels": channels}})
+    return jsonify({"ok": True})
+
+@shortener_bp.route('/api/forcesub/add', methods=['POST','OPTIONS'])
+@require_auth
+def api_add_forcesub():
+    data = request.json or {}
+    name = data.get("name", "").strip()
+    channel_id = str(data.get("channel_id", "")).strip()
+    url = data.get("url", "").strip()
+    if not name or not channel_id or not url:
+        return jsonify({"ok": False, "error": "সব তথ্য পূরণ করুন"}), 400
+    fs_id = str(uuid.uuid4().hex)[:8]
+    force_sub_col.insert_one({
+        "fs_id": fs_id,
+        "name": name,
+        "channel_id": channel_id,
+        "url": url,
+        "status": "on"
+    })
+    return jsonify({"ok": True})
 
 def run_bot():
     logger.info(f"🚀 Shortener Bot Polling started (v{BOT_VERSION})...")
