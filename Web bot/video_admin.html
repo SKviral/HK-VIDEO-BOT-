@@ -531,6 +531,13 @@
                         <div class="input-wrapper"><i class="fa-solid fa-bullhorn"></i><input type="text" id="set-monetag-zone" placeholder="Zone ID (e.g. 9326895)"></div>
                     </div>
                 </div>
+                <div class="grid-2">
+                    <div class="input-group">
+                        <label>Repeat Ad Delay (মিনিট)</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-hourglass-half"></i><input type="number" id="set-repeat-ad-delay" placeholder="যেমন: 60 (১ ঘণ্টা)"></div>
+                        <p class="field-hint">আনলক করার পর কত মিনিট পর্যন্ত সরাসরি ভিডিও দেখা যাবে (অ্যাড ছাড়া)।</p>
+                    </div>
+                </div>
                 <div class="section-label"><i class="fa-regular fa-clock"></i> আইডল অ্যাড (ওয়েবসাইট আইডল হলে পপআপ আসবে)</div>
                 <div class="grid-2">
                     <div class="input-group">
@@ -747,7 +754,7 @@
     });
 
     // সেটিংস লোড করা
-    db.ref('settings').on('value', (snap) => {
+     db.ref('settings').on('value', (snap) => {
         if (snap.exists()) {
             const data = snap.val();
             document.getElementById('set-site-name').value = data.siteName || "";
@@ -758,6 +765,7 @@
             document.getElementById('set-idle-time').value = data.idleAdInterval || "";
             document.getElementById('set-idle-adsgram-id').value = data.idleAdsgramId || "";
             document.getElementById('set-repeat-adsgram-id').value = data.repeatAdsgramId || "";
+            document.getElementById('set-repeat-ad-delay').value = data.repeatAdDelay || "";
             document.getElementById('dash-site-name').innerText = data.siteName || "StreamX";
         }
     });
@@ -771,7 +779,8 @@
             monetagZone: document.getElementById('set-monetag-zone').value,
             idleAdInterval: document.getElementById('set-idle-time').value,
             idleAdsgramId: document.getElementById('set-idle-adsgram-id').value,
-            repeatAdsgramId: document.getElementById('set-repeat-adsgram-id').value
+            repeatAdsgramId: document.getElementById('set-repeat-adsgram-id').value,
+            repeatAdDelay: parseInt(document.getElementById('set-repeat-ad-delay').value) || 0
         }).then(() => showToast("সেটিংস সফলভাবে সেভ হয়েছে!", "success"));
     }
 
