@@ -1,0 +1,2266 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title id="site-title">Video Call Links</title>
+    
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #e91e8c;
+            --primary-dark: #c2186e;
+            --primary-glow: rgba(233, 30, 140, 0.35);
+            --bg: #0a0a0a;
+            --surface: #131313;
+            --card: #1a1a1a;
+            --card2: #1e1e1e;
+            --border: rgba(255,255,255,0.07);
+            --border2: rgba(255,255,255,0.12);
+            --text: #ffffff;
+            --text-muted: #888888;
+            --text-secondary: #aaaaaa;
+            --success: #22c55e;
+            --accent: #f59e0b;
+            --heart: #ff4d6a;
+            --nav-bg: #111111;
+            --header-bg: #0f0f0f;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', 'Noto Sans Bengali', sans-serif;
+            padding-bottom: 70px;
+            min-height: 100vh;
+            -webkit-user-select: none;
+            user-select: none;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* ─── HEADER ─── */
+        header {
+            background: var(--header-bg);
+            padding: 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px 10px;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-icon {
+            width: 34px;
+            height: 34px;
+            background: var(--primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .brand-icon i {
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .brand-name {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: 0.2px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .header-actions i {
+            font-size: 19px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .header-actions .fa-bell {
+            position: relative;
+        }
+
+        .notif-dot {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            width: 8px;
+            height: 8px;
+            background: var(--primary);
+            border-radius: 50%;
+            border: 2px solid var(--header-bg);
+        }
+
+        /* User Avatar — Telegram photo or initials */
+        .avatar-circle {
+            width: 34px;
+            height: 34px;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+            cursor: pointer;
+            flex-shrink: 0;
+            overflow: hidden;
+            border: 2px solid rgba(233,30,140,0.4);
+        }
+
+        .avatar-circle img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        /* User info pill */
+        .user-info-pill {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px 12px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.01);
+        }
+
+        .user-info-pill .user-name-text {
+            font-size: 13px;
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        .user-info-pill .user-id-text {
+            font-size: 11px;
+            color: var(--primary);
+            font-weight: 600;
+            background: rgba(233,30,140,0.1);
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1px solid rgba(233,30,140,0.25);
+        }
+
+        /* ─── PROFILE MODAL ─── */
+        .profile-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .profile-content {
+            background: #161616;
+            width: 100%;
+            max-width: 450px;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+            animation: modalFadeIn 0.3s ease;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .profile-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .close-profile {
+            background: rgba(255,255,255,0.06);
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 18px;
+            border: 1px solid var(--border);
+        }
+
+        .profile-body {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-y: auto;
+            max-height: 75vh;
+        }
+
+        .profile-avatar-large {
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, var(--primary), #a855f7);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 16px;
+            border: 3px solid rgba(233,30,140,0.5);
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(233, 30, 140, 0.3);
+        }
+
+        .profile-avatar-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-body h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+
+        .profile-body p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        .profile-stats {
+            display: flex;
+            width: 100%;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-box {
+            flex: 1;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stat-num {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-lbl {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .profile-unlocked-section {
+            width: 100%;
+            text-align: left;
+        }
+
+        .profile-unlocked-section h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .unlocked-videos-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+            padding-right: 4px;
+        }
+
+        .unlocked-video-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .unlocked-video-item:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: var(--primary);
+        }
+
+        .unlocked-video-thumb {
+            width: 50px;
+            height: 30px;
+            object-fit: cover;
+            border-radius: 4px;
+            background: #111;
+        }
+
+        .unlocked-video-title {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #eee;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+
+        .no-videos {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 12.5px;
+            padding: 20px 0;
+            width: 100%;
+        }
+
+        /* Category/Filter row */
+        .category-bar {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 8px 16px 10px;
+            scrollbar-width: none;
+        }
+        .category-bar::-webkit-scrollbar { display: none; }
+
+        .cat-btn {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border2);
+            padding: 6px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .cat-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        /* ─── FEED ─── */
+        .feed {
+            padding: 0;
+        }
+
+        /* ─── VIDEO CARD ─── */
+        .card {
+            background: transparent;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            transition: background 0.2s;
+        }
+
+        /* Collage Thumbnail */
+        .thumb-collage {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            overflow: hidden;
+            background: #111;
+            cursor: pointer;
+        }
+
+        .thumb-collage .main-img {
+            position: absolute;
+            left: 0; top: 0;
+            width: 57%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .thumb-collage .side-imgs {
+            position: absolute;
+            right: 0; top: 0;
+            width: 43%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .thumb-collage .side-img {
+            flex: 1;
+            object-fit: cover;
+            width: 100%;
+        }
+
+        .thumb-collage::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .thumb-divider {
+            position: absolute;
+            left: 57%;
+            top: 0; bottom: 0;
+            width: 2px;
+            background: var(--bg);
+            z-index: 1;
+        }
+
+        /* Unlock status badge on thumbnail */
+        .unlock-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 5;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            backdrop-filter: blur(6px);
+        }
+        .unlock-badge.unlocked {
+            background: rgba(34,197,94,0.85);
+            color: #fff;
+        }
+        .unlock-badge.locked {
+            background: rgba(0,0,0,0.65);
+            color: rgba(255,255,255,0.8);
+        }
+
+        .heart-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 5;
+            background: rgba(0,0,0,0.5);
+            border-radius: 50%;
+            width: 34px;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            backdrop-filter: blur(4px);
+        }
+
+        .heart-btn i {
+            font-size: 16px;
+            color: rgba(255,255,255,0.7);
+            transition: color 0.2s;
+        }
+
+        .heart-btn.liked i {
+            color: var(--heart);
+        }
+
+        /* Card Info Section */
+        .card-meta {
+            padding: 12px 14px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .uploader-avatar {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary), #a855f7);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .card-text-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f0f0f0;
+            line-height: 1.45;
+            margin-bottom: 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
+        }
+
+        .card-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .card-sub .channel-name {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .card-sub .dot-sep {
+            opacity: 0.4;
+        }
+
+        .views-stat {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .heart-count {
+            color: var(--heart);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .more-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            font-size: 16px;
+            flex-shrink: 0;
+            line-height: 1;
+            margin-top: -2px;
+        }
+
+        .card-quick {
+            padding: 6px 14px 4px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .card-quick i {
+            font-size: 11px;
+        }
+
+        /* Unlock Button Row */
+        .card-actions {
+            padding: 8px 14px 14px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn-unlock {
+            flex: 1;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 11px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 13.5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.3px;
+        }
+
+        .btn-unlock.btn-unlocked {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+
+        .btn-unlock.btn-repeat {
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+        }
+
+        .btn-unlock:hover, .btn-unlock:active {
+            transform: scale(0.98);
+            opacity: 0.92;
+        }
+
+        .btn-unlock i {
+            font-size: 13px;
+        }
+
+        .copy-share-btn {
+            width: 44px;
+            height: 44px;
+            background: var(--card2);
+            border: 1px solid var(--border2);
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: var(--text-secondary);
+            font-size: 17px;
+            transition: all 0.2s;
+        }
+
+        .copy-share-btn:hover {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+        }
+
+        .btn-full-collection {
+            background: linear-gradient(135deg, var(--accent), #f97316);
+            color: #fff;
+            border: none;
+            padding: 11px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-full-collection:hover {
+            transform: scale(0.98);
+            opacity: 0.92;
+        }
+
+        /* Reactions row */
+        .react-group {
+            display: flex;
+            gap: 8px;
+            padding: 0 14px 8px;
+        }
+
+        .react-btn {
+            background: var(--card2);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 7px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s ease;
+            flex: 1;
+            justify-content: center;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .react-btn:hover:not(:disabled) {
+            background: rgba(255,255,255,0.07);
+            color: #fff;
+        }
+
+        .react-btn.active-like {
+            background: rgba(34,197,94,0.12);
+            border-color: rgba(34,197,94,0.4);
+            color: var(--success);
+        }
+
+        .react-btn.active-dislike {
+            background: rgba(233,30,140,0.12);
+            border-color: rgba(233,30,140,0.4);
+            color: var(--primary);
+        }
+
+        .react-btn.comment-btn {
+            background: rgba(163,0,255,0.05);
+            border-color: rgba(163,0,255,0.2);
+        }
+
+        .react-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
+
+        /* ─── BOTTOM NAV ─── */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0; right: 0;
+            background: var(--nav-bg);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            height: 62px;
+            z-index: 999;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            cursor: pointer;
+            flex: 1;
+            height: 100%;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            transition: color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .nav-item.active {
+            color: var(--primary);
+        }
+
+        .nav-item i {
+            font-size: 20px;
+        }
+
+        .nav-item span {
+            font-size: 10px;
+            font-weight: 600;
+            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
+        }
+
+        /* ─── COMMENT MODAL ─── */
+        .comment-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 2000;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .comment-content {
+            background: #181818;
+            width: 100%;
+            max-width: 600px;
+            height: 72vh;
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid var(--border2);
+            animation: slideUp 0.35s cubic-bezier(0.22,1,0.36,1);
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .comment-handle {
+            display: flex;
+            justify-content: center;
+            padding: 10px 0 6px;
+        }
+
+        .comment-handle::before {
+            content: '';
+            width: 36px;
+            height: 4px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+        }
+
+        .comment-header {
+            padding: 2px 20px 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .close-comment {
+            background: rgba(255,255,255,0.06);
+            border-radius: 50%;
+            width: 30px; height: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 15px;
+            border: 1px solid var(--border);
+        }
+
+        .comment-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .comment-item {
+            background: rgba(255,255,255,0.03);
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .comment-item strong {
+            color: var(--primary);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .comment-item p {
+            font-size: 13px;
+            margin-top: 5px;
+            color: #ddd;
+            line-height: 1.5;
+        }
+
+        .admin-reply {
+            margin-top: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px dashed rgba(34,197,94,0.25);
+            border-left: 3px solid var(--success);
+            font-size: 12px;
+            color: #c0f0d8;
+        }
+
+        .comment-input-area {
+            padding: 12px 16px;
+            background: #111;
+            display: flex;
+            gap: 8px;
+            border-top: 1px solid var(--border);
+        }
+
+        .comment-input-area input {
+            flex: 1;
+            padding: 10px 16px;
+            border-radius: 24px;
+            border: 1px solid var(--border2);
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            outline: none;
+            font-size: 14px;
+            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
+        }
+
+        .comment-input-area input:focus {
+            border-color: var(--primary);
+        }
+
+        .comment-input-area button {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 0 20px;
+            border-radius: 24px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
+        }
+
+        /* ─── AD LOADING OVERLAY ─── */
+        .ad-loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(12px);
+            z-index: 4000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .ad-loading-overlay.show { display: flex; }
+        .ad-spinner {
+            width: 52px; height: 52px;
+            border: 4px solid rgba(233,30,140,0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .ad-loading-text {
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            text-align: center;
+            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
+        }
+        .ad-loading-sub {
+            color: var(--text-muted);
+            font-size: 12px;
+            text-align: center;
+        }
+
+        /* ─── IDLE MODAL ─── */
+        .idle-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.88);
+            backdrop-filter: blur(10px);
+            z-index: 3000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .idle-box {
+            background: #1a1a1a;
+            border: 1px solid rgba(233,30,140,0.25);
+            padding: 30px 22px;
+            border-radius: 18px;
+            text-align: center;
+            max-width: 360px;
+            width: 100%;
+        }
+
+        .idle-box p {
+            font-size: 15px;
+            margin-bottom: 22px;
+            color: #eee;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+
+        .idle-btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 11px 32px;
+            border-radius: 24px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .idle-btn:hover { opacity: 0.9; }
+
+        /* ─── TOAST ─── */
+        .custom-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translate(-50%, -20px);
+            z-index: 9999;
+            background: rgba(18,18,18,0.96);
+            backdrop-filter: blur(8px);
+            border-radius: 24px;
+            padding: 10px 22px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.22,1,0.36,1);
+            border: 1px solid rgba(255,255,255,0.06);
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: max-content;
+            max-width: 90vw;
+        }
+
+        .custom-toast.show {
+            transform: translate(-50%, 0);
+            opacity: 1;
+        }
+
+        .toast-content {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .toast-success i { color: var(--success); }
+        .toast-error i { color: var(--primary); }
+
+        /* ─── SEARCH ─── */
+        .search-wrap {
+            padding: 0 16px 10px;
+        }
+
+        .search-wrap input {
+            width: 100%;
+            padding: 9px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border2);
+            background: rgba(255,255,255,0.04);
+            color: #fff;
+            outline: none;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.2s;
+        }
+
+        .search-wrap input:focus {
+            border-color: var(--primary);
+            background: rgba(255,255,255,0.06);
+        }
+
+        .search-wrap input::placeholder { color: var(--text-muted); }
+
+        .online-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .online-badge .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 1.4s infinite;
+        }
+
+        @keyframes pulse {
+            0%,100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .section-label {
+            padding: 12px 16px 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .empty-state i {
+            font-size: 40px;
+            margin-bottom: 12px;
+            display: block;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;" ondragstart="return false;" ondrop="return false;">
+
+<!-- ─── HEADER ─── -->
+<header>
+    <div class="header-top">
+        <div class="header-brand">
+            <div class="brand-icon">
+                <i class="fa-solid fa-play"></i>
+            </div>
+            <span class="brand-name" id="site-name">VIDEO CALL LINKS</span>
+        </div>
+        <div class="header-actions">
+            <i class="fa-solid fa-magnifying-glass" id="search-toggle-btn"></i>
+            <div style="position:relative;">
+                <i class="fa-regular fa-bell"></i>
+                <span class="notif-dot"></span>
+            </div>
+            <!-- Avatar: shows TG photo or initials -->
+            <div class="avatar-circle" id="user-avatar" onclick="openProfileModal()">
+                <span id="user-initials">?</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- User info pill (name + ID) -->
+    <div class="user-info-pill" id="user-info-pill" style="display:none;">
+        <div class="avatar-circle" style="width:24px;height:24px;font-size:10px;" id="user-avatar-mini" onclick="openProfileModal()">
+            <span id="user-initials-mini">?</span>
+        </div>
+        <span class="user-name-text" id="user-name-display" onclick="openProfileModal()" style="cursor:pointer;">Loading...</span>
+        <span class="user-id-text" id="user-id-display" onclick="openProfileModal()" style="cursor:pointer;"></span>
+    </div>
+
+    <div class="search-wrap" id="search-area" style="display:none;">
+        <input type="text" id="searchInput" placeholder="ভিডিও খুঁজুন..." onkeyup="searchVideo()">
+    </div>
+
+    <div class="category-bar" id="category-container">
+        <button class="cat-btn active" onclick="filterCategory('All', this)">All</button>
+    </div>
+</header>
+
+<!-- ─── FEED ─── -->
+<div class="feed" id="video-list">
+    <div class="empty-state">
+        <i class="fa-regular fa-film"></i>
+        ভিডিও লোড হচ্ছে...
+    </div>
+</div>
+
+<!-- ─── BOTTOM NAV ─── -->
+<nav class="bottom-nav">
+    <button class="nav-item active" id="bn-home" onclick="showHome(this)">
+        <i class="fa-solid fa-house"></i>
+        <span>হোম</span>
+    </button>
+    <button class="nav-item" onclick="showFavorites(this)">
+        <i class="fa-regular fa-heart"></i>
+        <span>পছন্দের</span>
+    </button>
+    <button class="nav-item" onclick="openTutorial()">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>টিউটোরিয়াল</span>
+    </button>
+    <button class="nav-item" onclick="copyAppLink()">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+        <span>লিংক</span>
+    </button>
+    <button class="nav-item" onclick="openProfileModal()">
+        <i class="fa-regular fa-user"></i>
+        <span>প্রোফাইল</span>
+    </button>
+</nav>
+
+<!-- ─── PROFILE MODAL ─── -->
+<div id="profileModal" class="profile-modal">
+    <div class="profile-content">
+        <div class="profile-header">
+            <span>👤 আমার প্রোফাইল</span>
+            <div class="close-profile" onclick="closeProfileModal()">&times;</div>
+        </div>
+        <div class="profile-body">
+            <div class="profile-avatar-large" id="profile-avatar-large">
+                <span id="profile-initials-large">?</span>
+            </div>
+            <h2 id="profile-name">Loading...</h2>
+            <p id="profile-id">ID: </p>
+            
+            <div class="profile-stats">
+                <div class="stat-box">
+                    <span class="stat-num" id="unlocked-count">0</span>
+                    <span class="stat-lbl">আনলকড ভিডিও</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-num" id="views-count-user">0</span>
+                    <span class="stat-lbl">মোট ভিউস</span>
+                </div>
+            </div>
+            
+            <div class="profile-unlocked-section">
+                <h3>🔓 আপনার আনলক করা ভিডিওসমূহ</h3>
+                <div class="unlocked-videos-list" id="unlocked-videos-list">
+                    <p class="no-videos">এখনো কোনো ভিডিও আনলক করা হয়নি</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── COMMENT MODAL ─── -->
+<div id="commentModal" class="comment-modal">
+    <div class="comment-content">
+        <div class="comment-handle"></div>
+        <div class="comment-header">
+            <span>💬 কমেন্টস (<span id="modal-comment-count">0</span>)</span>
+            <div class="close-comment" onclick="closeComments()">&times;</div>
+        </div>
+        <div class="comment-list" id="comment-list-container"></div>
+        <div class="comment-input-area">
+            <input type="text" id="new-comment-text" placeholder="আপনার মতামত লিখুন...">
+            <button onclick="postComment()">সেন্ড</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── AD LOADING OVERLAY ─── -->
+<div id="ad-loading-overlay" class="ad-loading-overlay">
+    <div class="ad-spinner"></div>
+    <div class="ad-loading-text" id="ad-loading-text">অ্যাড লোড হচ্ছে...</div>
+    <div class="ad-loading-sub">সম্পূর্ণ দেখুন, তারপর ভিডিও পাবেন</div>
+</div>
+
+<!-- ─── IDLE ADS POPUP ─── -->
+<div id="idle-popup" class="idle-modal">
+    <div class="idle-box">
+        <p>আপনি কি ভিডিও দেখতে চান বা ওয়েবসাইটে থাকতে চান?</p>
+        <button class="idle-btn" onclick="handleIdlePopupContinue()">কন্টিনিউ করুন</button>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && ['c','s','u','p'].includes(e.key)) e.preventDefault();
+    });
+    if (window.Telegram?.WebApp) window.Telegram.WebApp.expand();
+
+    document.getElementById('search-toggle-btn').addEventListener('click', function() {
+        const sa = document.getElementById('search-area');
+        sa.style.display = sa.style.display === 'none' ? 'block' : 'none';
+        if(sa.style.display === 'block') document.getElementById('searchInput').focus();
+    });
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB_jnlb1nBmE97XXJoM5406mPO-XohEZBE",
+        authDomain: "telegram-bot-ca2a6.firebaseapp.com",
+        projectId: "telegram-bot-ca2a6",
+        storageBucket: "telegram-bot-ca2a6.firebasestorage.app",
+        messagingSenderId: "146679908038",
+        appId: "1:146679908038:web:aff6867b1d7ed806aa79c7",
+        databaseURL: "https://telegram-bot-ca2a6-default-rtdb.firebaseio.com"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ─── Global state ───
+    let monetagZone = "", adsgramId = "", repeatAdsgramId = "", tgAppUrl = "";
+    let adsgramController = null, repeatAdsgramController = null;
+    let currentVideoForComment = null;
+    let tgUserName = "Anonymous User";
+    let tgUserId = null;  // Telegram user ID (string)
+    let idleTimeout = null, idleAdInterval = 0, idleAdsgramId = "", idleAdsgramController = null;
+    const videoUrls = {}; // Map of videoId -> targetUrl
+    let repeatAdDelay = 0; // Repeat ad cooldown delay in minutes
+    let adInterval = 0;    // Ad interval cooldown in seconds
+    const videoCategoriesMap = {}; // Map of videoId -> category name
+    const adCooldowns = {}; // Map of videoId -> timer interval ID
+
+    // ─── Safe Local Storage Helpers ───
+    const progressCache = {};
+    function getProgress(id) {
+        try {
+            return parseInt(localStorage.getItem('unlock_progress_' + id)) || progressCache[id] || 0;
+        } catch (e) {
+            return progressCache[id] || 0;
+        }
+    }
+    function setProgress(id, val) {
+        progressCache[id] = val;
+        try {
+            localStorage.setItem('unlock_progress_' + id, val);
+        } catch (e) {
+            console.error("LocalStorage write failed:", e);
+        }
+    }
+
+    const fcProgressCache = {};
+    function getFcProgress(id) {
+        try {
+            return parseInt(localStorage.getItem('fc_progress_' + id)) || fcProgressCache[id] || 0;
+        } catch (e) {
+            return fcProgressCache[id] || 0;
+        }
+    }
+    function setFcProgress(id, val) {
+        fcProgressCache[id] = val;
+        try {
+            localStorage.setItem('fc_progress_' + id, val);
+        } catch (e) {
+            console.error("LocalStorage write failed:", e);
+        }
+    }
+
+    // ─── Safe React Storage ───
+    const reactCache = {};
+    function getReact(id) {
+        try { return localStorage.getItem('react_' + id) || reactCache[id] || null; }
+        catch(e) { return reactCache[id] || null; }
+    }
+    function setReact(id, val) {
+        reactCache[id] = val;
+        try { localStorage.setItem('react_' + id, val); } catch(e) {}
+    }
+
+    // ─── Telegram User Identity ───
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+
+    if (tgUser) {
+        tgUserId = String(tgUser.id);
+        tgUserName = (tgUser.first_name + " " + (tgUser.last_name || "")).trim();
+        const photoUrl = tgUser.photo_url || null;
+
+        // Set header avatar
+        const avatarEl = document.getElementById('user-avatar');
+        const initialsEl = document.getElementById('user-initials');
+        const avatarMiniEl = document.getElementById('user-avatar-mini');
+        const initialsMiniEl = document.getElementById('user-initials-mini');
+
+        if (photoUrl) {
+            // Show photo
+            avatarEl.innerHTML = `<img src="${photoUrl}" alt="avatar" onerror="this.parentNode.innerHTML='<span>${getInitials(tgUserName)}</span>'">`;
+            avatarMiniEl.innerHTML = `<img src="${photoUrl}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentNode.innerHTML='<span>${getInitials(tgUserName)}</span>'">`;
+        } else {
+            const initials = getInitials(tgUserName);
+            initialsEl.textContent = initials;
+            initialsMiniEl.textContent = initials;
+        }
+
+        // Show user info pill
+        document.getElementById('user-info-pill').style.display = 'flex';
+        document.getElementById('user-name-display').textContent = tgUserName;
+        document.getElementById('user-id-display').textContent = `#${tgUserId}`;
+
+        // Ensure user node exists in Firebase
+        db.ref(`users/${tgUserId}`).update({
+            name: tgUserName,
+            photo: tgUser.photo_url || "",
+            lastSeen: Date.now()
+        });
+    } else {
+        // Fallback for browser testing
+        tgUserId = "guest_12345";
+        tgUserName = "Guest User";
+        document.getElementById('user-initials').textContent = "G";
+        document.getElementById('user-initials-mini').textContent = "G";
+
+        // Show user info pill for guest
+        document.getElementById('user-info-pill').style.display = 'flex';
+        document.getElementById('user-name-display').textContent = tgUserName;
+        document.getElementById('user-id-display').textContent = `#${tgUserId}`;
+    }
+
+    // ─── Helper: get initials ───
+    function getInitials(name) {
+        if(!name) return '?';
+        return name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    }
+
+    // ─── Helper: time ago ───
+    function timeAgo(time) {
+        if(!time) return '';
+        const s = Math.floor((Date.now() - time)/1000);
+        let i;
+        i = s/31536000; if(i>1) return Math.floor(i)+" বছর আগে";
+        i = s/2592000;  if(i>1) return Math.floor(i)+" মাস আগে";
+        i = s/86400;    if(i>1) return Math.floor(i)+" দিন আগে";
+        i = s/3600;     if(i>1) return Math.floor(i)+" ঘণ্টা আগে";
+        i = s/60;       if(i>1) return Math.floor(i)+" মিনিট আগে";
+        return "কয়েক সেকেন্ড আগে";
+    }
+
+    // ─── Toast ───
+    function showToast(message, type = 'success') {
+        const old = document.querySelector('.custom-toast');
+        if (old) old.remove();
+        const toast = document.createElement('div');
+        toast.className = `custom-toast toast-${type}`;
+        toast.innerHTML = `<div class="toast-content"><i class="${type==='success'?'fa-solid fa-circle-check':'fa-solid fa-circle-xmark'}"></i><span>${message}</span></div>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 350); }, 3000);
+    }
+
+    // ─── Ad Loading Overlay ───
+    function showAdOverlay(text) {
+        document.getElementById('ad-loading-text').textContent = text || "অ্যাড লোড হচ্ছে...";
+        document.getElementById('ad-loading-overlay').classList.add('show');
+    }
+    function hideAdOverlay() {
+        document.getElementById('ad-loading-overlay').classList.remove('show');
+    }
+
+    function initAdsgram() {
+        if (!window.Adsgram) return false;
+        if (adsgramId && !adsgramController) {
+            adsgramController = window.Adsgram.init({ blockId: adsgramId });
+            adsgramController.load().catch(() => {});
+        }
+        if (repeatAdsgramId && !repeatAdsgramController) {
+            repeatAdsgramController = window.Adsgram.init({ blockId: repeatAdsgramId });
+            repeatAdsgramController.load().catch(() => {});
+        }
+        if (idleAdsgramId && !idleAdsgramController) {
+            idleAdsgramController = window.Adsgram.init({ blockId: idleAdsgramId });
+            idleAdsgramController.load().catch(() => {});
+        }
+        return true;
+    }
+
+    // ─── Firebase settings ───
+    db.ref('settings').on('value', (snap) => {
+        const data = snap.val() || {};
+        document.getElementById('site-name').innerText = data.siteName || "VIDEO CALL LINKS";
+        tgAppUrl = data.tgAppUrl || "";
+        repeatAdDelay = parseInt(data.repeatAdDelay) || 0;
+        adInterval = (data.adInterval !== undefined && data.adInterval !== "") ? parseInt(data.adInterval) : 15;
+
+        // Full Ad (new video) — adsgramId
+        if (data.adsgramId && data.adsgramId !== adsgramId) {
+            adsgramId = data.adsgramId;
+            adsgramController = null;
+        }
+
+        // Repeat Ad (re-access unlocked video) — repeatAdsgramId
+        if (data.repeatAdsgramId && data.repeatAdsgramId !== repeatAdsgramId) {
+            repeatAdsgramId = data.repeatAdsgramId;
+            repeatAdsgramController = null;
+        }
+
+        // Monetag
+        if (data.monetagZone && data.monetagZone !== monetagZone) {
+            monetagZone = data.monetagZone;
+            let old = document.getElementById('monetag-script');
+            if(old) old.remove();
+            let s = document.createElement('script');
+            s.id='monetag-script'; s.src='//libtl.com/sdk.js';
+            s.setAttribute('data-zone', monetagZone);
+            s.setAttribute('data-sdk', `show_${monetagZone}`);
+            document.head.appendChild(s);
+        }
+
+        // Idle ad
+        idleAdInterval = parseInt(data.idleAdInterval) || 0;
+        if(data.idleAdsgramId && data.idleAdsgramId !== idleAdsgramId) {
+            idleAdsgramId = data.idleAdsgramId;
+            idleAdsgramController = null;
+        }
+        initAdsgram();
+        resetIdleTimer();
+    });
+
+    // ─── Online presence ───
+    const userRef = db.ref('online_users').push();
+    db.ref('.info/connected').on('value', s => {
+        if(s.val()){ userRef.onDisconnect().remove(); userRef.set(true); }
+    });
+
+    // ─── Unlock state: Firebase-based (persistent across sessions) ───
+    // Path: users/{tgUserId}/unlocked/{videoId} = true
+    // Path: users/{tgUserId}/viewed/{videoId} = true  ← "has ever accessed"
+
+    let userUnlockCache = {}; // local cache { videoId: true/false }
+    let userViewedCache = {}; // local cache { videoId: true/false }
+
+    // Load user's unlock state once on start
+    function loadUserState() {
+        if (!tgUserId) return Promise.resolve();
+        return db.ref(`users/${tgUserId}`).once('value').then(snap => {
+            const d = snap.val() || {};
+            userUnlockCache = d.unlocked || {};
+            userViewedCache = d.viewed || {};
+        });
+    }
+
+    function getUnlockedTimestamp(videoId) {
+        return userUnlockCache[videoId] || 0;
+    }
+
+    function isUnlocked(videoId) {
+        return !!userUnlockCache[videoId];
+    }
+
+    function isWithinCooldown(videoId) {
+        const timestamp = getUnlockedTimestamp(videoId);
+        if (!timestamp) return false;
+        if (!repeatAdDelay || repeatAdDelay <= 0) return false; // delay not set
+        const elapsedMinutes = (Date.now() - timestamp) / 60000;
+        return elapsedMinutes < repeatAdDelay;
+    }
+
+    function hasViewed(videoId) {
+        return !!userViewedCache[videoId];
+    }
+
+    function markUnlocked(videoId) {
+        const now = Date.now();
+        userUnlockCache[videoId] = now;
+        if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${videoId}`).set(now);
+        refreshCardButton(videoId);
+    }
+
+    function markViewed(videoId) {
+        userViewedCache[videoId] = true;
+        if (tgUserId) db.ref(`users/${tgUserId}/viewed/${videoId}`).set(true);
+    }
+
+    // ─── Refresh unlock button UI ───
+    function refreshCardButton(id) {
+        const btn = document.getElementById('btn-'+id);
+        if (!btn) return;
+        const badge = document.getElementById('badge-'+id);
+        const cardEl = document.getElementById('card-'+id);
+        let reqAds = 1;
+        if (cardEl) {
+            reqAds = parseInt(cardEl.getAttribute('data-req-ads')) || 1;
+        }
+
+        if (isUnlocked(id)) {
+            if (isWithinCooldown(id)) {
+                btn.className = 'btn-unlock btn-unlocked';
+                btn.innerHTML = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
+            } else {
+                btn.className = 'btn-unlock btn-repeat';
+                btn.innerHTML = `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`;
+            }
+            if (badge) { badge.className = 'unlock-badge unlocked'; badge.innerHTML = `<i class="fa-solid fa-unlock-keyhole"></i> Unlocked`; }
+        } else {
+            btn.className = 'btn-unlock';
+            if (reqAds > 1) {
+                let prog = getProgress(id);
+                btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK — Full Ad দেখুন`;
+            }
+            if (badge) { badge.className = 'unlock-badge locked'; badge.innerHTML = `<i class="fa-solid fa-lock"></i> Locked`; }
+        }
+    }
+
+    // ─── Show Full Ad (new video) ───
+    function showFullAd(callback) {
+        initAdsgram();
+        showAdOverlay("ফুল অ্যাড লোড হচ্ছে...");
+        const mFunc = window[`show_${monetagZone}`];
+
+        const done = () => {
+            hideAdOverlay();
+            if (adsgramController) adsgramController.load().catch(() => {}); // pre-load next ad
+            callback();
+        };
+        const handleAdResult = (result) => {
+            if (result && result.done) {
+                done();
+            } else {
+                hideAdOverlay();
+                showToast("অ্যাড সম্পূর্ণ দেখা হয়নি!", "error");
+            }
+        };
+        const fallback = (err) => {
+            if(typeof mFunc === 'function') {
+                mFunc().then(done).catch(done);
+            } else {
+                if (err && err.description === "User closed ad") {
+                    hideAdOverlay();
+                    showToast("অ্যাডটি বন্ধ করা হয়েছে! সম্পূর্ণ না দেখলে ভিডিও পাবেন না।", "error");
+                } else {
+                    done(); // Graceful bypass for no fill/adblock/load error
+                }
+            }
+        };
+
+        if (adsgramController) {
+            adsgramController.show().then(handleAdResult).catch(fallback);
+        } else fallback();
+    }
+
+    // ─── Show Repeat Ad (re-access) ───
+    function showRepeatAd(callback) {
+        initAdsgram();
+        showAdOverlay("রিপিট অ্যাড লোড হচ্ছে...");
+        const mFunc = window[`show_${monetagZone}`];
+
+        const done = () => {
+            hideAdOverlay();
+            if (repeatAdsgramController) repeatAdsgramController.load().catch(() => {}); // pre-load next repeat ad
+            callback();
+        };
+        const handleAdResult = (result) => {
+            if (result && result.done) {
+                done();
+            } else {
+                hideAdOverlay();
+                showToast("অ্যাড সম্পূর্ণ দেখা হয়নি!", "error");
+            }
+        };
+        const fallback = (err) => {
+            if(typeof mFunc === 'function') {
+                mFunc().then(done).catch(done);
+            } else {
+                if (err && err.description === "User closed ad") {
+                    hideAdOverlay();
+                    showToast("অ্যাডটি বন্ধ করা হয়েছে! সম্পূর্ণ না দেখলে ভিডিও পাবেন না।", "error");
+                } else {
+                    done(); // Graceful bypass for no fill/adblock/load error
+                }
+            }
+        };
+
+        if (repeatAdsgramController) {
+            repeatAdsgramController.show().then(handleAdResult).catch(fallback);
+        } else if (adsgramController) {
+            // fallback to full ad controller if repeat not configured
+            adsgramController.show().then(handleAdResult).catch(fallback);
+        } else fallback();
+    }
+
+    function startButtonCooldown(id, duration, reqAds, prog) {
+        const btn = document.getElementById('btn-' + id);
+        if (!btn) return;
+        
+        btn.disabled = true;
+        btn.classList.add('disabled');
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+        
+        let timeLeft = duration;
+        btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
+        
+        if (adCooldowns[id]) clearInterval(adCooldowns[id]);
+        
+        const timer = setInterval(() => {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                delete adCooldowns[id];
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
+            }
+        }, 1000);
+        
+        adCooldowns[id] = timer;
+    }
+
+    function startFcButtonCooldown(id, duration, reqAds, prog) {
+        const btn = document.getElementById('fc-btn-' + id);
+        if (!btn) return;
+        
+        btn.disabled = true;
+        btn.classList.add('disabled');
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+        
+        let timeLeft = duration;
+        btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
+        
+        const timer = setInterval(() => {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                btn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
+            }
+        }, 1000);
+    }
+
+    // ─── Watch Video (main unlock logic) ───
+    function watchVideo(id, url, reqAds = 1) {
+        if (isUnlocked(id)) {
+            if (isWithinCooldown(id)) {
+                // Within cooldown → play directly without ads
+                markViewed(id);
+                openUrl(url);
+            } else {
+                // Cooldown expired → show Repeat Ad, then reset cooldown
+                showRepeatAd(() => {
+                    markViewed(id);
+                    const now = Date.now();
+                    userUnlockCache[id] = now;
+                    if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
+                    refreshCardButton(id);
+                    openUrl(url);
+                });
+            }
+        } else {
+            if (reqAds > 1) {
+                let prog = getProgress(id);
+                showFullAd(() => {
+                    prog++;
+                    setProgress(id, prog);
+                    
+                    const btn = document.getElementById('btn-' + id);
+                    if (prog >= reqAds) {
+                        const now = Date.now();
+                        userUnlockCache[id] = now;
+                        if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
+                        markViewed(id);
+                        db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
+                        showToast("🎉 আনলক সম্পন্ন! ভিডিও খুলছে...", "success");
+                        refreshCardButton(id);
+                        openUrl(url);
+                    } else {
+                        showToast(`অ্যাড সম্পন্ন! আর ${reqAds - prog}টি অ্যাড দেখতে হবে।`, "info");
+                        if (adInterval > 0) {
+                            startButtonCooldown(id, adInterval, reqAds, prog);
+                        } else {
+                            if (btn) btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
+                        }
+                    }
+                });
+            } else {
+                // New video (1 ad required) → show Full Ad, then unlock
+                showFullAd(() => {
+                    const now = Date.now();
+                    userUnlockCache[id] = now;
+                    if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
+                    markViewed(id);
+                    // Update views in Firebase
+                    db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
+                    showToast("🎉 আনলক সম্পন্ন! ভিডিও খুলছে...", "success");
+                    refreshCardButton(id);
+                    openUrl(url);
+                });
+            }
+        }
+    }
+
+    function openUrl(url) {
+        if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
+        else window.open(url, '_blank');
+    }
+
+    // ─── Full Collection handling ───
+    function handleFC(id, url, reqAds) {
+        // FC uses full ad network regardless
+        let prog = getFcProgress(id);
+        if(prog>=reqAds) {
+            openUrl(url);
+        } else {
+            showFullAd(() => {
+                prog++;
+                setFcProgress(id, prog);
+                let btn = document.getElementById('fc-btn-'+id);
+                if(prog>=reqAds) {
+                    if(btn) { btn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection'; btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)'; }
+                    showToast("🎉 কালেকশন আনলক সম্পন্ন!", "success");
+                    openUrl(url);
+                } else {
+                    if (adInterval > 0) {
+                        startFcButtonCooldown(id, adInterval, reqAds, prog);
+                    } else {
+                        if(btn) btn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+                    }
+                }
+            });
+        }
+    }
+
+    // ─── Reactions ───
+    function handleReact(id, type) {
+        if(getReact(id)) return;
+        db.ref('videos/'+id+'/'+type+'s').transaction(v => (v||0)+1);
+        setReact(id, type);
+        ['like-btn-'+id, 'dislike-btn-'+id].forEach(bid => {
+            const b = document.getElementById(bid);
+            if(b) b.disabled = true;
+        });
+        const btn = document.getElementById(type+'-btn-'+id);
+        if(btn) btn.classList.add('active-'+type);
+        const hb = document.getElementById('heart-btn-'+id);
+        if(type==='like' && hb) {
+            hb.classList.add('liked');
+            hb.querySelector('i').className = 'fa-solid fa-heart';
+        }
+        showToast("আপনার প্রতিক্রিয়া সংরক্ষিত হয়েছে!", "success");
+    }
+
+    // ─── Categories ───
+    const renderedCategories = new Set(['All']);
+    function ensureCategoryButton(catName) {
+        if (!catName) return;
+        if (renderedCategories.has(catName)) return;
+        renderedCategories.add(catName);
+        
+        const cc = document.getElementById('category-container');
+        cc.insertAdjacentHTML('beforeend', `<button class="cat-btn" onclick="filterCategory('${catName}', this)">${catName}</button>`);
+    }
+
+    db.ref('categories').on('value', snap => {
+        const cc = document.getElementById('category-container');
+        const activeBtn = cc.querySelector('.cat-btn.active');
+        const activeCat = activeBtn ? activeBtn.textContent : 'All';
+        
+        cc.innerHTML = `<button class="cat-btn ${activeCat === 'All' ? 'active' : ''}" onclick="filterCategory('All', this)">All</button>`;
+        renderedCategories.clear();
+        renderedCategories.add('All');
+        
+        const cats = snap.val();
+        if(cats) Object.values(cats).forEach(c => {
+            if (c.name) ensureCategoryButton(c.name);
+        });
+        
+        // Also ensure categories from loaded videos are displayed
+        Object.values(videoCategoriesMap).forEach(cat => {
+            ensureCategoryButton(cat);
+        });
+        
+        // Restore active state
+        const btns = cc.querySelectorAll('.cat-btn');
+        let restored = false;
+        btns.forEach(btn => {
+            if (btn.textContent === activeCat) {
+                btn.classList.add('active');
+                restored = true;
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        if (!restored && btns.length > 0) btns[0].classList.add('active');
+    });
+
+    // ─── Video list ───
+    let loadedCount = 0;
+    let targetVideoId = new URLSearchParams(window.location.search).get('v') || window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+    let scrolledToTarget = false;
+    const list = document.getElementById('video-list');
+
+    // Load user state first, then listen to videos
+    loadUserState().then(() => {
+        db.ref('videos').on('child_added', (snapshot) => {
+            const id = snapshot.key;
+            const v = snapshot.val();
+            videoUrls[id] = v.url; // store target url in map
+            
+            // Map category and ensure button
+            const cat = v.category || 'Others';
+            videoCategoriesMap[id] = cat;
+            ensureCategoryButton(cat);
+
+            let commentCount = v.comments ? Object.keys(v.comments).length : 0;
+
+            if(loadedCount === 0) list.innerHTML = '';
+            loadedCount++;
+
+            const unlocked = isUnlocked(id);
+
+            let fcHtml = '';
+            if (v.fullCollectionUrl && v.fullCollectionUrl.trim() !== "") {
+                let reqAds = parseInt(v.fullCollectionAds) || 0;
+                let prog = getFcProgress(id);
+                let btnText = prog >= reqAds
+                    ? '<i class="fa-solid fa-unlock"></i> Full Collection'
+                    : `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+                let btnBg = prog >= reqAds
+                    ? 'linear-gradient(135deg,#22c55e,#16a34a)'
+                    : 'linear-gradient(135deg,#f59e0b,#f97316)';
+                fcHtml = `<button class="btn-full-collection" id="fc-btn-${id}" style="background:${btnBg}" onclick="handleFC('${id}','${v.fullCollectionUrl}',${reqAds})">${btnText}</button>`;
+            }
+
+            const thumbMain = v.thumb || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=400';
+            const thumbSide1 = v.thumb2 || v.thumb || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200';
+            const thumbSide2 = v.thumb3 || v.thumb || 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200';
+
+            const uploaderInitial = getInitials(v.uploaderName || 'V');
+            const viewCount = v.views || 0;
+            const likeCount = v.likes || 0;
+
+            const fcVisible = !!(v.fullCollectionUrl && v.fullCollectionUrl.trim());
+
+            // Unlock button state
+            let reqAds = parseInt(v.fullCollectionAds) || 1;
+            if (reqAds < 1) reqAds = 1;
+
+            let btnClass = "";
+            let btnContent = "";
+            if (unlocked) {
+                if (isWithinCooldown(id)) {
+                    btnClass = 'btn-unlock btn-unlocked';
+                    btnContent = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
+                } else {
+                    btnClass = 'btn-unlock btn-repeat';
+                    btnContent = `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`;
+                }
+            } else {
+                btnClass = 'btn-unlock';
+                if (reqAds > 1) {
+                    let prog = getProgress(id);
+                    btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
+                } else {
+                    btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK — Full Ad দেখুন`;
+                }
+            }
+
+            const badgeClass = unlocked ? 'unlock-badge unlocked' : 'unlock-badge locked';
+            const badgeContent = unlocked
+                ? `<i class="fa-solid fa-unlock-keyhole"></i> Unlocked`
+                : `<i class="fa-solid fa-lock"></i> Locked`;
+
+            list.insertAdjacentHTML('afterbegin', `
+            <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}" data-req-ads="${reqAds}">
+                
+                <!-- Collage Thumbnail -->
+                <div class="thumb-collage" onclick="watchVideo('${id}','${v.url}', ${reqAds})">
+                    <img class="main-img" src="${thumbMain}" id="img-${id}" draggable="false" alt="thumb">
+                    <div class="thumb-divider"></div>
+                    <div class="side-imgs">
+                        <img class="side-img" src="${thumbSide1}" draggable="false" alt="">
+                        <img class="side-img" src="${thumbSide2}" draggable="false" alt="">
+                    </div>
+                    <!-- Unlock status badge -->
+                    <div id="badge-${id}" class="${badgeClass}">${badgeContent}</div>
+                    <button class="heart-btn ${getReact(id)==='like' ? 'liked' : ''}" id="heart-btn-${id}" onclick="event.stopPropagation(); handleReact('${id}','like')">
+                        <i class="fa-${getReact(id)==='like' ? 'solid' : 'regular'} fa-heart"></i>
+                    </button>
+                </div>
+
+                <!-- Meta -->
+                <div class="card-meta">
+                    <div class="uploader-avatar">${uploaderInitial}</div>
+                    <div class="card-text-info">
+                        <div class="card-title" id="title-${id}">${v.title || 'Untitled'}</div>
+                        <div class="card-sub">
+                            <span class="channel-name">VIDEO CALL LINKS</span>
+                            <span class="dot-sep">·</span>
+                            <span class="views-stat"><span id="views-${id}">${viewCount}</span>K views</span>
+                            <span class="dot-sep">·</span>
+                            <span class="heart-count"><i class="fa-solid fa-heart"></i><span id="likes-${id}">${likeCount}</span></span>
+                        </div>
+                    </div>
+                    <button class="more-btn">⋮</button>
+                </div>
+
+                <!-- Quick CTA -->
+                <div class="card-quick">
+                    <i class="fa-solid fa-hand-pointer"></i>
+                    <span>তাড়াতাড়ি দেখুন 👇</span>
+                </div>
+
+                <!-- Reactions -->
+                <div class="react-group">
+                    <button id="like-btn-${id}" class="react-btn ${getReact(id)==='like'?'active-like':''}" onclick="handleReact('${id}','like')" ${getReact(id)?'disabled':''}>
+                        <i class="fa-solid fa-thumbs-up"></i> <span id="like-count-${id}">${likeCount}</span>
+                    </button>
+                    <button id="dislike-btn-${id}" class="react-btn ${getReact(id)==='dislike'?'active-dislike':''}" onclick="handleReact('${id}','dislike')" ${getReact(id)?'disabled':''}>
+                        <i class="fa-solid fa-thumbs-down"></i>
+                    </button>
+                    <button class="react-btn comment-btn" onclick="openComments('${id}')">
+                        <i class="fa-solid fa-comment-dots"></i> <span id="comments-count-${id}">${commentCount}</span>
+                    </button>
+                </div>
+
+                <!-- Unlock Button -->
+                <div class="card-actions">
+                    <button class="${btnClass}" id="btn-${id}" onclick="watchVideo('${id}','${v.url}', ${reqAds})">
+                        ${btnContent}
+                    </button>
+                    ${fcVisible ? '' : `<button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>`}
+                </div>
+
+                ${fcVisible ? `
+                <div class="card-actions" style="padding-top:0;">
+                    ${fcHtml}
+                    <button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>
+                </div>` : ''}
+            </div>
+            `);
+
+            if (targetVideoId === id && !scrolledToTarget) {
+                scrolledToTarget = true;
+                setTimeout(() => {
+                    const el = document.getElementById('card-'+id);
+                    if(el) el.scrollIntoView({behavior:'smooth', block:'center'});
+                }, 800);
+            }
+        });
+    });
+
+    // ─── Real-time updates ───
+    db.ref('videos').on('child_changed', (snapshot) => {
+        const id = snapshot.key, v = snapshot.val();
+        if(document.getElementById('views-'+id)) document.getElementById('views-'+id).innerText = v.views||0;
+        if(document.getElementById('likes-'+id)) document.getElementById('likes-'+id).innerText = v.likes||0;
+        if(document.getElementById('like-count-'+id)) document.getElementById('like-count-'+id).innerText = v.likes||0;
+        let cCount = v.comments ? Object.keys(v.comments).length : 0;
+        if(document.getElementById('comments-count-'+id)) document.getElementById('comments-count-'+id).innerText = cCount;
+        if(currentVideoForComment === id) renderComments(v.comments);
+
+        let fcBtn = document.getElementById('fc-btn-'+id);
+        if(fcBtn && v.fullCollectionUrl) {
+            let reqAds = parseInt(v.fullCollectionAds)||0;
+            let prog = getFcProgress(id);
+            if(prog>=reqAds) {
+                fcBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection';
+                fcBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+            } else {
+                fcBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+                fcBtn.style.background = 'linear-gradient(135deg,#f59e0b,#f97316)';
+            }
+            fcBtn.onclick = function() { handleFC(id, v.fullCollectionUrl, reqAds); };
+        }
+    });
+
+    db.ref('videos').on('child_removed', (snapshot) => {
+        const el = document.getElementById('card-'+snapshot.key);
+        if(el) el.remove();
+    });
+
+    // ─── Idle Timer ───
+    function resetIdleTimer() {
+        if(idleTimeout) clearTimeout(idleTimeout);
+        if(idleAdInterval <= 0) return;
+        idleTimeout = setTimeout(() => {
+            if(idleAdsgramController) document.getElementById('idle-popup').style.display = 'flex';
+        }, idleAdInterval * 1000);
+    }
+    ['mousemove','mousedown','keypress','touchmove','touchstart'].forEach(e => document.addEventListener(e, resetIdleTimer, true));
+
+    function handleIdlePopupContinue() {
+        document.getElementById('idle-popup').style.display = 'none';
+        if(idleAdsgramController) {
+            idleAdsgramController.show().then(()=>resetIdleTimer()).catch(()=>resetIdleTimer());
+        } else resetIdleTimer();
+    }
+
+    // ─── Comments ───
+    function openComments(id) {
+        currentVideoForComment = id;
+        document.getElementById('commentModal').style.display = 'flex';
+        db.ref('videos/'+id+'/comments').once('value', snap => renderComments(snap.val()));
+    }
+
+    function closeComments() {
+        document.getElementById('commentModal').style.display = 'none';
+        currentVideoForComment = null;
+    }
+
+    function renderComments(obj) {
+        const c = document.getElementById('comment-list-container');
+        c.innerHTML = '';
+        if(!obj) {
+            document.getElementById('modal-comment-count').innerText = '0';
+            c.innerHTML = '<p style="text-align:center;color:#666;margin-top:24px;font-size:14px;">প্রথম কমেন্টটি আপনি করুন!</p>';
+            return;
+        }
+        const keys = Object.keys(obj).reverse();
+        document.getElementById('modal-comment-count').innerText = keys.length;
+        keys.forEach(k => {
+            let item = obj[k];
+            let replyHtml = item.adminReply ? `<div class="admin-reply"><strong>Admin 🛡️:</strong> ${item.adminReply}</div>` : '';
+            c.innerHTML += `
+                <div class="comment-item">
+                    <strong><i class="fa-solid fa-circle-user"></i> ${item.userName||'Anonymous'}</strong>
+                    <p>${item.text}</p>
+                    ${replyHtml}
+                </div>`;
+        });
+    }
+
+    function postComment() {
+        if(!currentVideoForComment) return;
+        const inp = document.getElementById('new-comment-text');
+        const text = inp.value.trim();
+        if(!text) return;
+        db.ref('videos/'+currentVideoForComment+'/comments').push({
+            userName: tgUserName, text, timestamp: Date.now()
+        }).then(() => { inp.value=''; showToast("কমেন্ট পোস্ট হয়েছে!", "success"); });
+    }
+
+    // ─── Search & Filter ───
+    function searchVideo() {
+        const q = document.getElementById('searchInput').value.toLowerCase();
+        document.querySelectorAll('.card').forEach(card => {
+            card.style.display = card.getAttribute('data-title').includes(q) ? '' : 'none';
+        });
+    }
+
+    let activeTab = 'home';
+    function showFavorites(el) {
+        activeTab = 'favorites';
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
+        el.classList.add('active');
+        
+        const cards = document.querySelectorAll('.card');
+        let count = 0;
+        cards.forEach(card => {
+            const id = card.id.replace('card-', '');
+            if (getReact(id) === 'like') {
+                card.style.display = '';
+                count++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        
+        if (count === 0) {
+            showToast("আপনার পছন্দের তালিকায় কোনো ভিডিও নেই!", "info");
+        }
+    }
+
+    function showHome(el) {
+        activeTab = 'home';
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
+        el.classList.add('active');
+        filterCategory('All', document.querySelector('.cat-btn'));
+    }
+
+    function openTutorial() {
+        if (tgAppUrl) openUrl(tgAppUrl);
+        else showToast("টিউটোরিয়াল লিঙ্ক সেট করা নেই!", "info");
+    }
+
+    function copyAppLink() {
+        const shareUrl = window.location.href;
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            showToast("🔗 লিঙ্কটি ক্লিপবোর্ডে কপি করা হয়েছে!", "success");
+        }).catch(() => {
+            showToast("কপি করা যায়নি, লিঙ্কটি হলো: " + shareUrl, "info");
+        });
+    }
+
+    function filterCategory(cat, btnEl) {
+        activeTab = 'home';
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
+        const homeNav = document.getElementById('bn-home');
+        if (homeNav) homeNav.classList.add('active');
+
+        document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+        if (btnEl) btnEl.classList.add('active');
+        document.querySelectorAll('.card').forEach(card => {
+            card.style.display = (cat==='All' || card.getAttribute('data-category')===cat) ? '' : 'none';
+        });
+    }
+
+    // ─── Copy share link ───
+    function copyLink(id) {
+        let url = (tgAppUrl&&tgAppUrl.trim()!=='')
+            ? tgAppUrl.split('?')[0]+'?startapp='+id
+            : window.location.origin+window.location.pathname+'?v='+id;
+        const tmp = document.createElement('input');
+        document.body.appendChild(tmp);
+        tmp.value = url; tmp.select(); document.execCommand('copy');
+        document.body.removeChild(tmp);
+        showToast("শেয়ার লিংক কপি হয়েছে!", "success");
+    }
+
+    // ─── Profile Modal JS Functions ───
+    function openProfileModal() {
+        document.getElementById('profileModal').style.display = 'flex';
+        
+        // Populate profile details
+        document.getElementById('profile-name').textContent = tgUserName;
+        document.getElementById('profile-id').textContent = `ID: ${tgUserId}`;
+        
+        // Large avatar details
+        const largeAvatar = document.getElementById('profile-avatar-large');
+        const photoUrl = (tgUser && tgUser.photo_url) ? tgUser.photo_url : null;
+        if (photoUrl) {
+            largeAvatar.innerHTML = `<img src="${photoUrl}" alt="avatar" onerror="this.parentNode.innerHTML='<span id=\\'profile-initials-large\\'>${getInitials(tgUserName)}</span>'">`;
+        } else {
+            largeAvatar.innerHTML = `<span id="profile-initials-large">${getInitials(tgUserName)}</span>`;
+        }
+        
+        // Unlocked count
+        const unlockedIds = Object.keys(userUnlockCache).filter(key => userUnlockCache[key] === true);
+        document.getElementById('unlocked-count').textContent = unlockedIds.length;
+        
+        // Total views of this user - let's count from viewed cache
+        const viewedIds = Object.keys(userViewedCache).filter(key => userViewedCache[key] === true);
+        document.getElementById('views-count-user').textContent = viewedIds.length;
+        
+        // Populate list of unlocked videos
+        const listContainer = document.getElementById('unlocked-videos-list');
+        listContainer.innerHTML = '';
+        
+        if (unlockedIds.length === 0) {
+            listContainer.innerHTML = '<p class="no-videos">এখনো কোনো ভিডিও আনলক করা হয়নি</p>';
+            return;
+        }
+        
+        unlockedIds.forEach(vidId => {
+            const cardTitleEl = document.getElementById('title-' + vidId);
+            const cardImgEl = document.getElementById('img-' + vidId);
+            
+            const title = cardTitleEl ? cardTitleEl.textContent : 'ভিডিও #' + vidId;
+            const thumb = cardImgEl ? cardImgEl.src : '';
+            
+            const itemHtml = `
+                <div class="unlocked-video-item" onclick="closeProfileModal(); watchVideo('${vidId}', videoUrls['${vidId}'])">
+                    ${thumb ? `<img class="unlocked-video-thumb" src="${thumb}" alt="">` : ''}
+                    <span class="unlocked-video-title">${title}</span>
+                    <i class="fa-solid fa-play" style="color:var(--success); font-size:12px;"></i>
+                </div>
+            `;
+            listContainer.insertAdjacentHTML('beforeend', itemHtml);
+        });
+    }
+    
+    function closeProfileModal() {
+        document.getElementById('profileModal').style.display = 'none';
+    }
+</script>
+</body>
+</html>
