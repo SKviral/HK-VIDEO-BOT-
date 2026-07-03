@@ -1195,9 +1195,11 @@
         try { localStorage.setItem('react_' + id, val); } catch(e) {}
     }
 
-    function isUnlocked(id) {
-        const card = document.getElementById('card-' + id);
-        const unlockAds = parseInt(card ? card.getAttribute('data-watch-ads') : '3') || 3;
+    function isUnlocked(id, unlockAds) {
+        if (unlockAds === undefined) {
+            const card = document.getElementById('card-' + id);
+            unlockAds = parseInt(card ? card.getAttribute('data-watch-ads') : '3') || 3;
+        }
         const localProg = getProgress(id);
         return (localProg >= unlockAds) || !!userUnlockCache[id];
     }
@@ -1211,6 +1213,69 @@
         if (!repeatAdDelay || repeatAdDelay <= 0) return false;
         return elapsedMinutes < repeatAdDelay;
     }
+
+    function timeAgo(time) {
+        if(!time) return '';
+        const s = Math.floor((Date.now() - time)/1000);
+        let i;
+        i = s/31536000; if(i>1) return Math.floor(i)+" বছর আগে";
+        i = s/2592000;  if(i>1) return Math.floor(i)+" মাস আগে";
+        i = s/86400;    if(i>1) return Math.floor(i)+" দিন আগে";
+        i = s/3600;     if(i>1) return Math.floor(i)+" ঘণ্টা আগে";
+        i = s/60;       if(i>1) return Math.floor(i)+" মিনিট আগে";
+        return "কয়েক সেকেন্ড আগে";
+    }
+
+    function getInitials(name) {
+        if(!name) return 'V';
+        return name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,1);
+    }
+
+    const list = document.getElementById('video-list');
+    const videoCategoriesMap = {};
+    const renderedCategories = new Set(['All']);
+
+    function ensureCategoryButton(catName) {
+        if (!catName) return;
+        if (renderedCategories.has(catName)) return;
+        renderedCategories.add(catName);
+        
+        const cc = document.getElementById('category-container');
+        cc.insertAdjacentHTML('beforeend', `<button class="cat-btn" onclick="filterCategory('${catName}', this)">${catName}</button>`);
+    }
+
+    db.ref('categories').on('value', snap => {
+        const cc = document.getElementById('category-container');
+        const activeBtn = cc.querySelector('.cat-btn.active');
+        const activeCat = activeBtn ? activeBtn.textContent : 'All';
+        
+        cc.innerHTML = `<button class="cat-btn ${activeCat === 'All' ? 'active' : ''}" onclick="filterCategory('All', this)">All</button>`;
+        renderedCategories.clear();
+        renderedCategories.add('All');
+        
+        const cats = snap.val();
+        if(cats) Object.values(cats).forEach(c => {
+            if (c.name) ensureCategoryButton(c.name);
+        });
+        
+        // Also ensure categories from loaded videos are displayed
+        Object.values(videoCategoriesMap).forEach(cat => {
+            ensureCategoryButton(cat);
+        });
+        
+        // Restore active state
+        const btns = cc.querySelectorAll('.cat-btn');
+        let restored = false;
+        btns.forEach(btn => {
+            if (btn.textContent === activeCat) {
+                btn.classList.add('active');
+                restored = true;
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        if (!restored && btns.length > 0) btns[0].classList.add('active');
+    });
 
     if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
         let u = window.Telegram.WebApp.initDataUnsafe.user;
@@ -1278,79 +1343,9 @@
     let scrolledToTarget = false;
     let loadedCount = 0;
 
-    db.ref('categories').on('value', snap => {
-        const cc = document.getElementById('category-container');
-        cc.innerHTML = `<button class="cat-btn active" onclick="filterCategory('All', this)">All</button>`;
-        const cats = snap.val();
-        if(cats) Object.values(cats).forEach(c => {
-            cc.innerHTML += `<button class="cat-btn" onclick="filterCategory('${c.name}', this)">${c.name}</button>`;
-        });
-    });
-
-    function timeAgo(time) {
-        if(!time) return '';
-        const s = Math.floor((Date.now() - time)/1000);
-        let i;
-        i = s/31536000; if(i>1) return Math.floor(i)+" বছর আগে";
-        i = s/2592000;  if(i>1) return Math.floor(i)+" মাস আগে";
-        i = s/86400;    if(i>1) return Math.floor(i)+" দিন আগে";
-        i = s/3600;     if(i>1) return Math.floor(i)+" ঘণ্টা আগে";
-        i = s/60;       if(i>1) return Math.floor(i)+" মিনিট আগে";
-        return "কয়েক সেকেন্ড আগে";
-    }
-
-    function getInitials(name) {
-        if(!name) return 'V';
-        return name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,1);
-    }
-
-    const list = document.getElementById('video-list');
-    const videoCategoriesMap = {};
-    const renderedCategories = new Set(['All']);
-
-    function ensureCategoryButton(catName) {
-        if (!catName) return;
-        if (renderedCategories.has(catName)) return;
-        renderedCategories.add(catName);
-        
-        const cc = document.getElementById('category-container');
-        cc.insertAdjacentHTML('beforeend', `<button class="cat-btn" onclick="filterCategory('${catName}', this)">${catName}</button>`);
-    }
-
-    db.ref('categories').on('value', snap => {
-        const cc = document.getElementById('category-container');
-        const activeBtn = cc.querySelector('.cat-btn.active');
-        const activeCat = activeBtn ? activeBtn.textContent : 'All';
-        
-        cc.innerHTML = `<button class="cat-btn ${activeCat === 'All' ? 'active' : ''}" onclick="filterCategory('All', this)">All</button>`;
-        renderedCategories.clear();
-        renderedCategories.add('All');
-        
-        const cats = snap.val();
-        if(cats) Object.values(cats).forEach(c => {
-            if (c.name) ensureCategoryButton(c.name);
-        });
-        
-        // Also ensure categories from loaded videos are displayed
-        Object.values(videoCategoriesMap).forEach(cat => {
-            ensureCategoryButton(cat);
-        });
-        
-        // Restore active state
-        const btns = cc.querySelectorAll('.cat-btn');
-        let restored = false;
-        btns.forEach(btn => {
-            if (btn.textContent === activeCat) {
-                btn.classList.add('active');
-                restored = true;
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-        if (!restored && btns.length > 0) btns[0].classList.add('active');
-    });
-
-    loadUserState().then(() => {
+    loadUserState().catch(e => {
+        console.error("Failed to load user state:", e);
+    }).finally(() => {
         db.ref('videos').on('child_added', (snapshot) => {
             const id = snapshot.key;
             const v = snapshot.val();
