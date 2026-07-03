@@ -1598,28 +1598,33 @@
         const mFunc = window[`show_${monetagZone}`];
 
         const done = () => {
-            hideAdOverlay();
-            if (adsgramController) adsgramController.load().catch(() => {}); // pre-load next ad
-            callback();
+            try {
+                hideAdOverlay();
+                if (adsgramController) adsgramController.load().catch(() => {});
+                callback();
+            } catch(e) {
+                console.error('Ad callback error:', e);
+                hideAdOverlay();
+            }
         };
         const handleAdResult = (result) => {
-            if (result && result.done) {
-                done();
-            } else {
+            // Adsgram resolve = অ্যাড সফলভাবে দেখা হয়েছে
+            // শুধুমাত্র done===false হলে ফেইল
+            if (result === false || (result && result.done === false)) {
                 hideAdOverlay();
                 showToast("অ্যাড সম্পূর্ণ দেখা হয়নি!", "error");
+            } else {
+                done();
             }
         };
         const fallback = (err) => {
-            if(typeof mFunc === 'function') {
+            if (err && err.description === "User closed ad") {
+                hideAdOverlay();
+                showToast("অ্যাডটি বন্ধ করা হয়েছে! সম্পূর্ণ না দেখলে ভিডিও পাবেন না।", "error");
+            } else if(typeof mFunc === 'function') {
                 mFunc().then(done).catch(done);
             } else {
-                if (err && err.description === "User closed ad") {
-                    hideAdOverlay();
-                    showToast("অ্যাডটি বন্ধ করা হয়েছে! সম্পূর্ণ না দেখলে ভিডিও পাবেন না।", "error");
-                } else {
-                    done(); // Graceful bypass for no fill/adblock/load error
-                }
+                done(); // Graceful bypass for no fill/adblock/load error
             }
         };
 
@@ -1635,35 +1640,37 @@
         const mFunc = window[`show_${monetagZone}`];
 
         const done = () => {
-            hideAdOverlay();
-            if (repeatAdsgramController) repeatAdsgramController.load().catch(() => {}); // pre-load next repeat ad
-            callback();
+            try {
+                hideAdOverlay();
+                if (repeatAdsgramController) repeatAdsgramController.load().catch(() => {});
+                callback();
+            } catch(e) {
+                console.error('Repeat ad callback error:', e);
+                hideAdOverlay();
+            }
         };
         const handleAdResult = (result) => {
-            if (result && result.done) {
-                done();
-            } else {
+            if (result === false || (result && result.done === false)) {
                 hideAdOverlay();
                 showToast("অ্যাড সম্পূর্ণ দেখা হয়নি!", "error");
+            } else {
+                done();
             }
         };
         const fallback = (err) => {
-            if(typeof mFunc === 'function') {
+            if (err && err.description === "User closed ad") {
+                hideAdOverlay();
+                showToast("অ্যাডটি বন্ধ করা হয়েছে! সম্পূর্ণ না দেখলে ভিডিও পাবেন না।", "error");
+            } else if(typeof mFunc === 'function') {
                 mFunc().then(done).catch(done);
             } else {
-                if (err && err.description === "User closed ad") {
-                    hideAdOverlay();
-                    showToast("অ্যাডটি বন্ধ করা হয়েছে! সম্পূর্ণ না দেখলে ভিডিও পাবেন না।", "error");
-                } else {
-                    done(); // Graceful bypass for no fill/adblock/load error
-                }
+                done(); // Graceful bypass
             }
         };
 
         if (repeatAdsgramController) {
             repeatAdsgramController.show().then(handleAdResult).catch(fallback);
         } else if (adsgramController) {
-            // fallback to full ad controller if repeat not configured
             adsgramController.show().then(handleAdResult).catch(fallback);
         } else fallback();
     }
