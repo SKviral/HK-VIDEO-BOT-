@@ -36,9 +36,10 @@ def load_module_from_path(module_name, file_path):
         logger.error(f"❌ Failed to load module {module_name}: {e}")
         sys.exit(1)
 
-# Shortener Bot এবং Web Bot মডিউল লোড করা
+# Shortener Bot, Web Bot এবং Approve Bot মডিউল লোড করা
 shortenerbot = load_module_from_path("shortenerbot", "Shortener bot/shortenerbot.py")
 webbot = load_module_from_path("webbot", "Web bot/webbot.py")
+approvebot = load_module_from_path("approvebot", "APPROVE/telegram_bot.py")
 
 # ══════════════════════════════════════════════════
 #  Flask অ্যাপ কনফিগারেশন এবং ব্লুপ্রিন্ট রেজিস্ট্রেশন
@@ -58,7 +59,8 @@ def global_health():
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
         "bots": {
             "shortener_bot": "running",
-            "web_bot": "running"
+            "web_bot": "running",
+            "approve_bot": "running"
         }
     })
 
@@ -107,9 +109,14 @@ if __name__ == "__main__":
     web_thread.start()
     logger.info("👉 Web Bot thread started.")
     
-    # ৩. সেলফ কিপ-অ্যালাইভ থ্রেড চালু করা
+    # ৩. অ্যাপ্রুভ বটের পোলিং থ্রেড চালু করা
+    approve_thread = threading.Thread(target=approvebot.run_bot, daemon=True)
+    approve_thread.start()
+    logger.info("👉 Approve Bot thread started.")
+    
+    # ৪. সেলফ কিপ-অ্যালাইভ থ্রেড চালু করা
     threading.Thread(target=keep_alive_worker, daemon=True).start()
     
-    # ৪. Flask ওয়েব সার্ভার চালু করা ( Render এর রিকোয়েস্ট এক্সেপ্ট করার জন্য)
+    # ৫. Flask ওয়েব সার্ভার চালু করা ( Render এর রিকোয়েস্ট এক্সেপ্ট করার জন্য)
     logger.info(f"🚀 Starting Unified Flask server on port {PORT}...")
     app.run(host='0.0.0.0', port=PORT, debug=False)
