@@ -3,3 +3,6 @@ pymongo==4.6.1
 requests==2.31.0
 Flask==3.0.2
 dnspython==2.5.0
+python-telegram-bot==21.6
+APScheduler==3.10.4
+python-dotenv==1.0.1
