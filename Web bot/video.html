@@ -1346,6 +1346,17 @@
         }
     }
 
+    // ─── Safe React Storage ───
+    const reactCache = {};
+    function getReact(id) {
+        try { return localStorage.getItem('react_' + id) || reactCache[id] || null; }
+        catch(e) { return reactCache[id] || null; }
+    }
+    function setReact(id, val) {
+        reactCache[id] = val;
+        try { localStorage.setItem('react_' + id, val); } catch(e) {}
+    }
+
     // ─── Telegram User Identity ───
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
 
@@ -1736,10 +1747,10 @@
             }
         } else {
             if (reqAds > 1) {
-                let prog = parseInt(localStorage.getItem('unlock_progress_' + id)) || 0;
+                let prog = getProgress(id);
                 showFullAd(() => {
                     prog++;
-                    localStorage.setItem('unlock_progress_' + id, prog);
+                    setProgress(id, prog);
                     
                     const btn = document.getElementById('btn-' + id);
                     if (prog >= reqAds) {
@@ -1810,9 +1821,9 @@
 
     // ─── Reactions ───
     function handleReact(id, type) {
-        if(localStorage.getItem('react_'+id)) return;
+        if(getReact(id)) return;
         db.ref('videos/'+id+'/'+type+'s').transaction(v => (v||0)+1);
-        localStorage.setItem('react_'+id, type);
+        setReact(id, type);
         ['like-btn-'+id, 'dislike-btn-'+id].forEach(bid => {
             const b = document.getElementById(bid);
             if(b) b.disabled = true;
@@ -1961,8 +1972,8 @@
                     </div>
                     <!-- Unlock status badge -->
                     <div id="badge-${id}" class="${badgeClass}">${badgeContent}</div>
-                    <button class="heart-btn ${localStorage.getItem('react_'+id)==='like' ? 'liked' : ''}" id="heart-btn-${id}" onclick="event.stopPropagation(); handleReact('${id}','like')">
-                        <i class="fa-${localStorage.getItem('react_'+id)==='like' ? 'solid' : 'regular'} fa-heart"></i>
+                    <button class="heart-btn ${getReact(id)==='like' ? 'liked' : ''}" id="heart-btn-${id}" onclick="event.stopPropagation(); handleReact('${id}','like')">
+                        <i class="fa-${getReact(id)==='like' ? 'solid' : 'regular'} fa-heart"></i>
                     </button>
                 </div>
 
@@ -1990,10 +2001,10 @@
 
                 <!-- Reactions -->
                 <div class="react-group">
-                    <button id="like-btn-${id}" class="react-btn ${localStorage.getItem('react_'+id)==='like'?'active-like':''}" onclick="handleReact('${id}','like')" ${localStorage.getItem('react_'+id)?'disabled':''}>
+                    <button id="like-btn-${id}" class="react-btn ${getReact(id)==='like'?'active-like':''}" onclick="handleReact('${id}','like')" ${getReact(id)?'disabled':''}>
                         <i class="fa-solid fa-thumbs-up"></i> <span id="like-count-${id}">${likeCount}</span>
                     </button>
-                    <button id="dislike-btn-${id}" class="react-btn ${localStorage.getItem('react_'+id)==='dislike'?'active-dislike':''}" onclick="handleReact('${id}','dislike')" ${localStorage.getItem('react_'+id)?'disabled':''}>
+                    <button id="dislike-btn-${id}" class="react-btn ${getReact(id)==='dislike'?'active-dislike':''}" onclick="handleReact('${id}','dislike')" ${getReact(id)?'disabled':''}>
                         <i class="fa-solid fa-thumbs-down"></i>
                     </button>
                     <button class="react-btn comment-btn" onclick="openComments('${id}')">
@@ -2040,7 +2051,7 @@
         let fcBtn = document.getElementById('fc-btn-'+id);
         if(fcBtn && v.fullCollectionUrl) {
             let reqAds = parseInt(v.fullCollectionAds)||0;
-            let prog = parseInt(localStorage.getItem('fc_progress_'+id))||0;
+            let prog = getFcProgress(id);
             if(prog>=reqAds) {
                 fcBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection';
                 fcBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
@@ -2136,7 +2147,7 @@
         let count = 0;
         cards.forEach(card => {
             const id = card.id.replace('card-', '');
-            if (localStorage.getItem('react_' + id) === 'like') {
+            if (getReact(id) === 'like') {
                 card.style.display = '';
                 count++;
             } else {
