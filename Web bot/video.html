@@ -1315,7 +1315,9 @@
     const progressCache = {};
     function getProgress(id) {
         try {
-            return parseInt(localStorage.getItem('unlock_progress_' + id)) || progressCache[id] || 0;
+            const val = localStorage.getItem('unlock_progress_' + id);
+            const parsed = parseInt(val);
+            return isNaN(parsed) ? (progressCache[id] || 0) : parsed;
         } catch (e) {
             return progressCache[id] || 0;
         }
@@ -1332,7 +1334,9 @@
     const fcProgressCache = {};
     function getFcProgress(id) {
         try {
-            return parseInt(localStorage.getItem('fc_progress_' + id)) || fcProgressCache[id] || 0;
+            const val = localStorage.getItem('fc_progress_' + id);
+            const parsed = parseInt(val);
+            return isNaN(parsed) ? (fcProgressCache[id] || 0) : parsed;
         } catch (e) {
             return fcProgressCache[id] || 0;
         }
@@ -1736,6 +1740,8 @@
 
     // ─── Watch Video (main unlock logic) ───
     function watchVideo(id, url, reqAds = 1) {
+        reqAds = parseInt(reqAds);
+        if (isNaN(reqAds) || reqAds < 1) reqAds = 1;
         if (isUnlocked(id)) {
             if (isWithinCooldown(id)) {
                 // Within cooldown → play directly without ads
@@ -1802,6 +1808,8 @@
 
     // ─── Full Collection handling ───
     function handleFC(id, url, reqAds) {
+        reqAds = parseInt(reqAds);
+        if (isNaN(reqAds) || reqAds < 1) reqAds = 1;
         // FC uses full ad network regardless
         let prog = getFcProgress(id);
         if(prog>=reqAds) {
@@ -2231,7 +2239,7 @@
         }
         
         // Unlocked count
-        const unlockedIds = Object.keys(userUnlockCache).filter(key => userUnlockCache[key] === true);
+        const unlockedIds = Object.keys(userUnlockCache).filter(key => !!userUnlockCache[key]);
         document.getElementById('unlocked-count').textContent = unlockedIds.length;
         
         // Total views of this user - let's count from viewed cache
