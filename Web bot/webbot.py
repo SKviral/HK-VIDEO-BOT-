@@ -39,9 +39,14 @@ def index():
     import os
     for p in ['Web bot/video.html', 'video.html', '../video.html']:
         if os.path.exists(p):
-            # Read files and return
             with open(p, encoding='utf-8') as f:
-                return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+                headers = {
+                    'Content-Type': 'text/html; charset=utf-8',
+                    'Cache-Control': 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+                return f.read(), 200, headers
     return '<h2>video.html ফাইলটি পাওয়া যায়নি।</h2>', 404
 
 @webbot_bp.route('/admin')
@@ -52,7 +57,13 @@ def admin():
     for p in ['Web bot/video_admin.html', 'video_admin.html', '../video_admin.html']:
         if os.path.exists(p):
             with open(p, encoding='utf-8') as f:
-                return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+                headers = {
+                    'Content-Type': 'text/html; charset=utf-8',
+                    'Cache-Control': 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+                return f.read(), 200, headers
     return '<h2>video_admin.html ফাইলটি পাওয়া যায়নি।</h2>', 404
 
 # ══════════════════════════════════════════════════
