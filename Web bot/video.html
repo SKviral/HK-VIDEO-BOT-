@@ -838,152 +838,6 @@
             display: block;
             opacity: 0.3;
         }
-
-        /* PROFILE MODAL */
-        .profile-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.85);
-            backdrop-filter: blur(8px);
-            z-index: 2000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .profile-content {
-            background: #1a1a1a;
-            border: 1px solid rgba(233,30,140,0.2);
-            border-radius: 16px;
-            width: 100%;
-            max-width: 380px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            animation: modalFadeIn 0.3s ease;
-        }
-        @keyframes modalFadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        .profile-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px;
-            border-bottom: 1px solid var(--border);
-            font-weight: 600;
-            color: var(--primary);
-        }
-        .close-profile {
-            font-size: 24px;
-            cursor: pointer;
-            color: var(--text-muted);
-        }
-        .profile-body {
-            padding: 24px 16px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-        }
-        .profile-avatar-large {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: var(--primary);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            font-weight: bold;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 12px var(--primary-glow);
-            overflow: hidden;
-        }
-        .profile-avatar-large img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        #profile-name {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        #profile-id {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 20px;
-        }
-        .profile-stats {
-            display: flex;
-            gap: 16px;
-            width: 100%;
-            margin-bottom: 20px;
-        }
-        .stat-box {
-            flex: 1;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px;
-        }
-        .stat-num {
-            display: block;
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--primary);
-        }
-        .stat-lbl {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-        .profile-unlocked-section {
-            width: 100%;
-            text-align: left;
-            border-top: 1px solid var(--border);
-            padding-top: 16px;
-        }
-        .profile-unlocked-section h3 {
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 12px;
-            color: var(--text-muted);
-        }
-        .unlocked-videos-list {
-            max-height: 150px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .unlocked-video-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .unlocked-video-item:hover {
-            background: rgba(255,255,255,0.05);
-        }
-        .unlocked-video-thumb {
-            width: 40px;
-            height: 30px;
-            border-radius: 4px;
-            object-fit: cover;
-        }
-        .unlocked-video-title {
-            font-size: 12px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
     </style>
 </head>
 <body oncontextmenu="return false;" ondragstart="return false;" ondrop="return false;">
@@ -1003,7 +857,7 @@
                 <i class="fa-regular fa-bell"></i>
                 <span class="notif-dot"></span>
             </div>
-            <div class="avatar-circle" id="user-avatar" onclick="openProfileModal()">R</div>
+            <div class="avatar-circle" id="user-avatar">R</div>
         </div>
     </div>
 
@@ -1035,62 +889,27 @@
 
 <!-- ─── BOTTOM NAV ─── -->
 <nav class="bottom-nav">
-    <button class="nav-item active" id="bn-home" onclick="showHome(this)">
+    <button class="nav-item active" onclick="filterCategory('All', document.querySelector('.cat-btn'))">
         <i class="fa-solid fa-house"></i>
         <span>হোম</span>
     </button>
-    <button class="nav-item" onclick="showFavorites(this)">
+    <button class="nav-item" onclick="">
         <i class="fa-regular fa-heart"></i>
         <span>পছন্দের</span>
     </button>
-    <button class="nav-item" onclick="openTutorial()">
+    <button class="nav-item" style="position:relative;">
         <i class="fa-solid fa-circle-info"></i>
         <span>টিউটোরিয়াল</span>
     </button>
-    <button class="nav-item" onclick="copyAppLink()">
+    <button class="nav-item">
         <i class="fa-solid fa-arrow-up-right-from-square"></i>
         <span>লিংক</span>
     </button>
-    <button class="nav-item" onclick="openProfileModal()">
+    <button class="nav-item">
         <i class="fa-regular fa-user"></i>
         <span>প্রোফাইল</span>
     </button>
 </nav>
-
-<!-- ─── PROFILE MODAL ─── -->
-<div id="profileModal" class="profile-modal">
-    <div class="profile-content">
-        <div class="profile-header">
-            <span>👤 আমার প্রোফাইল</span>
-            <div class="close-profile" onclick="closeProfileModal()">&times;</div>
-        </div>
-        <div class="profile-body">
-            <div class="profile-avatar-large" id="profile-avatar-large">
-                <span id="profile-initials-large">?</span>
-            </div>
-            <h2 id="profile-name">Loading...</h2>
-            <p id="profile-id">ID: </p>
-            
-            <div class="profile-stats">
-                <div class="stat-box">
-                    <span class="stat-num" id="unlocked-count">0</span>
-                    <span class="stat-lbl">আনলকড ভিডিও</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-num" id="views-count-user">0</span>
-                    <span class="stat-lbl">মোট ভিউস</span>
-                </div>
-            </div>
-            
-            <div class="profile-unlocked-section">
-                <h3>🔓 আপনার আনলক করা ভিডিওসমূহ</h3>
-                <div class="unlocked-videos-list" id="unlocked-videos-list">
-                    <p class="no-videos">এখনো কোনো ভিডিও আনলক করা হয়নি</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- ─── COMMENT MODAL ─── -->
 <div id="commentModal" class="comment-modal">
@@ -1137,161 +956,13 @@
     let monetagZone = "", adsgramId = "", tgAppUrl = "";
     let adsgramController = null, currentVideoForComment = null;
     let tgUserName = "Anonymous User";
-    let tgUserId = null;
     let idleTimeout = null, idleAdInterval = 0, idleAdsgramId = "", idleAdsgramController = null;
-
-    let repeatAdDelay = 0;
-    let adInterval = 15; // default to 15s to prevent rate limit
-    let userUnlockCache = {};
-    let userViewedCache = {};
-    const videoUrls = {};
-
-    // ─── Safe Local Storage Helpers ───
-    const progressCache = {};
-    function getProgress(id) {
-        try {
-            const val = localStorage.getItem('unlock_progress_' + id);
-            const parsed = parseInt(val);
-            return isNaN(parsed) ? (progressCache[id] || 0) : parsed;
-        } catch (e) {
-            return progressCache[id] || 0;
-        }
-    }
-    function setProgress(id, val) {
-        progressCache[id] = val;
-        try {
-            localStorage.setItem('unlock_progress_' + id, val);
-        } catch (e) {
-            console.error("LocalStorage write failed:", e);
-        }
-    }
-
-    const fcProgressCache = {};
-    function getFcProgress(id) {
-        try {
-            const val = localStorage.getItem('fc_progress_' + id);
-            const parsed = parseInt(val);
-            return isNaN(parsed) ? (fcProgressCache[id] || 0) : parsed;
-        } catch (e) {
-            return fcProgressCache[id] || 0;
-        }
-    }
-    function setFcProgress(id, val) {
-        fcProgressCache[id] = val;
-        try {
-            localStorage.setItem('fc_progress_' + id, val);
-        } catch (e) {
-            console.error("LocalStorage write failed:", e);
-        }
-    }
-
-    const reactCache = {};
-    function getReact(id) {
-        try { return localStorage.getItem('react_' + id) || reactCache[id] || null; }
-        catch(e) { return reactCache[id] || null; }
-    }
-    function setReact(id, val) {
-        reactCache[id] = val;
-        try { localStorage.setItem('react_' + id, val); } catch(e) {}
-    }
-
-    function isUnlocked(id, unlockAds) {
-        if (unlockAds === undefined) {
-            const card = document.getElementById('card-' + id);
-            unlockAds = parseInt(card ? card.getAttribute('data-watch-ads') : '3') || 3;
-        }
-        const localProg = getProgress(id);
-        return (localProg >= unlockAds) || !!userUnlockCache[id];
-    }
-
-    // Cooldown logic
-    function isWithinCooldown(id) {
-        const unlockTime = userUnlockCache[id];
-        if (!unlockTime) return false;
-        if (unlockTime === true) return true;
-        const elapsedMinutes = (Date.now() - unlockTime) / 60000;
-        if (!repeatAdDelay || repeatAdDelay <= 0) return false;
-        return elapsedMinutes < repeatAdDelay;
-    }
-
-    function timeAgo(time) {
-        if(!time) return '';
-        const s = Math.floor((Date.now() - time)/1000);
-        let i;
-        i = s/31536000; if(i>1) return Math.floor(i)+" বছর আগে";
-        i = s/2592000;  if(i>1) return Math.floor(i)+" মাস আগে";
-        i = s/86400;    if(i>1) return Math.floor(i)+" দিন আগে";
-        i = s/3600;     if(i>1) return Math.floor(i)+" ঘণ্টা আগে";
-        i = s/60;       if(i>1) return Math.floor(i)+" মিনিট আগে";
-        return "কয়েক সেকেন্ড আগে";
-    }
-
-    function getInitials(name) {
-        if(!name) return 'V';
-        return name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,1);
-    }
-
-    const list = document.getElementById('video-list');
-    const videoCategoriesMap = {};
-    const renderedCategories = new Set(['All']);
-
-    function ensureCategoryButton(catName) {
-        if (!catName) return;
-        if (renderedCategories.has(catName)) return;
-        renderedCategories.add(catName);
-        
-        const cc = document.getElementById('category-container');
-        cc.insertAdjacentHTML('beforeend', `<button class="cat-btn" onclick="filterCategory('${catName}', this)">${catName}</button>`);
-    }
-
-    db.ref('categories').on('value', snap => {
-        const cc = document.getElementById('category-container');
-        const activeBtn = cc.querySelector('.cat-btn.active');
-        const activeCat = activeBtn ? activeBtn.textContent : 'All';
-        
-        cc.innerHTML = `<button class="cat-btn ${activeCat === 'All' ? 'active' : ''}" onclick="filterCategory('All', this)">All</button>`;
-        renderedCategories.clear();
-        renderedCategories.add('All');
-        
-        const cats = snap.val();
-        if(cats) Object.values(cats).forEach(c => {
-            if (c.name) ensureCategoryButton(c.name);
-        });
-        
-        // Also ensure categories from loaded videos are displayed
-        Object.values(videoCategoriesMap).forEach(cat => {
-            ensureCategoryButton(cat);
-        });
-        
-        // Restore active state
-        const btns = cc.querySelectorAll('.cat-btn');
-        let restored = false;
-        btns.forEach(btn => {
-            if (btn.textContent === activeCat) {
-                btn.classList.add('active');
-                restored = true;
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-        if (!restored && btns.length > 0) btns[0].classList.add('active');
-    });
 
     if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
         let u = window.Telegram.WebApp.initDataUnsafe.user;
-        tgUserId = String(u.id);
         tgUserName = (u.first_name + " " + (u.last_name || "")).trim();
         const initials = tgUserName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
         document.getElementById('user-avatar').textContent = initials || 'U';
-    }
-
-    function loadUserState() {
-        if (!tgUserId) return Promise.resolve();
-        return db.ref(`users/${tgUserId}`).once('value').then(snap => {
-            const d = snap.val() || {};
-            userUnlockCache = d.unlocked || {};
-            userViewedCache = d.viewed || {};
-        });
     }
 
     function showToast(message, type = 'success') {
@@ -1309,8 +980,6 @@
         const data = snap.val() || {};
         document.getElementById('site-name').innerText = data.siteName || "VIDEO CALL LINKS";
         tgAppUrl = data.tgAppUrl || "";
-        repeatAdDelay = parseInt(data.repeatAdDelay) || 0;
-        adInterval = (data.adInterval !== undefined && data.adInterval !== "") ? parseInt(data.adInterval) : 15;
 
         if (data.adsgramId && data.adsgramId !== adsgramId) {
             adsgramId = data.adsgramId;
@@ -1343,141 +1012,141 @@
     let scrolledToTarget = false;
     let loadedCount = 0;
 
-    loadUserState().catch(e => {
-        console.error("Failed to load user state:", e);
-    }).finally(() => {
-        db.ref('videos').on('child_added', (snapshot) => {
-            const id = snapshot.key;
-            const v = snapshot.val();
-            videoUrls[id] = v.url;
+    db.ref('categories').on('value', snap => {
+        const cc = document.getElementById('category-container');
+        cc.innerHTML = `<button class="cat-btn active" onclick="filterCategory('All', this)">All</button>`;
+        const cats = snap.val();
+        if(cats) Object.values(cats).forEach(c => {
+            cc.innerHTML += `<button class="cat-btn" onclick="filterCategory('${c.name}', this)">${c.name}</button>`;
+        });
+    });
+
+    function timeAgo(time) {
+        if(!time) return '';
+        const s = Math.floor((Date.now() - time)/1000);
+        let i;
+        i = s/31536000; if(i>1) return Math.floor(i)+" বছর আগে";
+        i = s/2592000;  if(i>1) return Math.floor(i)+" মাস আগে";
+        i = s/86400;    if(i>1) return Math.floor(i)+" দিন আগে";
+        i = s/3600;     if(i>1) return Math.floor(i)+" ঘণ্টা আগে";
+        i = s/60;       if(i>1) return Math.floor(i)+" মিনিট আগে";
+        return "কয়েক সেকেন্ড আগে";
+    }
+
+    function getInitials(name) {
+        if(!name) return 'V';
+        return name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,1);
+    }
+
+    const list = document.getElementById('video-list');
+
+    db.ref('videos').on('child_added', (snapshot) => {
+        const id = snapshot.key;
+        const v = snapshot.val();
+        let commentCount = v.comments ? Object.keys(v.comments).length : 0;
+
+        if(loadedCount === 0) list.innerHTML = '';
+        loadedCount++;
+
+        let fcHtml = '';
+        let copyStyle = '';
+        let fcVisible = false;
+
+        if (v.fullCollectionUrl && v.fullCollectionUrl.trim() !== "") {
+            fcVisible = true;
+            let reqAds = parseInt(v.fullCollectionAds) || 0;
+            let prog = parseInt(localStorage.getItem('fc_progress_' + id)) || 0;
+            let btnText = prog >= reqAds
+                ? '<i class="fa-solid fa-unlock"></i> Full Collection'
+                : `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
+            let btnBg = prog >= reqAds
+                ? 'linear-gradient(135deg,#22c55e,#16a34a)'
+                : 'linear-gradient(135deg,#f59e0b,#f97316)';
+            fcHtml = `<button class="btn-full-collection" id="fc-btn-${id}" style="background:${btnBg}" onclick="handleFC('${id}','${v.fullCollectionUrl}',${reqAds})">${btnText}</button>`;
+        }
+
+        // Thumb: use main + two side images, or fallback
+        const thumbMain = v.thumb || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=400';
+        const thumbSide1 = v.thumb2 || v.thumb || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200';
+        const thumbSide2 = v.thumb3 || v.thumb || 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200';
+
+        const uploaderInitial = getInitials(v.uploaderName || 'V');
+        const viewCount = v.views || 0;
+        const likeCount = v.likes || 0;
+        const timeStr = timeAgo(v.timestamp);
+
+        // UNLOCK button text - Firebase এ 'watchAds' field থেকে নেওয়া হচ্ছে
+        const unlockAds = parseInt(v.watchAds) || parseInt(v.fullCollectionAds) || 3;
+        const unlockProg = parseInt(localStorage.getItem('unlock_progress_' + id)) || 0;
+        const unlockDone = unlockProg >= unlockAds;
+
+        list.insertAdjacentHTML('afterbegin', `
+        <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}" data-watch-ads="${unlockAds}" data-url="${v.url}">
             
-            const cat = v.category || 'Others';
-            videoCategoriesMap[id] = cat;
-            ensureCategoryButton(cat);
-
-            let commentCount = v.comments ? Object.keys(v.comments).length : 0;
-
-            if(loadedCount === 0) list.innerHTML = '';
-            loadedCount++;
-
-            let fcHtml = '';
-            let fcVisible = false;
-
-            if (v.fullCollectionUrl && v.fullCollectionUrl.trim() !== "") {
-                fcVisible = true;
-                let reqAds = parseInt(v.fullCollectionAds) || 0;
-                let prog = getFcProgress(id);
-                let btnText = prog >= reqAds
-                    ? '<i class="fa-solid fa-unlock"></i> Full Collection'
-                    : `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
-                let btnBg = prog >= reqAds
-                    ? 'linear-gradient(135deg,#22c55e,#16a34a)'
-                    : 'linear-gradient(135deg,#f59e0b,#f97316)';
-                fcHtml = `<button class="btn-full-collection" id="fc-btn-${id}" style="background:${btnBg}" onclick="handleFC('${id}','${v.fullCollectionUrl}',${reqAds})">${btnText}</button>`;
-            }
-
-            // Thumb: use main + two side images, or fallback
-            const thumbMain = v.thumb || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=400';
-            const thumbSide1 = v.thumb2 || v.thumb || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200';
-            const thumbSide2 = v.thumb3 || v.thumb || 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200';
-
-            const uploaderInitial = getInitials(v.uploaderName || 'V');
-            const viewCount = v.views || 0;
-            const likeCount = v.likes || 0;
-            const timeStr = timeAgo(v.timestamp);
-
-            const unlockAds = parseInt(v.watchAds) || parseInt(v.fullCollectionAds) || 3;
-            const unlockProg = getProgress(id);
-            const unlocked = isUnlocked(id);
-
-            let btnContent = "";
-            let btnBg = "";
-            let btnClass = "btn-unlock";
-
-            if (unlocked) {
-                if (isWithinCooldown(id)) {
-                    btnClass = "btn-unlock btn-unlocked";
-                    btnBg = 'linear-gradient(135deg,#22c55e,#16a34a)';
-                    btnContent = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
-                } else {
-                    btnClass = "btn-unlock btn-repeat";
-                    btnBg = 'linear-gradient(135deg,#f59e0b,#f97316)';
-                    btnContent = `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`;
-                }
-            } else {
-                if (unlockAds > 1) {
-                    btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK — ${unlockProg}/${unlockAds} ADS`;
-                } else {
-                    btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK — Full Ad দেখুন`;
-                }
-            }
-
-            list.insertAdjacentHTML('afterbegin', `
-            <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}" data-watch-ads="${unlockAds}" data-url="${v.url}">
-                
-                <!-- Collage Thumbnail -->
-                <div class="thumb-collage" onclick="watchVideo('${id}','${v.url}')">
-                    <img class="main-img" src="${thumbMain}" id="img-${id}" draggable="false" alt="thumb">
-                    <div class="thumb-divider"></div>
-                    <div class="side-imgs">
-                        <img class="side-img" src="${thumbSide1}" draggable="false" alt="">
-                        <img class="side-img" src="${thumbSide2}" draggable="false" alt="">
-                    </div>
-                    <button class="heart-btn ${getReact(id)==='like' ? 'liked' : ''}" id="heart-btn-${id}" onclick="event.stopPropagation(); handleReact('${id}','like')">
-                        <i class="fa-${getReact(id)==='like' ? 'solid' : 'regular'} fa-heart"></i>
-                    </button>
+            <!-- Collage Thumbnail -->
+            <div class="thumb-collage" onclick="watchVideo('${id}','${v.url}')">
+                <img class="main-img" src="${thumbMain}" id="img-${id}" draggable="false" alt="thumb">
+                <div class="thumb-divider"></div>
+                <div class="side-imgs">
+                    <img class="side-img" src="${thumbSide1}" draggable="false" alt="">
+                    <img class="side-img" src="${thumbSide2}" draggable="false" alt="">
                 </div>
-
-                <!-- Meta -->
-                <div class="card-meta">
-                    <div class="uploader-avatar">${uploaderInitial}</div>
-                    <div class="card-text-info">
-                        <div class="card-title" id="title-${id}">${v.title || 'Untitled'}</div>
-                        <div class="card-sub">
-                            <span class="channel-name">VIDEO CALL LINKS</span>
-                            <span class="dot-sep">·</span>
-                            <span class="views-stat"><span id="views-${id}">${viewCount}</span>K views</span>
-                            <span class="dot-sep">·</span>
-                            <span class="heart-count"><i class="fa-solid fa-heart"></i><span id="likes-${id}">${likeCount}</span></span>
-                        </div>
-                    </div>
-                    <button class="more-btn">⋮</button>
-                </div>
-
-                <!-- Quick CTA text -->
-                <div class="card-quick">
-                    <i class="fa-solid fa-hand-pointer"></i>
-                    <span>তাড়াতাড়ি দেখুন 👇</span>
-                </div>
-
-                <!-- Reactions -->
-                <div class="react-group">
-                    <button id="like-btn-${id}" class="react-btn ${getReact(id)==='like'?'active-like':''}" onclick="handleReact('${id}','like')" ${getReact(id)?'disabled':''}>
-                        <i class="fa-solid fa-thumbs-up"></i> <span id="like-count-${id}">${likeCount}</span>
-                    </button>
-                    <button id="dislike-btn-${id}" class="react-btn ${getReact(id)==='dislike'?'active-dislike':''}" onclick="handleReact('${id}','dislike')" ${getReact(id)?'disabled':''}>
-                        <i class="fa-solid fa-thumbs-down"></i>
-                    </button>
-                    <button class="react-btn comment-btn" onclick="openComments('${id}')">
-                        <i class="fa-solid fa-comment-dots"></i> <span id="comments-count-${id}">${commentCount}</span>
-                    </button>
-                </div>
-
-                <!-- Main Unlock Button + copy -->
-                <div class="card-actions">
-                    <button class="${btnClass}" id="btn-${id}" style="background:${btnBg}" onclick="watchVideo('${id}','${v.url}')">
-                        ${btnContent}
-                    </button>
-                    ${fcVisible ? '' : `<button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>`}
-                </div>
-
-                ${fcVisible ? `
-                <div class="card-actions" style="padding-top:0;">
-                    ${fcHtml}
-                    <button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>
-                </div>` : ''}
+                <button class="heart-btn ${localStorage.getItem('react_'+id)==='like' ? 'liked' : ''}" id="heart-btn-${id}" onclick="event.stopPropagation(); handleReact('${id}','like')">
+                    <i class="fa-${localStorage.getItem('react_'+id)==='like' ? 'solid' : 'regular'} fa-heart"></i>
+                </button>
             </div>
-            `);
+
+            <!-- Meta -->
+            <div class="card-meta">
+                <div class="uploader-avatar">${uploaderInitial}</div>
+                <div class="card-text-info">
+                    <div class="card-title" id="title-${id}">${v.title || 'Untitled'}</div>
+                    <div class="card-sub">
+                        <span class="channel-name">VIDEO CALL LINKS</span>
+                        <span class="dot-sep">·</span>
+                        <span class="views-stat"><span id="views-${id}">${viewCount}</span>K views</span>
+                        <span class="dot-sep">·</span>
+                        <span class="heart-count"><i class="fa-solid fa-heart"></i><span id="likes-${id}">${likeCount}</span></span>
+                    </div>
+                </div>
+                <button class="more-btn">⋮</button>
+            </div>
+
+            <!-- Quick CTA text -->
+            <div class="card-quick">
+                <i class="fa-solid fa-hand-pointer"></i>
+                <span>তাড়াতাড়ি দেখুন 👇</span>
+            </div>
+
+            <!-- Reactions -->
+            <div class="react-group">
+                <button id="like-btn-${id}" class="react-btn ${localStorage.getItem('react_'+id)==='like'?'active-like':''}" onclick="handleReact('${id}','like')" ${localStorage.getItem('react_'+id)?'disabled':''}>
+                    <i class="fa-solid fa-thumbs-up"></i> <span id="like-count-${id}">${likeCount}</span>
+                </button>
+                <button id="dislike-btn-${id}" class="react-btn ${localStorage.getItem('react_'+id)==='dislike'?'active-dislike':''}" onclick="handleReact('${id}','dislike')" ${localStorage.getItem('react_'+id)?'disabled':''}>
+                    <i class="fa-solid fa-thumbs-down"></i>
+                </button>
+                <button class="react-btn comment-btn" onclick="openComments('${id}')">
+                    <i class="fa-solid fa-comment-dots"></i> <span id="comments-count-${id}">${commentCount}</span>
+                </button>
+            </div>
+
+            <!-- Main Unlock Button + copy -->
+            <div class="card-actions">
+                <button class="btn-unlock" id="btn-${id}" onclick="watchVideo('${id}','${v.url}')">
+                    <i class="fa-solid fa-lock-open"></i>
+                    UNLOCK — ${unlockProg}/${unlockAds} ADS
+                </button>
+                ${fcVisible ? '' : `<button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>`}
+            </div>
+
+            ${fcVisible ? `
+            <div class="card-actions" style="padding-top:0;">
+                ${fcHtml}
+                <button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>
+            </div>` : ''}
+        </div>
+        `);
 
         if (targetVideoId === id && !scrolledToTarget) {
             scrolledToTarget = true;
@@ -1500,7 +1169,7 @@
         let fcBtn = document.getElementById('fc-btn-'+id);
         if(fcBtn && v.fullCollectionUrl) {
             let reqAds = parseInt(v.fullCollectionAds)||0;
-            let prog = getFcProgress(id);
+            let prog = parseInt(localStorage.getItem('fc_progress_'+id))||0;
             if(prog>=reqAds) {
                 fcBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection';
                 fcBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
@@ -1535,9 +1204,9 @@
     }
 
     function handleReact(id, type) {
-        if(getReact(id)) return;
+        if(localStorage.getItem('react_'+id)) return;
         db.ref('videos/'+id+'/'+type+'s').transaction(v => (v||0)+1);
-        setReact(id, type);
+        localStorage.setItem('react_'+id, type);
         ['like-btn-'+id, 'dislike-btn-'+id].forEach(bid => {
             const b = document.getElementById(bid);
             if(b) b.disabled = true;
@@ -1556,75 +1225,51 @@
     function watchVideo(id, url) {
         const card = document.getElementById('card-'+id);
         const unlockBtn = document.getElementById('btn-'+id);
+
+        // Firebase থেকে সেট করা real ad count নেওয়া হচ্ছে
         const unlockAds = parseInt(card ? card.getAttribute('data-watch-ads') : '3') || 3;
-        
-        if (isUnlocked(id)) {
-            if (isWithinCooldown(id)) {
-                // Play directly
-                if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
-                else window.open(url, '_blank');
-            } else {
-                // Cooldown expired → show Repeat Ad (1 ad)
-                showToast("অ্যাক্সেস রিনিউ করতে ১টি অ্যাড দেখুন", "success");
-                showAdNetwork(() => {
-                    const now = Date.now();
-                    userUnlockCache[id] = now;
-                    if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
-                    
-                    if (unlockBtn) {
-                        unlockBtn.innerHTML = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
-                        unlockBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-                    }
-                    showToast("🎉 অ্যাক্সেস রিনিউ হয়েছে! ভিডিও ওপেন হচ্ছে...", "success");
-                    setTimeout(() => {
-                        if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
-                        else window.open(url, '_blank');
-                    }, 800);
-                });
-            }
+        let prog = parseInt(localStorage.getItem('unlock_progress_'+id)) || 0;
+
+        // যদি ইতিমধ্যে সব অ্যাড দেখা হয়ে গেছে, সরাসরি লিংক ওপেন করো
+        if (prog >= unlockAds) {
+            if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
+            else window.open(url, '_blank');
             return;
         }
 
-        // v.views increment (only first time)
+        // ভিউ কাউন্ট বাড়ানো (প্রথমবার)
         if(!localStorage.getItem('viewed_'+id)) {
             db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
             localStorage.setItem('viewed_'+id, 'true');
         }
 
-        let prog = getProgress(id);
         showToast(`অ্যাড দেখুন (${prog+1}/${unlockAds}) — তারপর ভিডিও ওপেন হবে`, "success");
 
         showAdNetwork(() => {
             prog = prog + 1;
-            setProgress(id, prog);
+            localStorage.setItem('unlock_progress_'+id, prog);
 
             if(unlockBtn) {
                 if(prog >= unlockAds) {
-                    const now = Date.now();
-                    userUnlockCache[id] = now;
-                    if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
-                    
-                    unlockBtn.innerHTML = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
+                    // সব অ্যাড শেষ — আনলক হয়েছে
+                    unlockBtn.innerHTML = `<i class="fa-solid fa-lock-open"></i> UNLOCKED — ${prog}/${unlockAds} ADS ✅`;
                     unlockBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-                    showToast("🎉 আনলক হয়েছে! ভিডিও ওপেন হচ্ছে...", "success");
+                    showToast("🎉 আনলক হয়েছে! ভিডিও ওপেন হচ্ছে...", "success");
                     setTimeout(() => {
                         if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
                         else window.open(url, '_blank');
                     }, 800);
                 } else {
+                    // আরো অ্যাড বাকি আছে
+                    unlockBtn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK — ${prog}/${unlockAds} ADS`;
                     showToast(`আরো ${unlockAds - prog}টি অ্যাড দেখতে হবে`, "success");
-                    if (adInterval > 0) {
-                        startButtonCooldown(id, adInterval, unlockAds, prog);
-                    } else {
-                        unlockBtn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK — ${prog}/${unlockAds} ADS`;
-                    }
                 }
             }
         });
     }
 
     function handleFC(id, url, reqAds) {
-        let prog = getFcProgress(id);
+        let prog = parseInt(localStorage.getItem('fc_progress_'+id))||0;
         if(prog>=reqAds) {
             if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
             else window.open(url,'_blank');
@@ -1632,7 +1277,7 @@
             showToast("কালেকশন আনলক করতে অ্যাড লোড হচ্ছে...", "success");
             showAdNetwork(() => {
                 prog++;
-                setFcProgress(id, prog);
+                localStorage.setItem('fc_progress_'+id, prog);
                 let btn = document.getElementById('fc-btn-'+id);
                 if(prog>=reqAds) {
                     btn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection';
@@ -1655,135 +1300,6 @@
         } else if(typeof mFunc==='function') {
             mFunc().then(callback).catch(callback);
         } else callback();
-    }
-
-    function startButtonCooldown(id, duration, unlockAds, prog) {
-        const btn = document.getElementById('btn-' + id);
-        if (!btn) return;
-        
-        btn.disabled = true;
-        btn.classList.add('disabled');
-        btn.style.opacity = '0.6';
-        btn.style.cursor = 'not-allowed';
-        
-        let timeLeft = duration;
-        btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
-        
-        if (adCooldowns[id]) clearInterval(adCooldowns[id]);
-        
-        const timer = setInterval(() => {
-            timeLeft--;
-            if (timeLeft <= 0) {
-                clearInterval(timer);
-                delete adCooldowns[id];
-                btn.disabled = false;
-                btn.classList.remove('disabled');
-                btn.style.opacity = '1';
-                btn.style.cursor = 'pointer';
-                btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK — ${prog}/${unlockAds} ADS`;
-            } else {
-                btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
-            }
-        }, 1000);
-        
-        adCooldowns[id] = timer;
-    }
-
-    // ─── Bottom Navigation and Profile Modal Actions ───
-    let activeTab = 'home';
-    function showFavorites(el) {
-        activeTab = 'favorites';
-        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
-        el.classList.add('active');
-        
-        const cards = document.querySelectorAll('.card');
-        let count = 0;
-        cards.forEach(card => {
-            const id = card.id.replace('card-', '');
-            if (getReact(id) === 'like') {
-                card.style.display = '';
-                count++;
-            } else {
-                card.style.display = 'none';
-            }
-        });
-        
-        if (count === 0) {
-            showToast("আপনার পছন্দের তালিকায় কোনো ভিডিও নেই!", "info");
-        }
-    }
-
-    function showHome(el) {
-        activeTab = 'home';
-        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
-        el.classList.add('active');
-        filterCategory('All', document.querySelector('.cat-btn'));
-    }
-
-    function openTutorial() {
-        if (tgAppUrl) {
-            if (window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(tgAppUrl);
-            else window.open(tgAppUrl, '_blank');
-        }
-        else showToast("টিউটোরিয়াল লিঙ্ক সেট করা নেই!", "info");
-    }
-
-    function copyAppLink() {
-        const shareUrl = window.location.href;
-        navigator.clipboard.writeText(shareUrl).then(() => {
-            showToast("🔗 লিঙ্কটি ক্লিপবোর্ডে কপি করা হয়েছে!", "success");
-        }).catch(() => {
-            showToast("কপি করা যায়নি, লিঙ্কটি হলো: " + shareUrl, "info");
-        });
-    }
-
-    function openProfileModal() {
-        document.getElementById('profileModal').style.display = 'flex';
-        
-        document.getElementById('profile-name').textContent = tgUserName;
-        document.getElementById('profile-id').textContent = tgUserId ? `ID: ${tgUserId}` : "ID: N/A";
-        
-        const largeAvatar = document.getElementById('profile-avatar-large');
-        const photoUrl = (window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url) ? window.Telegram.WebApp.initDataUnsafe.user.photo_url : null;
-        if (photoUrl) {
-            largeAvatar.innerHTML = `<img src="${photoUrl}" alt="avatar" onerror="this.parentNode.innerHTML='<span id=\\'profile-initials-large\\'>${getInitials(tgUserName)}</span>'">`;
-        } else {
-            largeAvatar.innerHTML = `<span id="profile-initials-large">${getInitials(tgUserName)}</span>`;
-        }
-        
-        const unlockedIds = Object.keys(userUnlockCache).filter(key => !!userUnlockCache[key]);
-        document.getElementById('unlocked-count').textContent = unlockedIds.length;
-        
-        const viewedIds = Object.keys(userViewedCache).filter(key => !!userViewedCache[key]);
-        document.getElementById('views-count-user').textContent = viewedIds.length;
-        
-        const listContainer = document.getElementById('unlocked-videos-list');
-        listContainer.innerHTML = '';
-        
-        if (unlockedIds.length === 0) {
-            listContainer.innerHTML = '<p class="no-videos">এখনো কোনো ভিডিও আনলক করা হয়নি</p>';
-            return;
-        }
-        
-        unlockedIds.forEach(vidId => {
-            const cardTitleEl = document.getElementById('title-' + vidId);
-            const cardImgEl = document.getElementById('img-' + vidId);
-            
-            const title = cardTitleEl ? cardTitleEl.textContent : 'ভিডিও #' + vidId;
-            const thumb = cardImgEl ? cardImgEl.src : '';
-            
-            const itemHtml = `
-                <div class="unlocked-video-item" onclick="closeProfileModal(); watchVideo('${vidId}', videoUrls['${vidId}'])">
-                    ${thumb ? `<img class="unlocked-video-thumb" src="${thumb}" alt="">` : ''}
-                    <span class="unlocked-video-title">${title}</span>
-                </div>
-            `;
-            listContainer.insertAdjacentHTML('beforeend', itemHtml);
-        });
-    }
-
-    function closeProfileModal() {
-        document.getElementById('profileModal').style.display = 'none';
     }
 
     function openComments(id) {
@@ -1860,3 +1376,4 @@
 </script>
 </body>
 </html>
+
