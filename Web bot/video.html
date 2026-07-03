@@ -1311,6 +1311,41 @@
     const videoCategoriesMap = {}; // Map of videoId -> category name
     const adCooldowns = {}; // Map of videoId -> timer interval ID
 
+    // ─── Safe Local Storage Helpers ───
+    const progressCache = {};
+    function getProgress(id) {
+        try {
+            return parseInt(localStorage.getItem('unlock_progress_' + id)) || progressCache[id] || 0;
+        } catch (e) {
+            return progressCache[id] || 0;
+        }
+    }
+    function setProgress(id, val) {
+        progressCache[id] = val;
+        try {
+            localStorage.setItem('unlock_progress_' + id, val);
+        } catch (e) {
+            console.error("LocalStorage write failed:", e);
+        }
+    }
+
+    const fcProgressCache = {};
+    function getFcProgress(id) {
+        try {
+            return parseInt(localStorage.getItem('fc_progress_' + id)) || fcProgressCache[id] || 0;
+        } catch (e) {
+            return fcProgressCache[id] || 0;
+        }
+    }
+    function setFcProgress(id, val) {
+        fcProgressCache[id] = val;
+        try {
+            localStorage.setItem('fc_progress_' + id, val);
+        } catch (e) {
+            console.error("LocalStorage write failed:", e);
+        }
+    }
+
     // ─── Telegram User Identity ───
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
 
@@ -1422,7 +1457,7 @@
         document.getElementById('site-name').innerText = data.siteName || "VIDEO CALL LINKS";
         tgAppUrl = data.tgAppUrl || "";
         repeatAdDelay = parseInt(data.repeatAdDelay) || 0;
-        adInterval = parseInt(data.adInterval) || 0;
+        adInterval = (data.adInterval !== undefined && data.adInterval !== "") ? parseInt(data.adInterval) : 15;
 
         // Full Ad (new video) — adsgramId
         if (data.adsgramId && data.adsgramId !== adsgramId) {
@@ -1518,14 +1553,29 @@
         const btn = document.getElementById('btn-'+id);
         if (!btn) return;
         const badge = document.getElementById('badge-'+id);
+        const cardEl = document.getElementById('card-'+id);
+        let reqAds = 1;
+        if (cardEl) {
+            reqAds = parseInt(cardEl.getAttribute('data-req-ads')) || 1;
+        }
 
         if (isUnlocked(id)) {
-            btn.className = 'btn-unlock btn-repeat';
-            btn.innerHTML = `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`;
+            if (isWithinCooldown(id)) {
+                btn.className = 'btn-unlock btn-unlocked';
+                btn.innerHTML = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
+            } else {
+                btn.className = 'btn-unlock btn-repeat';
+                btn.innerHTML = `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`;
+            }
             if (badge) { badge.className = 'unlock-badge unlocked'; badge.innerHTML = `<i class="fa-solid fa-unlock-keyhole"></i> Unlocked`; }
         } else {
             btn.className = 'btn-unlock';
-            btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK — Full Ad দেখুন`;
+            if (reqAds > 1) {
+                let prog = getProgress(id);
+                btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK — Full Ad দেখুন`;
+            }
             if (badge) { badge.className = 'unlock-badge locked'; badge.innerHTML = `<i class="fa-solid fa-lock"></i> Locked`; }
         }
     }
@@ -1735,13 +1785,13 @@
     // ─── Full Collection handling ───
     function handleFC(id, url, reqAds) {
         // FC uses full ad network regardless
-        let prog = parseInt(localStorage.getItem('fc_progress_'+id))||0;
+        let prog = getFcProgress(id);
         if(prog>=reqAds) {
             openUrl(url);
         } else {
             showFullAd(() => {
                 prog++;
-                localStorage.setItem('fc_progress_'+id, prog);
+                setFcProgress(id, prog);
                 let btn = document.getElementById('fc-btn-'+id);
                 if(prog>=reqAds) {
                     if(btn) { btn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection'; btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)'; }
@@ -1849,7 +1899,7 @@
             let fcHtml = '';
             if (v.fullCollectionUrl && v.fullCollectionUrl.trim() !== "") {
                 let reqAds = parseInt(v.fullCollectionAds) || 0;
-                let prog = parseInt(localStorage.getItem('fc_progress_' + id)) || 0;
+                let prog = getFcProgress(id);
                 let btnText = prog >= reqAds
                     ? '<i class="fa-solid fa-unlock"></i> Full Collection'
                     : `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
@@ -1886,7 +1936,7 @@
             } else {
                 btnClass = 'btn-unlock';
                 if (reqAds > 1) {
-                    let prog = parseInt(localStorage.getItem('unlock_progress_' + id)) || 0;
+                    let prog = getProgress(id);
                     btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK (${prog}/${reqAds})`;
                 } else {
                     btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK — Full Ad দেখুন`;
