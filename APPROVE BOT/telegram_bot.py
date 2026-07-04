@@ -51,7 +51,7 @@ from telegram.ext import (
 )
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
-BOT_TOKEN = "8649317892:AAF7yKIGTwoiSP_2WBum9hCDzv361ztD9xg"  # ← আপনার টোকেন
+BOT_TOKEN = "8649317892:AAEt4bG6OSdJGmwbIoU2Nbd5T4g8MkvsMOE"  # ← আপনার টোকেন
 ADMIN_IDS = [7756038841]  # ← প্রথম super-admin
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
