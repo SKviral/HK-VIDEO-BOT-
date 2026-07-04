@@ -52,7 +52,7 @@ from telegram.ext import (
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
 # টোকেন প্রাইভেসি: প্রথমে এনভায়রনমেন্ট ভেরিয়েবল চেক করবে, না পেলে হার্ডকোডেড টোকেন ব্যবহার করবে
-BOT_TOKEN = os.getenv("APPROVE_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or "8649317892:AAF7yKIGTwoiSP_2WBum9hCDzv361ztD9xg"
+BOT_TOKEN = os.getenv("APPROVE_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or ""
 
 ADMIN_IDS = [7756038841]  # ← প্রথম super-admin
 # মেইন অ্যাডমিন আইডি এনভায়রনমেন্ট ভেরিয়েবল থেকে রিড করে ডাইনামিকালি অ্যাড করা হচ্ছে যাতে /start কাজ করে
