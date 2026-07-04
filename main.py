@@ -23,23 +23,46 @@ logger.info("🎬 Initializing Unified Server for Shortener Bot & Web Bot...")
 #  ডাইনামিক মডিউল ইমপোর্ট (ফোল্ডার নেমে স্পেস থাকার কারণে)
 # ══════════════════════════════════════════════════
 
-def load_module_from_path(module_name, file_path):
-    """স্পেসযুক্ত ডিরেক্টরি থেকে পাইথন ফাইল ইমপোর্ট করার জন্য"""
+def load_module_from_path(module_name, file_paths):
+    """স্পেসযুক্ত ডিরেক্টরি থেকে পাইথন ফাইল ইমপোর্ট করার জন্য (মাল্টিপল পাথ সাপোর্টসহ)"""
+    import os
+    if isinstance(file_paths, str):
+        file_paths = [file_paths]
+        
+    selected_path = None
+    for p in file_paths:
+        if os.path.exists(p):
+            selected_path = p
+            break
+            
+    if not selected_path:
+        logger.error(f"❌ Failed to find module {module_name} in any of these paths: {file_paths}")
+        sys.exit(1)
+        
     try:
-        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        spec = importlib.util.spec_from_file_location(module_name, selected_path)
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
-        logger.info(f"✅ Successfully loaded module: {module_name} from {file_path}")
+        logger.info(f"✅ Successfully loaded module: {module_name} from {selected_path}")
         return module
     except Exception as e:
-        logger.error(f"❌ Failed to load module {module_name}: {e}")
+        logger.error(f"❌ Failed to load module {module_name} from {selected_path}: {e}")
         sys.exit(1)
 
 # Shortener Bot, Web Bot এবং Approve Bot মডিউল লোড করা
-shortenerbot = load_module_from_path("shortenerbot", "Shortener bot/shortenerbot.py")
-webbot = load_module_from_path("webbot", "Web bot/webbot.py")
-approvebot = load_module_from_path("approvebot", "APPROVE/telegram_bot.py")
+shortenerbot = load_module_from_path("shortenerbot", ["Shortener bot/shortenerbot.py", "shortener bot/shortenerbot.py"])
+webbot = load_module_from_path("webbot", ["Web bot/webbot.py", "web bot/webbot.py"])
+approvebot = load_module_from_path("approvebot", [
+    "APPROVE/telegram_bot.py",
+    "approve/telegram_bot.py",
+    "Approve/telegram_bot.py",
+    "APPROVE BOT/telegram_bot.py",
+    "APPROVE BOT/bot.py",
+    "APPROVE/bot.py",
+    "approve/bot.py",
+    "Approve/bot.py"
+])
 
 # ══════════════════════════════════════════════════
 #  Flask অ্যাপ কনফিগারেশন এবং ব্লুপ্রিন্ট রেজিস্ট্রেশন
