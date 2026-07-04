@@ -145,8 +145,8 @@ def handle_stats(message):
 def auto_post_worker():
     logger.info("📡 Auto-post worker thread started...")
     
-    if not TELEGRAM_CHANNEL_ID or not FIREBASE_DB_URL:
-        logger.warning("⚠️ Channel ID or Firebase URL not configured. Auto-post disabled.")
+    if not TELEGRAM_CHANNEL_ID or TELEGRAM_CHANNEL_ID == "@yourchannel" or not FIREBASE_DB_URL:
+        logger.warning("⚠️ Channel ID is set to default or not configured. Auto-post disabled.")
         return
         
     while True:
@@ -211,8 +211,8 @@ def auto_post_worker():
 
 def run_bot():
     logger.info("🚀 Web Bot Polling started...")
-    # অটো-পোস্টার থ্রেড চালু করুন
-    threading.Thread(target=auto_post_worker, daemon=True).start()
+    # অটো-পোস্টার থ্রেড নিষ্ক্রিয় করা হয়েছে (ইউজারের অনুরোধে)
+    # threading.Thread(target=auto_post_worker, daemon=True).start()
     
     while True:
         try:
