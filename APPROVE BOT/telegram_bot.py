@@ -525,14 +525,20 @@ async def send_welcome(bot: Bot, channel: dict, user_id: int):
 # ─── AUTO-ACCEPT CORE ─────────────────────────────────────────────────────────
 async def do_accept(bot: Bot, channel_id: int, user_id: int, full_name: str, username: str):
     """একটি join request accept করো।"""
+    # ১. প্রথমে welcome message পাঠান (রিকোয়েস্ট পেন্ডিং থাকা অবস্থায়, যাতে চ্যাট ইনিশিয়েট করার পারমিশন পাওয়া যায়)
+    ch = get_channel(channel_id)
+    if ch:
+        try:
+            await send_welcome(bot, ch, user_id)
+        except Exception as e:
+            logger.warning(f"Failed to send welcome message before approval: {e}")
+
+    # ২. তারপর রিকোয়েস্ট অনুমোদন করুন
     try:
         await bot.approve_chat_join_request(chat_id=channel_id, user_id=user_id)
         mark_accepted(channel_id, user_id)
         dequeue(channel_id, user_id)
         logger.info(f"Accepted: user={user_id} ({username}) → channel={channel_id}")
-        ch = get_channel(channel_id)
-        if ch:
-            await send_welcome(bot, ch, user_id)
     except BadRequest as e:
         if "USER_ALREADY_PARTICIPANT" in str(e) or "HIDE_REQUESTER_MISSING" in str(e):
             mark_accepted(channel_id, user_id)
@@ -1278,4 +1284,3 @@ def run_bot():
 
 if __name__ == "__main__":
     run_bot()
-
