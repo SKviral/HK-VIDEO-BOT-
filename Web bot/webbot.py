@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 # ══════════════════════════════════════════════════
 #  কনফিগারেশন
 # ══════════════════════════════════════════════════
-WEBBOT_TOKEN     = os.environ.get("WEBBOT_TOKEN", "আপনার_ওয়েববট_টোকেন")
+WEBBOT_TOKEN     = os.environ.get("WEBBOT_TOKEN") or os.environ.get("BOT_TOKEN")
 WEBBOT_USERNAME  = os.environ.get("WEBBOT_USERNAME", "StreamXVideoBot")
 FIREBASE_DB_URL  = os.environ.get("FIREBASE_DB_URL", "https://telegram-bot-ca2a6-default-rtdb.firebaseio.com/")
 TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@yourchannel")
 MAIN_ADMIN_ID    = os.environ.get("MAIN_ADMIN_ID", "5991854507")
 
-webbot = telebot.TeleBot(WEBBOT_TOKEN, parse_mode="HTML")
+webbot = telebot.TeleBot(WEBBOT_TOKEN or "DUMMY_TOKEN", parse_mode="HTML")
 webbot_bp = Blueprint('webbot', __name__)
 
 # ══════════════════════════════════════════════════
@@ -210,6 +210,9 @@ def auto_post_worker():
 # ══════════════════════════════════════════════════
 
 def run_bot():
+    if not WEBBOT_TOKEN or WEBBOT_TOKEN == "DUMMY_TOKEN":
+        logger.error("❌ WEBBOT_TOKEN or BOT_TOKEN is not set in environment variables! Polling aborted.")
+        return
     logger.info("🚀 Web Bot Polling started...")
     # অটো-পোস্টার থ্রেড নিষ্ক্রিয় করা হয়েছে (ইউজারের অনুরোধে)
     # threading.Thread(target=auto_post_worker, daemon=True).start()
