@@ -51,8 +51,8 @@ from telegram.ext import (
 )
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
-# টোকেন প্রাইভেসি: প্রথমে এনভায়রনমেন্ট ভেরিয়েবল চেক করবে, না পেলে হার্ডকোডেড টোকেন ব্যবহার করবে
-BOT_TOKEN = os.getenv("APPROVE_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or ""
+# টোকেন প্রাইভেসি: প্রথমে এনভায়রনমেন্ট ভেরিয়েবল চেক করবে
+BOT_TOKEN = os.getenv("APPROVE_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or os.getenv("BOT_TOKEN")
 
 ADMIN_IDS = [7756038841]  # ← প্রথম super-admin
 # মেইন অ্যাডমিন আইডি এনভায়রনমেন্ট ভেরিয়েবল থেকে রিড করে ডাইনামিকালি অ্যাড করা হচ্ছে যাতে /start কাজ করে
@@ -1217,6 +1217,9 @@ async def auto_backup_job(bot: Bot):
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 def main():
+    if not BOT_TOKEN:
+        logger.error("❌ APPROVE_BOT_TOKEN, TELEGRAM_TOKEN, or BOT_TOKEN is not set in environment variables! Approve Bot cannot start.")
+        return
     Path(BACKUP_DIR).mkdir(exist_ok=True)
     init_db()
 
@@ -1261,7 +1264,7 @@ def main():
     logger.info("Scheduler started ✓")
 
     logger.info("Bot starting... 🚀")
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling(drop_pending_updates=True, close_loop=False, stop_signals=None)
 
 
 def run_bot():
@@ -1275,3 +1278,4 @@ def run_bot():
 
 if __name__ == "__main__":
     run_bot()
+
