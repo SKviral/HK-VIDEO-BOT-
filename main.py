@@ -6,6 +6,15 @@ import logging
 import requests
 import importlib.util
 from flask import Flask, jsonify
+from dotenv import load_dotenv
+
+# Load environment variables from .env file for local development
+load_dotenv()
+
+# Thread placeholders for dynamic status tracking in health check
+shortener_thread = None
+web_thread = None
+approve_thread = None
 
 # ══════════════════════════════════════════════════
 #  লগিং সেটিংস
@@ -77,13 +86,19 @@ app.register_blueprint(webbot.webbot_bp)
 # রুট লেভেল হেলথ চেক রাউট
 @app.route('/global_health', methods=['GET'])
 def global_health():
+    status_shortener = "running" if (shortener_thread and shortener_thread.is_alive()) else "stopped"
+    status_web = "running" if (web_thread and web_thread.is_alive()) else "stopped"
+    status_approve = "running" if (approve_thread and approve_thread.is_alive()) else "stopped"
+    
+    is_healthy = status_shortener == "running" and status_web == "running" and status_approve == "running"
+    
     return jsonify({
-        "status": "healthy",
+        "status": "healthy" if is_healthy else "degraded",
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
         "bots": {
-            "shortener_bot": "running",
-            "web_bot": "running",
-            "approve_bot": "running"
+            "shortener_bot": status_shortener,
+            "web_bot": status_web,
+            "approve_bot": status_approve
         }
     })
 
