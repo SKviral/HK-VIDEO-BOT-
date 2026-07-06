@@ -27,17 +27,17 @@ logger = logging.getLogger(__name__)
 # ══════════════════════════════════════════════════
 #  কনফিগারেশন
 # ══════════════════════════════════════════════════
-BOT_TOKEN     = os.environ.get("SHORTENER_BOT_TOKEN", os.environ.get("BOT_TOKEN", "আপনার_বট_টোকেন"))
+BOT_TOKEN     = os.environ.get("SHORTENER_BOT_TOKEN") or os.environ.get("BOT_TOKEN")
 BOT_USERNAME  = os.environ.get("BOT_USERNAME",  "YourBotUsername")
 WEBBOT_USERNAME = os.environ.get("WEBBOT_USERNAME", "StreamXVideoBot")
 MAIN_ADMIN_ID = os.environ.get("MAIN_ADMIN_ID", "5991854507")
 TERABOX_TOKEN = os.environ.get("TERABOX_TOKEN", "71b16be6b48d01937bfe7d2c3043cbc0b6363c82")
 IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY", "")
 FIREBASE_DB_URL = os.environ.get("FIREBASE_DB_URL", "https://telegram-bot-ca2a6-default-rtdb.firebaseio.com/")
-MONGO_URL     = os.environ.get("MONGO_URL",     "আপনার_MongoDB_URL")
+MONGO_URL     = os.environ.get("MONGO_URL")
 BOT_VERSION   = "6.0.0"
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
+bot = telebot.TeleBot(BOT_TOKEN or "DUMMY_TOKEN", parse_mode="HTML")
 
 # ══════════════════════════════════════════════════
 #  MongoDB
@@ -58,14 +58,20 @@ settings_col      = db['bot_settings']
 categories_col    = db['categories']
 scheduled_col     = db['scheduled_posts']
 
-users_col.create_index("chat_id", unique=True, background=True)
-files_col.create_index("file_key", background=True)
-files_col.create_index("batch_id", background=True)
-queue_col.create_index("delete_at", background=True)
-scheduled_col.create_index("scheduled_at", background=True)
-
-if not admins_col.find_one({"chat_id": str(MAIN_ADMIN_ID)}):
-    admins_col.insert_one({"chat_id": str(MAIN_ADMIN_ID), "role": "super_admin", "added_at": datetime.now().isoformat()})
+try:
+    if MONGO_URL and MONGO_URL != "আপনার_MongoDB_URL":
+        users_col.create_index("chat_id", unique=True, background=True)
+        files_col.create_index("file_key", background=True)
+        files_col.create_index("batch_id", background=True)
+        queue_col.create_index("delete_at", background=True)
+        scheduled_col.create_index("scheduled_at", background=True)
+        
+        if not admins_col.find_one({"chat_id": str(MAIN_ADMIN_ID)}):
+            admins_col.insert_one({"chat_id": str(MAIN_ADMIN_ID), "role": "super_admin", "added_at": datetime.now().isoformat()})
+    else:
+        logger.warning("⚠️ MONGO_URL is not set. Database initialization skipped.")
+except Exception as e:
+    logger.error(f"⚠️ Failed to connect to MongoDB or create indexes: {e}")
 
 # ══════════════════════════════════════════════════
 #  গ্লোবাল সেটিংস
@@ -1940,6 +1946,9 @@ def api_add_forcesub():
     return jsonify({"ok": True})
 
 def run_bot():
+    if not BOT_TOKEN or BOT_TOKEN == "DUMMY_TOKEN":
+        logger.error("❌ SHORTENER_BOT_TOKEN or BOT_TOKEN is not set in environment variables! Polling aborted.")
+        return
     logger.info(f"🚀 Shortener Bot Polling started (v{BOT_VERSION})...")
     while True:
         try:
