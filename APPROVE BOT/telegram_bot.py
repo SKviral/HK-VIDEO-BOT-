@@ -1229,7 +1229,21 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             update_channel_setting(cid, "auto_accept", new_val)
             status = "✅ চালু করা হয়েছে" if new_val else "⏸️ বন্ধ করা হয়েছে"
             await q.answer(f"অটো-একসেপ্ট {status}", show_alert=True)
-        data = f"ch:menu_aa:{cid}"
+        
+        # Render sub-menu directly
+        ch = get_channel(cid)
+        status = "✅ চালু" if ch.get("auto_accept", 1) else "⏸️ বন্ধ"
+        delay_m = ch.get("delay_seconds", 0) // 60
+        silent_status = "🔇 হ্যাঁ" if ch.get("silent_mode", 0) else "🔔 না"
+        text = (
+            f"⚡ <b>অটো-একসেপ্ট সেটিংস</b>\n\n"
+            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"⚡ অটো-একসেপ্ট: {status}\n"
+            f"⏱️ ডিলে: {delay_m} মিনিট\n"
+            f"🔇 সাইলেন্ট মোড: {silent_status}\n"
+        )
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_aa(cid))
+        return
 
     if data.startswith("ch:toggle_silent:"):
         cid = int(data.split(":")[-1])
@@ -1239,7 +1253,21 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             update_channel_setting(cid, "silent_mode", new_val)
             status = "🔇 চালু" if new_val else "🔔 বন্ধ"
             await q.answer(f"সাইলেন্ট মোড {status}", show_alert=True)
-        data = f"ch:menu_aa:{cid}"
+            
+        # Render sub-menu directly
+        ch = get_channel(cid)
+        status = "✅ চালু" if ch.get("auto_accept", 1) else "⏸️ বন্ধ"
+        delay_m = ch.get("delay_seconds", 0) // 60
+        silent_status = "🔇 হ্যাঁ" if ch.get("silent_mode", 0) else "🔔 না"
+        text = (
+            f"⚡ <b>অটো-একসেপ্ট সেটিংস</b>\n\n"
+            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"⚡ অটো-একসেপ্ট: {status}\n"
+            f"⏱️ ডিলে: {delay_m} মিনিট\n"
+            f"🔇 সাইলেন্ট মোড: {silent_status}\n"
+        )
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_aa(cid))
+        return
 
     if data.startswith("ch:toggle_msg1:"):
         cid = int(data.split(":")[-1])
@@ -1249,7 +1277,31 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             update_channel_setting(cid, "request_msg_enabled", new_val)
             status = "🟢 চালু করা হয়েছে" if new_val else "🔴 বন্ধ করা হয়েছে"
             await q.answer(f"তাৎক্ষণিক মেসেজ ১ {status}", show_alert=True)
-        data = f"ch:menu_msg1:{cid}"
+            
+        # Render sub-menu directly
+        ch = get_channel(cid)
+        status = "🟢 সচল" if ch.get("request_msg_enabled", 0) else "🔴 অচল"
+        msg_text = ch.get("request_msg") or DEFAULT_REQUEST_MSG
+        photo_status = "🖼️ ফটো সেট করা আছে" if ch.get("request_photo") else "❌ ফটো সেট করা নেই"
+        
+        btns = ch.get("request_buttons") or []
+        if isinstance(btns, str):
+            try:
+                btns = json.loads(btns)
+            except Exception:
+                btns = []
+        btn_count = len(btns)
+        
+        text = (
+            f"💬 <b>তাৎক্ষণিক মেসেজ (Message 1) সেটিংস</b>\n\n"
+            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📊 অবস্থা: {status}\n"
+            f"📷 মিডিয়া: {photo_status}\n"
+            f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
+            f"💬 <b>মেসেজ প্রিভিউ:</b>\n{msg_text}"
+        )
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_msg1(cid))
+        return
 
     if data.startswith("ch:set_delay:"):
         cid = int(data.split(":")[-1])
@@ -1303,7 +1355,31 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         cid = int(data.split(":")[-1])
         update_channel_setting(cid, "request_buttons", [])
         await q.answer("🗑️ তাৎক্ষণিক মেসেজ ১ এর সব কাস্টম বাটন মুছে ফেলা হয়েছে", show_alert=True)
-        data = f"ch:menu_msg1:{cid}"
+        
+        # Render sub-menu directly
+        ch = get_channel(cid)
+        status = "🟢 সচল" if ch.get("request_msg_enabled", 0) else "🔴 অচল"
+        msg_text = ch.get("request_msg") or DEFAULT_REQUEST_MSG
+        photo_status = "🖼️ ফটো সেট করা আছে" if ch.get("request_photo") else "❌ ফটো সেট করা নেই"
+        
+        btns = ch.get("request_buttons") or []
+        if isinstance(btns, str):
+            try:
+                btns = json.loads(btns)
+            except Exception:
+                btns = []
+        btn_count = len(btns)
+        
+        text = (
+            f"💬 <b>তাৎক্ষণিক মেসেজ (Message 1) সেটিংস</b>\n\n"
+            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📊 অবস্থা: {status}\n"
+            f"📷 মিডিয়া: {photo_status}\n"
+            f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
+            f"💬 <b>মেসেজ প্রিভিউ:</b>\n{msg_text}"
+        )
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_msg1(cid))
+        return
 
     if data.startswith("ch:set_msg2_text:"):
         cid = int(data.split(":")[-1])
@@ -1345,7 +1421,31 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         cid = int(data.split(":")[-1])
         update_channel_setting(cid, "welcome_buttons", [])
         await q.answer("🗑️ স্বাগতম মেসেজ ২ এর সব কাস্টম বাটন মুছে ফেলা হয়েছে", show_alert=True)
-        data = f"ch:menu_msg2:{cid}"
+        
+        # Render sub-menu directly
+        ch = get_channel(cid)
+        msg_text = ch.get("welcome_msg") or DEFAULT_WELCOME
+        photo_status = "🖼️ ফটো সেট করা আছে" if ch.get("welcome_photo") else "❌ ফটো সেট করা নেই"
+        link = ch.get("invite_link") or "সেট করা নেই"
+        
+        btns = ch.get("welcome_buttons") or []
+        if isinstance(btns, str):
+            try:
+                btns = json.loads(btns)
+            except Exception:
+                btns = []
+        btn_count = len(btns)
+        
+        text = (
+            f"🎉 <b>অনুমোদন মেসেজ (Message 2) সেটিংস</b>\n\n"
+            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"🔗 ইনভাইট লিংক: {link}\n"
+            f"📷 মিডিয়া: {photo_status}\n"
+            f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
+            f"💬 <b>মেসেজ প্রিভিউ:</b>\n{msg_text}"
+        )
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_msg2(cid))
+        return
 
     if data.startswith("ch:set_link:"):
         cid = int(data.split(":")[-1])
