@@ -26,6 +26,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from typing import Optional
+from pymongo import MongoClient
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import (
@@ -82,6 +83,43 @@ logging.basicConfig(
 logger = logging.getLogger("AutoAcceptBot")
 
 # ─── DATABASE ────────────────────────────────────────────────────────────────
+MONGO_URL = os.getenv("MONGO_URL")
+USING_MONGO = False
+
+# MongoDB Initialization
+try:
+    if MONGO_URL and MONGO_URL != "আপনার_MongoDB_URL":
+        mongo_client = MongoClient(MONGO_URL)
+        db = mongo_client['telegram_bot_db']
+        
+        # Collections
+        admins_col = db['approve_admins']
+        channels_col = db['approve_channels']
+        requests_col = db['approve_join_requests']
+        queue_col = db['approve_queue']
+        settings_col = db['approve_settings']
+        
+        # Create indexes
+        channels_col.create_index("channel_id", unique=True, background=True)
+        requests_col.create_index("channel_id", background=True)
+        requests_col.create_index("status", background=True)
+        queue_col.create_index("accept_after", background=True)
+        admins_col.create_index("user_id", unique=True, background=True)
+        
+        # Insert initial super admins
+        for uid in ADMIN_IDS:
+            admins_col.update_one(
+                {"user_id": uid},
+                {"$set": {"user_id": uid, "username": "super_admin", "added_by": uid, "added_at": datetime.utcnow().isoformat()}},
+                upsert=True
+            )
+        logger.info("MongoDB Initialized successfully for Approve Bot ✓")
+        USING_MONGO = True
+except Exception as e:
+    logger.error(f"❌ Failed to connect to MongoDB: {e}")
+    USING_MONGO = False
+
+
 def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -90,88 +128,133 @@ def get_db() -> sqlite3.Connection:
 
 
 def init_db():
-    """সব টেবিল তৈরি করো।"""
-    with get_db() as conn:
-        conn.executescript("""
-        CREATE TABLE IF NOT EXISTS admins (
-            user_id     INTEGER PRIMARY KEY,
-            username    TEXT,
-            added_by    INTEGER,
-            added_at    TEXT DEFAULT (datetime('now'))
-        );
+    """সব SQLite টেবিল তৈরি করো (ফলব্যাক হিসেবে)।"""
+    try:
+        with get_db() as conn:
+            conn.executescript("""
+            CREATE TABLE IF NOT EXISTS admins (
+                user_id     INTEGER PRIMARY KEY,
+                username    TEXT,
+                added_by    INTEGER,
+                added_at    TEXT DEFAULT (datetime('now'))
+            );
 
-        CREATE TABLE IF NOT EXISTS channels (
-            channel_id      INTEGER PRIMARY KEY,
-            title           TEXT,
-            username        TEXT,
-            invite_link     TEXT,
-            auto_accept     INTEGER DEFAULT 1,
-            delay_seconds   INTEGER DEFAULT 0,
-            silent_mode     INTEGER DEFAULT 0,
-            welcome_msg     TEXT,
-            welcome_photo   TEXT,
-            added_by        INTEGER,
-            added_at        TEXT DEFAULT (datetime('now'))
-        );
+            CREATE TABLE IF NOT EXISTS channels (
+                channel_id      INTEGER PRIMARY KEY,
+                title           TEXT,
+                username        TEXT,
+                invite_link     TEXT,
+                auto_accept     INTEGER DEFAULT 1,
+                delay_seconds   INTEGER DEFAULT 0,
+                silent_mode     INTEGER DEFAULT 0,
+                welcome_msg     TEXT,
+                welcome_photo   TEXT,
+                welcome_buttons TEXT, -- JSON array
+                request_msg_enabled INTEGER DEFAULT 0,
+                request_msg     TEXT,
+                request_photo   TEXT,
+                request_buttons TEXT, -- JSON array
+                added_by        INTEGER,
+                added_at        TEXT DEFAULT (datetime('now'))
+            );
 
-        CREATE TABLE IF NOT EXISTS join_requests (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            channel_id      INTEGER,
-            user_id         INTEGER,
-            username        TEXT,
-            full_name       TEXT,
-            requested_at    TEXT DEFAULT (datetime('now')),
-            accept_at       TEXT,
-            accepted_at     TEXT,
-            status          TEXT DEFAULT 'pending',
-            UNIQUE(channel_id, user_id, requested_at)
-        );
+            CREATE TABLE IF NOT EXISTS join_requests (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id      INTEGER,
+                user_id         INTEGER,
+                username        TEXT,
+                full_name       TEXT,
+                requested_at    TEXT DEFAULT (datetime('now')),
+                accept_at       TEXT,
+                accepted_at     TEXT,
+                status          TEXT DEFAULT 'pending',
+                UNIQUE(channel_id, user_id, requested_at)
+            );
 
-        CREATE TABLE IF NOT EXISTS pending_queue (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            channel_id      INTEGER,
-            user_id         INTEGER,
-            username        TEXT,
-            full_name       TEXT,
-            queued_at       TEXT DEFAULT (datetime('now')),
-            accept_after    TEXT,
-            UNIQUE(channel_id, user_id)
-        );
+            CREATE TABLE IF NOT EXISTS pending_queue (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id      INTEGER,
+                user_id         INTEGER,
+                username        TEXT,
+                full_name       TEXT,
+                queued_at       TEXT DEFAULT (datetime('now')),
+                accept_after    TEXT,
+                UNIQUE(channel_id, user_id)
+            );
 
-        CREATE TABLE IF NOT EXISTS bot_settings (
-            key     TEXT PRIMARY KEY,
-            value   TEXT
-        );
+            CREATE TABLE IF NOT EXISTS bot_settings (
+                key     TEXT PRIMARY KEY,
+                value   TEXT
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_requests_channel ON join_requests(channel_id);
-        CREATE INDEX IF NOT EXISTS idx_requests_status  ON join_requests(status);
-        CREATE INDEX IF NOT EXISTS idx_queue_accept     ON pending_queue(accept_after);
-        """)
+            CREATE INDEX IF NOT EXISTS idx_requests_channel ON join_requests(channel_id);
+            CREATE INDEX IF NOT EXISTS idx_requests_status  ON join_requests(status);
+            CREATE INDEX IF NOT EXISTS idx_queue_accept     ON pending_queue(accept_after);
+            """)
 
-        # প্রথম super-admin insert
-        for uid in ADMIN_IDS:
-            conn.execute(
-                "INSERT OR IGNORE INTO admins (user_id, added_by) VALUES (?, ?)",
-                (uid, uid),
-            )
-    logger.info("Database initialized ✓")
+            # প্রথম super-admin insert
+            for uid in ADMIN_IDS:
+                conn.execute(
+                    "INSERT OR IGNORE INTO admins (user_id, added_by) VALUES (?, ?)",
+                    (uid, uid),
+                )
+        logger.info("SQLite Database initialized ✓")
+    except Exception as e:
+        logger.error(f"init_db sqlite error: {e}")
 
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 def is_admin(user_id: int) -> bool:
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT 1 FROM admins WHERE user_id=?", (user_id,)
-        ).fetchone()
-        return row is not None
+    if user_id in ADMIN_IDS:
+        return True
+    if USING_MONGO:
+        try:
+            return admins_col.find_one({"user_id": user_id}) is not None
+        except Exception as e:
+            logger.error(f"is_admin mongo error: {e}")
+    # SQLite fallback
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM admins WHERE user_id=?", (user_id,)
+            ).fetchone()
+            return row is not None
+    except Exception as e:
+        logger.error(f"is_admin sqlite error: {e}")
+        return False
 
 
 def get_admins() -> list[dict]:
-    with get_db() as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM admins ORDER BY added_at").fetchall()]
+    if USING_MONGO:
+        try:
+            return list(admins_col.find({}, {"_id": 0}))
+        except Exception as e:
+            logger.error(f"get_admins mongo error: {e}")
+    try:
+        with get_db() as conn:
+            return [dict(r) for r in conn.execute("SELECT * FROM admins ORDER BY added_at").fetchall()]
+    except Exception as e:
+        logger.error(f"get_admins sqlite error: {e}")
+        return []
 
 
 def add_admin(user_id: int, username: str, added_by: int) -> bool:
+    if USING_MONGO:
+        try:
+            admins_col.update_one(
+                {"user_id": user_id},
+                {"$set": {
+                    "user_id": user_id,
+                    "username": username,
+                    "added_by": added_by,
+                    "added_at": datetime.utcnow().isoformat()
+                }},
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"add_admin mongo error: {e}")
+            return False
     try:
         with get_db() as conn:
             conn.execute(
@@ -187,51 +270,183 @@ def add_admin(user_id: int, username: str, added_by: int) -> bool:
 def remove_admin(user_id: int) -> bool:
     if user_id in ADMIN_IDS:
         return False  # super-admin সরানো যাবে না
-    with get_db() as conn:
-        conn.execute("DELETE FROM admins WHERE user_id=?", (user_id,))
-    return True
+    if USING_MONGO:
+        try:
+            admins_col.delete_one({"user_id": user_id})
+            return True
+        except Exception as e:
+            logger.error(f"remove_admin mongo error: {e}")
+            return False
+    try:
+        with get_db() as conn:
+            conn.execute("DELETE FROM admins WHERE user_id=?", (user_id,))
+        return True
+    except Exception as e:
+        logger.error(f"remove_admin error: {e}")
+        return False
 
 
 def get_channels() -> list[dict]:
-    with get_db() as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM channels ORDER BY added_at").fetchall()]
+    if USING_MONGO:
+        try:
+            return list(channels_col.find({}, {"_id": 0}).sort("added_at", 1))
+        except Exception as e:
+            logger.error(f"get_channels mongo error: {e}")
+    try:
+        with get_db() as conn:
+            rows = conn.execute("SELECT * FROM channels ORDER BY added_at").fetchall()
+            res = []
+            for r in rows:
+                d = dict(r)
+                for key in ["welcome_buttons", "request_buttons"]:
+                    if d.get(key):
+                        try:
+                            d[key] = json.loads(d[key])
+                        except Exception:
+                            d[key] = []
+                    else:
+                        d[key] = []
+                res.append(d)
+            return res
+    except Exception as e:
+        logger.error(f"get_channels sqlite error: {e}")
+        return []
 
 
 def get_channel(channel_id: int) -> Optional[dict]:
-    with get_db() as conn:
-        row = conn.execute("SELECT * FROM channels WHERE channel_id=?", (channel_id,)).fetchone()
-        return dict(row) if row else None
+    if USING_MONGO:
+        try:
+            return channels_col.find_one({"channel_id": channel_id}, {"_id": 0})
+        except Exception as e:
+            logger.error(f"get_channel mongo error: {e}")
+    try:
+        with get_db() as conn:
+            row = conn.execute("SELECT * FROM channels WHERE channel_id=?", (channel_id,)).fetchone()
+            if row:
+                d = dict(row)
+                for key in ["welcome_buttons", "request_buttons"]:
+                    if d.get(key):
+                        try:
+                            d[key] = json.loads(d[key])
+                        except Exception:
+                            d[key] = []
+                    else:
+                        d[key] = []
+                return d
+            return None
+    except Exception as e:
+        logger.error(f"get_channel sqlite error: {e}")
+        return None
 
 
 def upsert_channel(channel_id: int, title: str, username: str, invite_link: str, added_by: int):
-    with get_db() as conn:
-        conn.execute("""
-            INSERT INTO channels (channel_id, title, username, invite_link, added_by)
-            VALUES (?,?,?,?,?)
-            ON CONFLICT(channel_id) DO UPDATE SET title=excluded.title,
-                username=excluded.username, invite_link=excluded.invite_link
-        """, (channel_id, title, username, invite_link, added_by))
+    if USING_MONGO:
+        try:
+            channels_col.update_one(
+                {"channel_id": channel_id},
+                {
+                    "$set": {
+                        "channel_id": channel_id,
+                        "title": title,
+                        "username": username,
+                        "invite_link": invite_link,
+                        "added_by": added_by
+                    },
+                    "$setOnInsert": {
+                        "auto_accept": 1,
+                        "delay_seconds": 0,
+                        "silent_mode": 0,
+                        "welcome_msg": None,
+                        "welcome_photo": None,
+                        "welcome_buttons": [],
+                        "request_msg_enabled": 0,
+                        "request_msg": None,
+                        "request_photo": None,
+                        "request_buttons": [],
+                        "added_at": datetime.utcnow().isoformat()
+                    }
+                },
+                upsert=True
+            )
+            return
+        except Exception as e:
+            logger.error(f"upsert_channel mongo error: {e}")
+    try:
+        with get_db() as conn:
+            conn.execute("""
+                INSERT INTO channels (channel_id, title, username, invite_link, added_by)
+                VALUES (?,?,?,?,?)
+                ON CONFLICT(channel_id) DO UPDATE SET title=excluded.title,
+                    username=excluded.username, invite_link=excluded.invite_link
+            """, (channel_id, title, username, invite_link, added_by))
+    except Exception as e:
+        logger.error(f"upsert_channel sqlite error: {e}")
 
 
 def update_channel_setting(channel_id: int, key: str, value):
     allowed = {
         "auto_accept", "delay_seconds", "silent_mode",
-        "welcome_msg", "welcome_photo", "invite_link"
+        "welcome_msg", "welcome_photo", "invite_link",
+        "welcome_buttons", "request_msg_enabled", "request_msg",
+        "request_photo", "request_buttons"
     }
     if key not in allowed:
         return
-    with get_db() as conn:
-        conn.execute(f"UPDATE channels SET {key}=? WHERE channel_id=?", (value, channel_id))
+    if USING_MONGO:
+        try:
+            channels_col.update_one(
+                {"channel_id": channel_id},
+                {"$set": {key: value}}
+            )
+            return
+        except Exception as e:
+            logger.error(f"update_channel_setting mongo error: {e}")
+    try:
+        val_to_save = json.dumps(value) if isinstance(value, (list, dict)) else value
+        with get_db() as conn:
+            conn.execute(f"UPDATE channels SET {key}=? WHERE channel_id=?", (val_to_save, channel_id))
+    except Exception as e:
+        logger.error(f"update_channel_setting sqlite error: {e}")
 
 
 def remove_channel(channel_id: int):
-    with get_db() as conn:
-        conn.execute("DELETE FROM channels WHERE channel_id=?", (channel_id,))
-        conn.execute("DELETE FROM pending_queue WHERE channel_id=?", (channel_id,))
+    if USING_MONGO:
+        try:
+            channels_col.delete_one({"channel_id": channel_id})
+            queue_col.delete_many({"channel_id": channel_id})
+            return
+        except Exception as e:
+            logger.error(f"remove_channel mongo error: {e}")
+    try:
+        with get_db() as conn:
+            conn.execute("DELETE FROM channels WHERE channel_id=?", (channel_id,))
+            conn.execute("DELETE FROM pending_queue WHERE channel_id=?", (channel_id,))
+    except Exception as e:
+        logger.error(f"remove_channel sqlite error: {e}")
 
 
 def log_request(channel_id, user_id, username, full_name, accept_after_dt=None):
     accept_at = accept_after_dt.isoformat() if accept_after_dt else None
+    if USING_MONGO:
+        try:
+            requests_col.update_one(
+                {"channel_id": channel_id, "user_id": user_id, "requested_at": {"$exists": True}},
+                {
+                    "$setOnInsert": {
+                        "channel_id": channel_id,
+                        "user_id": user_id,
+                        "username": username,
+                        "full_name": full_name,
+                        "requested_at": datetime.utcnow().isoformat(),
+                        "accept_at": accept_at,
+                        "status": "pending" if accept_at else "accepted"
+                    }
+                },
+                upsert=True
+            )
+            return
+        except Exception as e:
+            logger.error(f"log_request mongo error: {e}")
     try:
         with get_db() as conn:
             conn.execute("""
@@ -241,108 +456,246 @@ def log_request(channel_id, user_id, username, full_name, accept_after_dt=None):
             """, (channel_id, user_id, username, full_name, accept_at,
                   "pending" if accept_at else "accepted"))
     except Exception as e:
-        logger.warning(f"log_request: {e}")
+        logger.warning(f"log_request sqlite error: {e}")
 
 
 def mark_accepted(channel_id, user_id):
-    with get_db() as conn:
-        conn.execute("""
-            UPDATE join_requests
-            SET status='accepted', accepted_at=datetime('now')
-            WHERE channel_id=? AND user_id=? AND status='pending'
-        """, (channel_id, user_id))
+    if USING_MONGO:
+        try:
+            requests_col.update_one(
+                {"channel_id": channel_id, "user_id": user_id, "status": "pending"},
+                {"$set": {"status": "accepted", "accepted_at": datetime.utcnow().isoformat()}}
+            )
+            return
+        except Exception as e:
+            logger.error(f"mark_accepted mongo error: {e}")
+    try:
+        with get_db() as conn:
+            conn.execute("""
+                UPDATE join_requests
+                SET status='accepted', accepted_at=datetime('now')
+                WHERE channel_id=? AND user_id=? AND status='pending'
+            """, (channel_id, user_id))
+    except Exception as e:
+        logger.error(f"mark_accepted sqlite error: {e}")
 
 
 def enqueue(channel_id, user_id, username, full_name, accept_after: datetime):
-    with get_db() as conn:
-        conn.execute("""
-            INSERT OR REPLACE INTO pending_queue
-                (channel_id, user_id, username, full_name, accept_after)
-            VALUES (?,?,?,?,?)
-        """, (channel_id, user_id, username, full_name, accept_after.isoformat()))
+    if USING_MONGO:
+        try:
+            queue_col.update_one(
+                {"channel_id": channel_id, "user_id": user_id},
+                {
+                    "$set": {
+                        "channel_id": channel_id,
+                        "user_id": user_id,
+                        "username": username,
+                        "full_name": full_name,
+                        "queued_at": datetime.utcnow().isoformat(),
+                        "accept_after": accept_after.isoformat()
+                    }
+                },
+                upsert=True
+            )
+            return
+        except Exception as e:
+            logger.error(f"enqueue mongo error: {e}")
+    try:
+        with get_db() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO pending_queue
+                    (channel_id, user_id, username, full_name, accept_after)
+                VALUES (?,?,?,?,?)
+            """, (channel_id, user_id, username, full_name, accept_after.isoformat()))
+    except Exception as e:
+        logger.error(f"enqueue sqlite error: {e}")
 
 
 def dequeue(channel_id, user_id):
-    with get_db() as conn:
-        conn.execute(
-            "DELETE FROM pending_queue WHERE channel_id=? AND user_id=?",
-            (channel_id, user_id),
-        )
+    if USING_MONGO:
+        try:
+            queue_col.delete_one({"channel_id": channel_id, "user_id": user_id})
+            return
+        except Exception as e:
+            logger.error(f"dequeue mongo error: {e}")
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "DELETE FROM pending_queue WHERE channel_id=? AND user_id=?",
+                (channel_id, user_id),
+            )
+    except Exception as e:
+        logger.error(f"dequeue sqlite error: {e}")
 
 
 def get_due_queue() -> list[dict]:
     now = datetime.utcnow().isoformat()
-    with get_db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM pending_queue WHERE accept_after <= ?", (now,)
-        ).fetchall()
-        return [dict(r) for r in rows]
+    if USING_MONGO:
+        try:
+            return list(queue_col.find({"accept_after": {"$lte": now}}, {"_id": 0}))
+        except Exception as e:
+            logger.error(f"get_due_queue mongo error: {e}")
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM pending_queue WHERE accept_after <= ?", (now,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error(f"get_due_queue sqlite error: {e}")
+        return []
 
 
 def get_pending_queue(channel_id: int = None) -> list[dict]:
-    with get_db() as conn:
-        if channel_id:
-            rows = conn.execute(
-                "SELECT * FROM pending_queue WHERE channel_id=? ORDER BY accept_after",
-                (channel_id,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM pending_queue ORDER BY accept_after"
-            ).fetchall()
-        return [dict(r) for r in rows]
+    if USING_MONGO:
+        try:
+            q = {"channel_id": channel_id} if channel_id else {}
+            return list(queue_col.find(q, {"_id": 0}).sort("accept_after", 1))
+        except Exception as e:
+            logger.error(f"get_pending_queue mongo error: {e}")
+    try:
+        with get_db() as conn:
+            if channel_id:
+                rows = conn.execute(
+                    "SELECT * FROM pending_queue WHERE channel_id=? ORDER BY accept_after",
+                    (channel_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM pending_queue ORDER BY accept_after"
+                ).fetchall()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error(f"get_pending_queue sqlite error: {e}")
+        return []
 
 
 def get_stats(channel_id: int = None) -> dict:
-    with get_db() as conn:
-        base = "WHERE channel_id=?" if channel_id else ""
-        params = (channel_id,) if channel_id else ()
+    if USING_MONGO:
+        try:
+            q = {"channel_id": channel_id} if channel_id else {}
+            total = requests_col.count_documents(q)
+            
+            q_acc = q.copy()
+            q_acc["status"] = "accepted"
+            accepted = requests_col.count_documents(q_acc)
+            
+            q_pend = q.copy()
+            q_pend["status"] = "pending"
+            pending = requests_col.count_documents(q_pend)
+            
+            def period_count_mongo(days):
+                since = (datetime.utcnow() - timedelta(days=days)).isoformat()
+                q_per = q.copy()
+                q_per["requested_at"] = {"$gte": since}
+                return requests_col.count_documents(q_per)
+                
+            return {
+                "total": total,
+                "accepted": accepted,
+                "pending": pending,
+                "today": period_count_mongo(1),
+                "weekly": period_count_mongo(7),
+                "monthly": period_count_mongo(30),
+            }
+        except Exception as e:
+            logger.error(f"get_stats mongo error: {e}")
+    try:
+        with get_db() as conn:
+            base = "WHERE channel_id=?" if channel_id else ""
+            params = (channel_id,) if channel_id else ()
 
-        total = conn.execute(
-            f"SELECT COUNT(*) FROM join_requests {base}", params
-        ).fetchone()[0]
-        accepted = conn.execute(
-            f"SELECT COUNT(*) FROM join_requests {base} {'AND' if base else 'WHERE'} status='accepted'",
-            params,
-        ).fetchone()[0]
-        pending = conn.execute(
-            f"SELECT COUNT(*) FROM join_requests {base} {'AND' if base else 'WHERE'} status='pending'",
-            params,
-        ).fetchone()[0]
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM join_requests {base}", params
+            ).fetchone()[0]
+            accepted = conn.execute(
+                f"SELECT COUNT(*) FROM join_requests {base} {'AND' if base else 'WHERE'} status='accepted'",
+                params,
+            ).fetchone()[0]
+            pending = conn.execute(
+                f"SELECT COUNT(*) FROM join_requests {base} {'AND' if base else 'WHERE'} status='pending'",
+                params,
+            ).fetchone()[0]
 
-        def period_count(days):
-            since = (datetime.utcnow() - timedelta(days=days)).isoformat()
-            q = f"SELECT COUNT(*) FROM join_requests {base} {'AND' if base else 'WHERE'} requested_at >= ?"
-            return conn.execute(q, (*params, since)).fetchone()[0]
+            def period_count(days):
+                since = (datetime.utcnow() - timedelta(days=days)).isoformat()
+                q = f"SELECT COUNT(*) FROM join_requests {base} {'AND' if base else 'WHERE'} requested_at >= ?"
+                return conn.execute(q, (*params, since)).fetchone()[0]
 
-        return {
-            "total": total,
-            "accepted": accepted,
-            "pending": pending,
-            "today": period_count(1),
-            "weekly": period_count(7),
-            "monthly": period_count(30),
-        }
+            return {
+                "total": total,
+                "accepted": accepted,
+                "pending": pending,
+                "today": period_count(1),
+                "weekly": period_count(7),
+                "monthly": period_count(30),
+            }
+    except Exception as e:
+        logger.error(f"get_stats sqlite error: {e}")
+        return {"total": 0, "accepted": 0, "pending": 0, "today": 0, "weekly": 0, "monthly": 0}
 
 
 def make_backup() -> str:
-    """DB backup তৈরি করো, path return করো।"""
+    """DB backup তৈরি করো (MongoDB বা SQLite), path return করো।"""
     Path(BACKUP_DIR).mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    if USING_MONGO:
+        try:
+            backup_data = {
+                "admins": list(admins_col.find({}, {"_id": 0})),
+                "channels": list(channels_col.find({}, {"_id": 0})),
+                "requests": list(requests_col.find({}, {"_id": 0})),
+                "queue": list(queue_col.find({}, {"_id": 0})),
+            }
+            dest = f"{BACKUP_DIR}/backup_{ts}.json"
+            with open(dest, "w", encoding="utf-8") as f:
+                json.dump(backup_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"MongoDB Backup created: {dest}")
+            return dest
+        except Exception as e:
+            logger.error(f"make_backup mongo error: {e}")
+            
     dest = f"{BACKUP_DIR}/backup_{ts}.db"
     shutil.copy2(DB_PATH, dest)
-    logger.info(f"Backup created: {dest}")
+    logger.info(f"SQLite Backup created: {dest}")
     return dest
 
 
 def restore_from_file(file_path: str) -> bool:
     try:
-        # validate SQLite file
-        conn = sqlite3.connect(file_path)
-        conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        conn.close()
-        shutil.copy2(file_path, DB_PATH)
-        return True
+        if file_path.endswith(".json") and USING_MONGO:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            admins_col.delete_many({})
+            if data.get("admins"):
+                admins_col.insert_many(data["admins"])
+                
+            channels_col.delete_many({})
+            if data.get("channels"):
+                channels_col.insert_many(data["channels"])
+                
+            requests_col.delete_many({})
+            if data.get("requests"):
+                requests_col.insert_many(data["requests"])
+                
+            queue_col.delete_many({})
+            if data.get("queue"):
+                queue_col.insert_many(data["queue"])
+                
+            logger.info("MongoDB restore successful!")
+            return True
+            
+        elif file_path.endswith(".db"):
+            conn = sqlite3.connect(file_path)
+            conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            conn.close()
+            shutil.copy2(file_path, DB_PATH)
+            logger.info("SQLite restore successful!")
+            return True
+            
+        return False
     except Exception as e:
         logger.error(f"restore error: {e}")
         return False
@@ -405,20 +758,56 @@ def kb_channel_manage(channel_id: int) -> InlineKeyboardMarkup:
     ch = get_channel(channel_id)
     if not ch:
         return kb_main_menu()
-    aa_txt = "⏸️ অটো-একসেপ্ট বন্ধ করুন" if ch["auto_accept"] else "▶️ অটো-একসেপ্ট চালু করুন"
-    sl_txt = "🔇 সাইলেন্ট মোড বন্ধ করুন" if ch["silent_mode"] else "🔔 সাইলেন্ট মোড চালু করুন"
-    delay_m = ch["delay_seconds"] // 60
+    
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⚡ অটো-একসেপ্ট সেটিংস", callback_data=f"ch:menu_aa:{channel_id}")],
+        [InlineKeyboardButton("💬 তাৎক্ষণিক মেসেজ (Msg 1) সেটিংস", callback_data=f"ch:menu_msg1:{channel_id}")],
+        [InlineKeyboardButton("🎉 অনুমোদন মেসেজ (Msg 2) সেটিংস", callback_data=f"ch:menu_msg2:{channel_id}")],
+        [InlineKeyboardButton("📊 স্ট্যাটস", callback_data=f"stats:channel:{channel_id}"),
+         InlineKeyboardButton("⏳ পেন্ডিং কিউ", callback_data=f"queue:channel:{channel_id}")],
+        [InlineKeyboardButton("🗑️ চ্যানেল সরিয়ে দিন", callback_data=f"ch:remove:{channel_id}")],
+        [InlineKeyboardButton("🔙 চ্যানেল লিস্ট", callback_data="ch:list:0")],
+    ])
+
+
+def kb_channel_aa(channel_id: int) -> InlineKeyboardMarkup:
+    ch = get_channel(channel_id)
+    if not ch:
+        return kb_main_menu()
+    aa_txt = "⏸️ অটো-একসেপ্ট বন্ধ করুন" if ch.get("auto_accept", 1) else "▶️ অটো-একসেপ্ট চালু করুন"
+    sl_txt = "🔔 সাইলেন্ট মোড বন্ধ করুন" if ch.get("silent_mode", 0) else "🔇 সাইলেন্ট মোড চালু করুন"
+    delay_m = ch.get("delay_seconds", 0) // 60
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(aa_txt, callback_data=f"ch:toggle_aa:{channel_id}")],
         [InlineKeyboardButton(f"⏱️ ডিলে: {delay_m} মিনিট → পরিবর্তন", callback_data=f"ch:set_delay:{channel_id}")],
         [InlineKeyboardButton(sl_txt, callback_data=f"ch:toggle_silent:{channel_id}")],
-        [InlineKeyboardButton("💬 ওয়েলকাম মেসেজ সেট", callback_data=f"ch:set_msg:{channel_id}")],
-        [InlineKeyboardButton("🖼️ ওয়েলকাম ফটো সেট",  callback_data=f"ch:set_photo:{channel_id}")],
-        [InlineKeyboardButton("📊 এই চ্যানেলের স্ট্যাটস", callback_data=f"stats:channel:{channel_id}")],
-        [InlineKeyboardButton("⏳ পেন্ডিং কিউ",         callback_data=f"queue:channel:{channel_id}")],
-        [InlineKeyboardButton("🔗 ইনভাইট লিংক সেট",    callback_data=f"ch:set_link:{channel_id}")],
-        [InlineKeyboardButton("🗑️ চ্যানেল সরিয়ে দিন",  callback_data=f"ch:remove:{channel_id}")],
-        [InlineKeyboardButton("🔙 চ্যানেল লিস্ট",       callback_data="ch:list:0")],
+        [InlineKeyboardButton("🔙 ব্যাক", callback_data=f"ch:manage:{channel_id}")]
+    ])
+
+
+def kb_channel_msg1(channel_id: int) -> InlineKeyboardMarkup:
+    ch = get_channel(channel_id)
+    if not ch:
+        return kb_main_menu()
+    m1_toggle_txt = "⏸️ তাৎক্ষণিক মেসেজ বন্ধ করুন" if ch.get("request_msg_enabled", 0) else "▶️ তাৎক্ষণিক মেসেজ চালু করুন"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(m1_toggle_txt, callback_data=f"ch:toggle_msg1:{channel_id}")],
+        [InlineKeyboardButton("💬 মেসেজ টেক্সট সেট করুন", callback_data=f"ch:set_msg1_text:{channel_id}")],
+        [InlineKeyboardButton("🖼️ মেসেজ ফটো সেট করুন", callback_data=f"ch:set_msg1_photo:{channel_id}")],
+        [InlineKeyboardButton("➕ কাস্টম বাটন যোগ করুন", callback_data=f"ch:add_msg1_btn:{channel_id}")],
+        [InlineKeyboardButton("🗑️ সব কাস্টম বাটন মুছুন", callback_data=f"ch:clear_msg1_btn:{channel_id}")],
+        [InlineKeyboardButton("🔙 ব্যাক", callback_data=f"ch:manage:{channel_id}")]
+    ])
+
+
+def kb_channel_msg2(channel_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 স্বাগতম মেসেজ সেট করুন", callback_data=f"ch:set_msg2_text:{channel_id}")],
+        [InlineKeyboardButton("🖼️ স্বাগতম ফটো সেট করুন", callback_data=f"ch:set_msg2_photo:{channel_id}")],
+        [InlineKeyboardButton("🔗 ইনভাইট লিংক সেট করুন", callback_data=f"ch:set_link:{channel_id}")],
+        [InlineKeyboardButton("➕ কাস্টম বাটন যোগ করুন", callback_data=f"ch:add_msg2_btn:{channel_id}")],
+        [InlineKeyboardButton("🗑️ সব কাস্টম বাটন মুছুন", callback_data=f"ch:clear_msg2_btn:{channel_id}")],
+        [InlineKeyboardButton("🔙 ব্যাক", callback_data=f"ch:manage:{channel_id}")]
     ])
 
 
@@ -479,25 +868,78 @@ def kb_back_main() -> InlineKeyboardMarkup:
 # ─── WELCOME MESSAGE FORMATTER ────────────────────────────────────────────────
 DEFAULT_WELCOME = (
     "✅ <b>আপনার রিকুয়েস্ট একসেপ্ট করা হয়েছে!</b>\n\n"
-    "🎉 আপনাকে স্বাগতম! চ্যানেলটি ঘুরে দেখুন এবং উপভোগ করুন।\n\n"
-    "📌 <i>যেকোনো সমস্যায় অ্যাডমিনের সাথে যোগাযোগ করুন।</i>"
+    "🎉 আপনাকে স্বাগতম! চ্যানেলটি ঘুরে দেখুন এবং উপভোগ করুন।"
+)
+
+DEFAULT_REQUEST_MSG = (
+    "⏳ <b>আপনার রিকুয়েস্টটি গ্রহণ করা হয়েছে!</b>\n\n"
+    "অনুগ্রহ করে অপেক্ষা করুন, অ্যাডমিন খুব শীঘ্রই আপনার রিকুয়েস্টটি অনুমোদন করবেন।"
 )
 
 
+async def send_request_received_message(bot: Bot, channel: dict, user_id: int):
+    """নতুন রিকোয়েস্ট আসার পর তাৎক্ষণিক মেসেজ (Message 1) পাঠান।"""
+    msg = channel.get("request_msg") or DEFAULT_REQUEST_MSG
+    photo = channel.get("request_photo")
+    
+    buttons = []
+    custom_buttons = channel.get("request_buttons") or []
+    if isinstance(custom_buttons, str):
+        try:
+            custom_buttons = json.loads(custom_buttons)
+        except Exception:
+            custom_buttons = []
+            
+    for btn in custom_buttons:
+        buttons.append([InlineKeyboardButton(btn["text"], url=btn["url"])])
+    kb = InlineKeyboardMarkup(buttons) if buttons else None
+    
+    try:
+        if photo:
+            await bot.send_photo(
+                chat_id=user_id,
+                photo=photo,
+                caption=msg,
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+            )
+        else:
+            await bot.send_message(
+                chat_id=user_id,
+                text=msg,
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+            )
+    except Exception as e:
+        logger.warning(f"Cannot send request received message to {user_id}: {e}")
+
+
 async def send_welcome(bot: Bot, channel: dict, user_id: int):
-    """User কে welcome message পাঠাও।"""
+    """ইউজার অনুমোদন পাওয়ার পর স্বাগতম মেসেজ (Message 2) পাঠান।"""
     if channel.get("silent_mode"):
         return
     msg = channel.get("welcome_msg") or DEFAULT_WELCOME
     photo = channel.get("welcome_photo")
 
     buttons = []
+    # ১. ডিফল্ট চ্যানেল লিংক বাটন
     link = channel.get("invite_link") or channel.get("username")
     if link:
         if not link.startswith("http"):
             link = f"https://t.me/{link.lstrip('@')}"
         buttons.append([InlineKeyboardButton("📡 চ্যানেলে যান", url=link)])
-    buttons.append([InlineKeyboardButton("💬 সাপোর্ট", url="https://t.me/your_support")])
+        
+    # ২. কাস্টম বাটনসমূহ
+    custom_buttons = channel.get("welcome_buttons") or []
+    if isinstance(custom_buttons, str):
+        try:
+            custom_buttons = json.loads(custom_buttons)
+        except Exception:
+            custom_buttons = []
+            
+    for btn in custom_buttons:
+        buttons.append([InlineKeyboardButton(btn["text"], url=btn["url"])])
+        
     kb = InlineKeyboardMarkup(buttons) if buttons else None
 
     try:
@@ -516,10 +958,8 @@ async def send_welcome(bot: Bot, channel: dict, user_id: int):
                 parse_mode=ParseMode.HTML,
                 reply_markup=kb,
             )
-    except (Forbidden, BadRequest) as e:
+    except Exception as e:
         logger.warning(f"Cannot send welcome to {user_id}: {e}")
-    except TelegramError as e:
-        logger.error(f"send_welcome error: {e}")
 
 
 # ─── AUTO-ACCEPT CORE ─────────────────────────────────────────────────────────
@@ -578,11 +1018,15 @@ async def handle_join_request(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await do_accept(ctx.bot, channel_id, user_id, full_name, username)
         return
 
-    if not ch["auto_accept"]:
+    # জয়েন রিকোয়েস্ট পাঠানোর সাথে সাথেই যদি প্রথম তাৎক্ষণিক মেসেজ (Message 1) এনাবল থাকে, তবে তা পাঠান
+    if ch.get("request_msg_enabled"):
+        await send_request_received_message(ctx.bot, ch, user_id)
+
+    if not ch.get("auto_accept", 1):
         logger.info(f"Auto-accept paused for {channel_id}, skipping user {user_id}")
         return
 
-    delay = ch["delay_seconds"] or 0
+    delay = ch.get("delay_seconds", 0) or 0
 
     if delay > 0:
         accept_after = datetime.utcnow() + timedelta(seconds=delay)
@@ -680,16 +1124,89 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not ch:
             await q.edit_message_text("❌ চ্যানেল পাওয়া যায়নি।", reply_markup=kb_back_main())
             return
-        status = "✅ চালু" if ch["auto_accept"] else "⏸️ বন্ধ"
-        delay_m = ch["delay_seconds"] // 60
         text = (
             f"📡 <b>{ch['title']}</b>\n\n"
             f"🆔 ID: <code>{cid}</code>\n"
-            f"⚡ অটো-একসেপ্ট: {status}\n"
-            f"⏱️ ডিলে: {delay_m} মিনিট\n"
-            f"🔇 সাইলেন্ট: {'হ্যাঁ' if ch['silent_mode'] else 'না'}\n"
+            f"⚡ এখানে আপনার চ্যানেলের সমস্ত অটো-একসেপ্ট এবং স্বাগতম বার্তা বাটন সেটিংস নিয়ন্ত্রণ করুন।"
         )
         await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_manage(cid))
+        return
+
+    if data.startswith("ch:menu_aa:"):
+        cid = int(data.split(":")[-1])
+        ch = get_channel(cid)
+        if not ch:
+            await q.edit_message_text("❌ চ্যানেল পাওয়া যায়নি।", reply_markup=kb_back_main())
+            return
+        status = "✅ চালু" if ch.get("auto_accept", 1) else "⏸️ বন্ধ"
+        delay_m = ch.get("delay_seconds", 0) // 60
+        silent_status = "🔇 হ্যাঁ" if ch.get("silent_mode", 0) else "🔔 না"
+        text = (
+            f"⚡ <b>অটো-একসেপ্ট সেটিংস</b>\n\n"
+            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"⚡ অটো-একসেপ্ট: {status}\n"
+            f"⏱️ ডিলে: {delay_m} মিনিট\n"
+            f"🔇 সাইলেন্ট মোড: {silent_status}\n"
+        )
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_aa(cid))
+        return
+
+    if data.startswith("ch:menu_msg1:"):
+        cid = int(data.split(":")[-1])
+        ch = get_channel(cid)
+        if not ch:
+            await q.edit_message_text("❌ চ্যানেল পাওয়া যায়নি।", reply_markup=kb_back_main())
+            return
+        status = "🟢 সচল" if ch.get("request_msg_enabled", 0) else "🔴 অচল"
+        msg_text = ch.get("request_msg") or DEFAULT_REQUEST_MSG
+        photo_status = "🖼️ ফটো সেট করা আছে" if ch.get("request_photo") else "❌ ফটো সেট করা নেই"
+        
+        btns = ch.get("request_buttons") or []
+        if isinstance(btns, str):
+            try:
+                btns = json.loads(btns)
+            except Exception:
+                btns = []
+        btn_count = len(btns)
+        
+        text = (
+            f"💬 <b>তাৎক্ষণিক মেসেজ (Message 1) সেটিংস</b>\n\n"
+            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📊 অবস্থা: {status}\n"
+            f"📷 মিডিয়া: {photo_status}\n"
+            f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
+            f"💬 <b>মেসেজ প্রিভিউ:</b>\n{msg_text}"
+        )
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_msg1(cid))
+        return
+
+    if data.startswith("ch:menu_msg2:"):
+        cid = int(data.split(":")[-1])
+        ch = get_channel(cid)
+        if not ch:
+            await q.edit_message_text("❌ চ্যানেল পাওয়া যায়নি।", reply_markup=kb_back_main())
+            return
+        msg_text = ch.get("welcome_msg") or DEFAULT_WELCOME
+        photo_status = "🖼️ ফটো সেট করা আছে" if ch.get("welcome_photo") else "❌ ফটো সেট করা নেই"
+        link = ch.get("invite_link") or "সেট করা নেই"
+        
+        btns = ch.get("welcome_buttons") or []
+        if isinstance(btns, str):
+            try:
+                btns = json.loads(btns)
+            except Exception:
+                btns = []
+        btn_count = len(btns)
+        
+        text = (
+            f"🎉 <b>অনুমোদন মেসেজ (Message 2) সেটিংস</b>\n\n"
+            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"🔗 ইনভাইট লিংক: {link}\n"
+            f"📷 মিডিয়া: {photo_status}\n"
+            f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
+            f"💬 <b>মেসেজ প্রিভিউ:</b>\n{msg_text}"
+        )
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_msg2(cid))
         return
 
     if data == "ch:add_guide":
@@ -708,32 +1225,31 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         cid = int(data.split(":")[-1])
         ch = get_channel(cid)
         if ch:
-            new_val = 0 if ch["auto_accept"] else 1
+            new_val = 0 if ch.get("auto_accept", 1) else 1
             update_channel_setting(cid, "auto_accept", new_val)
             status = "✅ চালু করা হয়েছে" if new_val else "⏸️ বন্ধ করা হয়েছে"
             await q.answer(f"অটো-একসেপ্ট {status}", show_alert=True)
-        ch2 = get_channel(cid)
-        status2 = "✅ চালু" if ch2["auto_accept"] else "⏸️ বন্ধ"
-        delay_m = ch2["delay_seconds"] // 60
-        await q.edit_message_text(
-            f"📡 <b>{ch2['title']}</b>\n\n"
-            f"⚡ অটো-একসেপ্ট: {status2}\n"
-            f"⏱️ ডিলে: {delay_m} মিনিট",
-            parse_mode=ParseMode.HTML,
-            reply_markup=kb_channel_manage(cid),
-        )
-        return
+        data = f"ch:menu_aa:{cid}"
 
     if data.startswith("ch:toggle_silent:"):
         cid = int(data.split(":")[-1])
         ch = get_channel(cid)
         if ch:
-            new_val = 0 if ch["silent_mode"] else 1
+            new_val = 0 if ch.get("silent_mode", 0) else 1
             update_channel_setting(cid, "silent_mode", new_val)
             status = "🔇 চালু" if new_val else "🔔 বন্ধ"
             await q.answer(f"সাইলেন্ট মোড {status}", show_alert=True)
-        await handle_callback(update, ctx)  # re-render
-        return
+        data = f"ch:menu_aa:{cid}"
+
+    if data.startswith("ch:toggle_msg1:"):
+        cid = int(data.split(":")[-1])
+        ch = get_channel(cid)
+        if ch:
+            new_val = 0 if ch.get("request_msg_enabled", 0) else 1
+            update_channel_setting(cid, "request_msg_enabled", new_val)
+            status = "🟢 চালু করা হয়েছে" if new_val else "🔴 বন্ধ করা হয়েছে"
+            await q.answer(f"তাৎক্ষণিক মেসেজ ১ {status}", show_alert=True)
+        data = f"ch:menu_msg1:{cid}"
 
     if data.startswith("ch:set_delay:"):
         cid = int(data.split(":")[-1])
@@ -743,33 +1259,93 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "মিনিটে সংখ্যা পাঠান (0 = তাৎক্ষণিক একসেপ্ট)\n"
             "উদাহরণ: <code>5</code> (৫ মিনিট পরে একসেপ্ট হবে)",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:manage:{cid}")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_aa:{cid}")]])
         )
         return
 
-    if data.startswith("ch:set_msg:"):
+    if data.startswith("ch:set_msg1_text:"):
         cid = int(data.split(":")[-1])
-        USER_STATES[uid] = {"action": "set_msg", "channel_id": cid}
+        USER_STATES[uid] = {"action": "set_msg1_text", "channel_id": cid}
         await q.edit_message_text(
-            "💬 <b>ওয়েলকাম মেসেজ সেট করুন</b>\n\n"
+            "💬 <b>তাৎক্ষণিক মেসেজ ১ সেট করুন</b>\n\n"
             "HTML formatting সাপোর্টেড (<b>bold</b>, <i>italic</i>, <code>code</code>)\n\n"
             "ডিফল্টে ফিরতে: <code>reset</code> পাঠান",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:manage:{cid}")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg1:{cid}")]])
         )
         return
 
-    if data.startswith("ch:set_photo:"):
+    if data.startswith("ch:set_msg1_photo:"):
         cid = int(data.split(":")[-1])
-        USER_STATES[uid] = {"action": "set_photo", "channel_id": cid}
+        USER_STATES[uid] = {"action": "set_msg1_photo", "channel_id": cid}
         await q.edit_message_text(
-            "🖼️ <b>ওয়েলকাম ফটো সেট করুন</b>\n\n"
-            "একটি ছবি পাঠান। এই ছবিটি welcome message এর সাথে দেখাবে।\n\n"
+            "🖼️ <b>তাৎক্ষণিক মেসেজ ১ এর ফটো সেট করুন</b>\n\n"
+            "একটি ছবি পাঠান। এই ছবিটি তাৎক্ষণিক মেসেজের সাথে দেখাবে।\n\n"
             "ফটো সরাতে: <code>remove</code> পাঠান",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:manage:{cid}")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg1:{cid}")]])
         )
         return
+
+    if data.startswith("ch:add_msg1_btn:"):
+        cid = int(data.split(":")[-1])
+        USER_STATES[uid] = {"action": "add_msg1_btn_text", "channel_id": cid}
+        await q.edit_message_text(
+            "💬 <b>তাৎক্ষণিক মেসেজ ১ এ কাস্টম বাটন যোগ করুন</b>\n\n"
+            "বাটনটিতে যে লেখা দেখাতে চান তা লিখে পাঠান।\n\n"
+            "উদাহরণ: <code>📡 জয়েন করুন</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg1:{cid}")]])
+        )
+        return
+
+    if data.startswith("ch:clear_msg1_btn:"):
+        cid = int(data.split(":")[-1])
+        update_channel_setting(cid, "request_buttons", [])
+        await q.answer("🗑️ তাৎক্ষণিক মেসেজ ১ এর সব কাস্টম বাটন মুছে ফেলা হয়েছে", show_alert=True)
+        data = f"ch:menu_msg1:{cid}"
+
+    if data.startswith("ch:set_msg2_text:"):
+        cid = int(data.split(":")[-1])
+        USER_STATES[uid] = {"action": "set_msg2_text", "channel_id": cid}
+        await q.edit_message_text(
+            "💬 <b>স্বাগতম মেসেজ ২ সেট করুন</b>\n\n"
+            "HTML formatting সাপোর্টেড (<b>bold</b>, <i>italic</i>, <code>code</code>)\n\n"
+            "ডিফল্টে ফিরতে: <code>reset</code> পাঠান",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg2:{cid}")]])
+        )
+        return
+
+    if data.startswith("ch:set_msg2_photo:"):
+        cid = int(data.split(":")[-1])
+        USER_STATES[uid] = {"action": "set_msg2_photo", "channel_id": cid}
+        await q.edit_message_text(
+            "🖼️ <b>স্বাগতম মেসেজ ২ এর ফটো সেট করুন</b>\n\n"
+            "একটি ছবি পাঠান। এই ছবিটি স্বাগতম মেসেজের সাথে দেখাবে।\n\n"
+            "ফটো সরাতে: <code>remove</code> পাঠান",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg2:{cid}")]])
+        )
+        return
+
+    if data.startswith("ch:add_msg2_btn:"):
+        cid = int(data.split(":")[-1])
+        USER_STATES[uid] = {"action": "add_msg2_btn_text", "channel_id": cid}
+        await q.edit_message_text(
+            "💬 <b>স্বাগতম মেসেজ ২ এ কাস্টম বাটন যোগ করুন</b>\n\n"
+            "বাটনটিতে যে লেখা দেখাতে চান তা লিখে পাঠান।\n\n"
+            "উদাহরণ: <code>📡 সাপোর্ট গ্রুপ</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg2:{cid}")]])
+        )
+        return
+
+    if data.startswith("ch:clear_msg2_btn:"):
+        cid = int(data.split(":")[-1])
+        update_channel_setting(cid, "welcome_buttons", [])
+        await q.answer("🗑️ স্বাগতম মেসেজ ২ এর সব কাস্টম বাটন মুছে ফেলা হয়েছে", show_alert=True)
+        data = f"ch:menu_msg2:{cid}"
 
     if data.startswith("ch:set_link:"):
         cid = int(data.split(":")[-1])
@@ -778,7 +1354,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "🔗 <b>ইনভাইট লিংক সেট করুন</b>\n\n"
             "লিংক পাঠান (যেমন: <code>https://t.me/+xxxxx</code> বা <code>@username</code>)",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:manage:{cid}")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg2:{cid}")]])
         )
         return
 
@@ -1057,49 +1633,172 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text(
                 f"✅ ডিলে সেট হয়েছে: <b>{minutes} মিনিট</b>",
                 parse_mode=ParseMode.HTML,
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ চ্যানেল সেটিংস", callback_data=f"ch:manage:{cid}")]]),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ অটো-একসেপ্ট সেটিংস", callback_data=f"ch:menu_aa:{cid}")]]),
             )
         except (ValueError, TypeError):
             await msg.reply_text("❌ সঠিক সংখ্যা দিন (মিনিটে)। উদাহরণ: <code>5</code>", parse_mode=ParseMode.HTML)
         return
 
-    # ── Set welcome message ──
-    if action == "set_msg":
+    # ── Set Message 1 text ──
+    if action == "set_msg1_text":
+        cid = state.get("channel_id")
+        text = msg.text.strip() if msg.text else ""
+        if text.lower() == "reset":
+            update_channel_setting(cid, "request_msg", None)
+            resp = "✅ তাৎক্ষণিক মেসেজ ১ ডিফল্টে রিসেট করা হয়েছে।"
+        else:
+            update_channel_setting(cid, "request_msg", text)
+            resp = "✅ তাৎক্ষণিক মেসেজ ১ আপডেট হয়েছে!"
+        USER_STATES.pop(uid, None)
+        await msg.reply_text(
+            resp,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ তাৎক্ষণিক মেসেজ সেটিংস", callback_data=f"ch:menu_msg1:{cid}")]])
+        )
+        return
+
+    # ── Set Message 1 photo ──
+    if action == "set_msg1_photo":
+        cid = state.get("channel_id")
+        if msg.text and msg.text.strip().lower() == "remove":
+            update_channel_setting(cid, "request_photo", None)
+            USER_STATES.pop(uid, None)
+            await msg.reply_text(
+                "✅ তাৎক্ষণিক মেসেজ ১ এর ফটো সরানো হয়েছে।",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️  তাৎক্ষণিক মেসেজ সেটিংস", callback_data=f"ch:menu_msg1:{cid}")]])
+            )
+        elif msg.photo:
+            file_id = msg.photo[-1].file_id
+            update_channel_setting(cid, "request_photo", file_id)
+            USER_STATES.pop(uid, None)
+            await msg.reply_text(
+                "✅ তাৎক্ষণিক মেসেজ ১ এর ফটো সেট হয়েছে!",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️  তাৎক্ষণিক মেসেজ সেটিংস", callback_data=f"ch:menu_msg1:{cid}")]])
+            )
+        else:
+            await msg.reply_text("📷 একটি ছবি পাঠান অথবা 'remove' লিখুন।")
+        return
+
+    # ── Add Message 1 Button Text ──
+    if action == "add_msg1_btn_text":
+        cid = state.get("channel_id")
+        text = msg.text.strip() if msg.text else ""
+        if not text:
+            await msg.reply_text("❌ বাটনের নাম সঠিক নয়। দয়া করে আবার পাঠান।")
+            return
+        state["btn_text"] = text
+        state["action"] = "add_msg1_btn_url"
+        await msg.reply_text(
+            f"🔗 বাটনের নাম: <b>{text}</b>\n\nএবার বাটনটির লিংক (URL) পাঠান।\n"
+            "উদাহরণ: <code>https://t.me/example</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg1:{cid}")]])
+        )
+        return
+
+    # ── Add Message 1 Button URL ──
+    if action == "add_msg1_btn_url":
+        cid = state.get("channel_id")
+        url = msg.text.strip() if msg.text else ""
+        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("t.me/")):
+            await msg.reply_text("❌ লিংকটি অবশ্যই http://, https:// অথবা t.me/ দিয়ে শুরু হতে হবে। আবার পাঠান।")
+            return
+        
+        ch = get_channel(cid)
+        btns = ch.get("request_buttons") or []
+        if isinstance(btns, str):
+            try:
+                btns = json.loads(btns)
+            except Exception:
+                btns = []
+        btns.append({"text": state["btn_text"], "url": url})
+        
+        update_channel_setting(cid, "request_buttons", btns)
+        USER_STATES.pop(uid, None)
+        await msg.reply_text(
+            "✅ তাৎক্ষণিক মেসেজের কাস্টম বাটন যোগ করা হয়েছে!",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️  তাৎক্ষণিক মেসেজ সেটিংস", callback_data=f"ch:menu_msg1:{cid}")]])
+        )
+        return
+
+    # ── Set Message 2 text ──
+    if action == "set_msg2_text":
         cid = state.get("channel_id")
         text = msg.text.strip() if msg.text else ""
         if text.lower() == "reset":
             update_channel_setting(cid, "welcome_msg", None)
-            resp = "✅ ওয়েলকাম মেসেজ ডিফল্টে রিসেট করা হয়েছে।"
+            resp = "✅ স্বাগতম মেসেজ ২ ডিফল্টে রিসেট করা হয়েছে।"
         else:
             update_channel_setting(cid, "welcome_msg", text)
-            resp = "✅ ওয়েলকাম মেসেজ আপডেট হয়েছে!"
+            resp = "✅ স্বাগতম মেসেজ ২ আপডেট হয়েছে!"
         USER_STATES.pop(uid, None)
         await msg.reply_text(
             resp,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ চ্যানেল সেটিংস", callback_data=f"ch:manage:{cid}")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ স্বাগতম মেসেজ সেটিংস", callback_data=f"ch:menu_msg2:{cid}")]])
         )
         return
 
-    # ── Set welcome photo ──
-    if action == "set_photo":
+    # ── Set Message 2 photo ──
+    if action == "set_msg2_photo":
         cid = state.get("channel_id")
         if msg.text and msg.text.strip().lower() == "remove":
             update_channel_setting(cid, "welcome_photo", None)
             USER_STATES.pop(uid, None)
             await msg.reply_text(
-                "✅ ওয়েলকাম ফটো সরানো হয়েছে।",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ সেটিংস", callback_data=f"ch:manage:{cid}")]]),
+                "✅ স্বাগতম মেসেজ ২ এর ফটো সরানো হয়েছে।",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ স্বাগতম মেসেজ সেটিংস", callback_data=f"ch:menu_msg2:{cid}")]])
             )
         elif msg.photo:
             file_id = msg.photo[-1].file_id
             update_channel_setting(cid, "welcome_photo", file_id)
             USER_STATES.pop(uid, None)
             await msg.reply_text(
-                "✅ ওয়েলকাম ফটো সেট হয়েছে!",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ সেটিংস", callback_data=f"ch:manage:{cid}")]]),
+                "✅ স্বাগতম মেসেজ ২ এর ফটো সেট হয়েছে!",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ স্বাগতম মেসেজ সেটিংস", callback_data=f"ch:menu_msg2:{cid}")]])
             )
         else:
             await msg.reply_text("📷 একটি ছবি পাঠান অথবা 'remove' লিখুন।")
+        return
+
+    # ── Add Message 2 Button Text ──
+    if action == "add_msg2_btn_text":
+        cid = state.get("channel_id")
+        text = msg.text.strip() if msg.text else ""
+        if not text:
+            await msg.reply_text("❌ বাটনের নাম সঠিক নয়। দয়া করে আবার পাঠান।")
+            return
+        state["btn_text"] = text
+        state["action"] = "add_msg2_btn_url"
+        await msg.reply_text(
+            f"🔗 বাটনের নাম: <b>{text}</b>\n\nএবার বাটনটির লিংক (URL) পাঠান।\n"
+            "উদাহরণ: <code>https://t.me/example</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg2:{cid}")]])
+        )
+        return
+
+    # ── Add Message 2 Button URL ──
+    if action == "add_msg2_btn_url":
+        cid = state.get("channel_id")
+        url = msg.text.strip() if msg.text else ""
+        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("t.me/")):
+            await msg.reply_text("❌ লিংকটি অবশ্যই http://, https:// অথবা t.me/ দিয়ে শুরু হতে হবে। আবার পাঠান।")
+            return
+        
+        ch = get_channel(cid)
+        btns = ch.get("welcome_buttons") or []
+        if isinstance(btns, str):
+            try:
+                btns = json.loads(btns)
+            except Exception:
+                btns = []
+        btns.append({"text": state["btn_text"], "url": url})
+        
+        update_channel_setting(cid, "welcome_buttons", btns)
+        USER_STATES.pop(uid, None)
+        await msg.reply_text(
+            "✅ স্বাগতম মেসেজের কাস্টম বাটন যোগ করা হয়েছে!",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ স্বাগতম মেসেজ সেটিংস", callback_data=f"ch:menu_msg2:{cid}")]])
+        )
         return
 
     # ── Set invite link ──
@@ -1110,7 +1809,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         USER_STATES.pop(uid, None)
         await msg.reply_text(
             f"✅ লিংক সেট হয়েছে: {link}",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ সেটিংস", callback_data=f"ch:manage:{cid}")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ স্বাগতম মেসেজ সেটিংস", callback_data=f"ch:menu_msg2:{cid}")]]),
         )
         return
 
@@ -1136,7 +1835,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # ── Restore backup ──
     if action == "restore_backup":
-        if msg.document and msg.document.file_name.endswith(".db"):
+        if msg.document and (msg.document.file_name.endswith(".db") or msg.document.file_name.endswith(".json")):
             await msg.reply_text(
                 "⚠️ আপনি কি নিশ্চিতভাবে রিস্টোর করতে চান? বর্তমান ডেটা মুছে যাবে!",
                 reply_markup=InlineKeyboardMarkup([
@@ -1144,10 +1843,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                      InlineKeyboardButton("❌ বাতিল", callback_data="menu:backup")],
                 ]),
             )
-            # file_id store করো
             USER_STATES[uid] = {"action": "restore_confirm", "file_id": msg.document.file_id}
         else:
-            await msg.reply_text("❌ .db ফাইল পাঠান।")
+            await msg.reply_text("❌ .db অথবা .json ফাইল পাঠান।")
         return
 
     if action == "restore_confirm":
@@ -1168,18 +1866,27 @@ async def handle_restore_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         await q.edit_message_text("❌ কোনো ফাইল পাওয়া যায়নি। আবার চেষ্টা করুন।", reply_markup=kb_back_main())
         return
     try:
-        tmp = "/tmp/restore_tmp.db"
-        file = await ctx.bot.get_file(file_id)
-        await file.download_to_drive(tmp)
+        file_obj = await ctx.bot.get_file(file_id)
+        file_path_on_telegram = file_obj.file_path or ""
+        ext = ".json" if file_path_on_telegram.endswith(".json") else ".db"
+        tmp = f"restore_tmp{ext}"
+        
+        await file_obj.download_to_drive(tmp)
         if restore_from_file(tmp):
             USER_STATES.pop(uid, None)
+            
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+                
             await q.edit_message_text(
-                "✅ <b>রিস্টোর সফল হয়েছে!</b>\n\nBot restart করুন পরিবর্তনগুলো কার্যকর করতে।",
+                "✅ <b>রিস্টোর সফল হয়েছে!</b>\n\nপরিবর্তনগুলো কার্যকর হয়েছে।",
                 parse_mode=ParseMode.HTML,
                 reply_markup=kb_back_main(),
             )
         else:
-            await q.edit_message_text("❌ রিস্টোর ব্যর্থ হয়েছে। ফাইলটি বৈধ .db ফাইল কিনা পরীক্ষা করুন।",
+            await q.edit_message_text("❌ রিস্টোর ব্যর্থ হয়েছে। ফাইলটি বৈধ কিনা পরীক্ষা করুন।",
                                       reply_markup=kb_back_main())
     except Exception as e:
         logger.error(f"restore error: {e}")
