@@ -1173,8 +1173,8 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("bc:target_"):
         parts = data.split(":")
-        target_mode = parts[0].split("_")[-1]  # "all" or "cat"
-        action_type = parts[1]  # "post" or "poll"
+        target_mode = parts[1].split("_")[-1]  # "all" or "cat"
+        action_type = parts[2]  # "post" or "poll"
         
         if target_mode == "all":
             USER_STATES[uid] = {"action": f"{action_type}_wait_content" if action_type == "post" else "poll_wait_question", "target_type": "all"}
