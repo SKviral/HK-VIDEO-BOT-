@@ -154,6 +154,7 @@ def init_db():
                 request_msg     TEXT,
                 request_photo   TEXT,
                 request_buttons TEXT, -- JSON array
+                category        TEXT DEFAULT 'Uncategorized',
                 added_by        INTEGER,
                 added_at        TEXT DEFAULT (datetime('now'))
             );
@@ -191,6 +192,12 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_requests_status  ON join_requests(status);
             CREATE INDEX IF NOT EXISTS idx_queue_accept     ON pending_queue(accept_after);
             """)
+
+            # Table dynamic schema update (SQLite ALTER TABLE)
+            try:
+                conn.execute("ALTER TABLE channels ADD COLUMN category TEXT DEFAULT 'Uncategorized'")
+            except sqlite3.OperationalError:
+                pass
 
             # প্রথম super-admin insert
             for uid in ADMIN_IDS:
@@ -363,6 +370,7 @@ def upsert_channel(channel_id: int, title: str, username: str, invite_link: str,
                         "request_msg": None,
                         "request_photo": None,
                         "request_buttons": [],
+                        "category": "Uncategorized",
                         "added_at": datetime.utcnow().isoformat()
                     }
                 },
@@ -388,7 +396,7 @@ def update_channel_setting(channel_id: int, key: str, value):
         "auto_accept", "delay_seconds", "silent_mode",
         "welcome_msg", "welcome_photo", "invite_link",
         "welcome_buttons", "request_msg_enabled", "request_msg",
-        "request_photo", "request_buttons"
+        "request_photo", "request_buttons", "category"
     }
     if key not in allowed:
         return
@@ -720,6 +728,7 @@ def admin_only(func):
 def kb_main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📡 চ্যানেল ম্যানেজমেন্ট", callback_data="menu:channels")],
+        [InlineKeyboardButton("📢 ব্রডকাস্ট পোস্ট", callback_data="menu:broadcast")],
         [InlineKeyboardButton("📊 স্ট্যাটিস্টিক্স",       callback_data="menu:stats"),
          InlineKeyboardButton("⏳ পেন্ডিং কিউ",           callback_data="menu:queue")],
         [InlineKeyboardButton("👮 অ্যাডমিন ম্যানেজমেন্ট", callback_data="menu:admins")],
@@ -758,11 +767,12 @@ def kb_channel_manage(channel_id: int) -> InlineKeyboardMarkup:
     ch = get_channel(channel_id)
     if not ch:
         return kb_main_menu()
-    
+    category = ch.get("category") or "Uncategorized"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("⚡ অটো-একসেপ্ট সেটিংস", callback_data=f"ch:menu_aa:{channel_id}")],
         [InlineKeyboardButton("💬 তাৎক্ষণিক মেসেজ (Msg 1) সেটিংস", callback_data=f"ch:menu_msg1:{channel_id}")],
         [InlineKeyboardButton("🎉 অনুমোদন মেসেজ (Msg 2) সেটিংস", callback_data=f"ch:menu_msg2:{channel_id}")],
+        [InlineKeyboardButton(f"📂 ক্যাটাগরি: {category}", callback_data=f"ch:set_cat:{channel_id}")],
         [InlineKeyboardButton("📊 স্ট্যাটস", callback_data=f"stats:channel:{channel_id}"),
          InlineKeyboardButton("⏳ পেন্ডিং কিউ", callback_data=f"queue:channel:{channel_id}")],
         [InlineKeyboardButton("🗑️ চ্যানেল সরিয়ে দিন", callback_data=f"ch:remove:{channel_id}")],
@@ -808,6 +818,46 @@ def kb_channel_msg2(channel_id: int) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("➕ কাস্টম বাটন যোগ করুন", callback_data=f"ch:add_msg2_btn:{channel_id}")],
         [InlineKeyboardButton("🗑️ সব কাস্টম বাটন মুছুন", callback_data=f"ch:clear_msg2_btn:{channel_id}")],
         [InlineKeyboardButton("🔙 ব্যাক", callback_data=f"ch:manage:{channel_id}")]
+    ])
+
+
+def kb_broadcast_main() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📝 নতুন টেক্সট/মিডিয়া পোস্ট", callback_data="bc:type_post")],
+        [InlineKeyboardButton("📊 নতুন পোল/ভোট পোস্ট", callback_data="bc:type_poll")],
+        [InlineKeyboardButton("🔙 মেনু", callback_data="menu:main")],
+    ])
+
+
+def kb_broadcast_targets(action_type: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 সব চ্যানেলে পাঠান", callback_data=f"bc:target_all:{action_type}")],
+        [InlineKeyboardButton("📂 ক্যাটাগরি অনুযায়ী পাঠান", callback_data=f"bc:target_cat:{action_type}")],
+        [InlineKeyboardButton("🔙 ব্যাক", callback_data="menu:broadcast")],
+    ])
+
+
+def kb_broadcast_categories(action_type: str) -> InlineKeyboardMarkup:
+    channels = get_channels()
+    categories = set()
+    for ch in channels:
+        cat = ch.get("category")
+        if cat:
+            categories.add(cat)
+    if not categories:
+        categories.add("Uncategorized")
+    
+    rows = []
+    for cat in sorted(categories):
+        rows.append([InlineKeyboardButton(f"📂 {cat}", callback_data=f"bc:choose_cat:{action_type}:{cat}")])
+    rows.append([InlineKeyboardButton("🔙 ব্যাক", callback_data="menu:broadcast")])
+    return InlineKeyboardMarkup(rows)
+
+
+def kb_broadcast_confirm(action_type: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ পোস্ট পাঠান", callback_data=f"bc:send:{action_type}")],
+        [InlineKeyboardButton("❌ বাতিল", callback_data="menu:broadcast")],
     ])
 
 
@@ -1097,6 +1147,171 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "🤖 <b>Auto-Accept Bot — কন্ট্রোল প্যানেল</b>\n\nমেনু থেকে অপশন বেছে নিন:",
             parse_mode=ParseMode.HTML,
             reply_markup=kb_main_menu(),
+        )
+        return
+
+    # ── BROADCAST ──
+    if data == "menu:broadcast":
+        await q.edit_message_text(
+            "📢 <b>ব্রডকাস্ট সেন্টার</b>\n\n"
+            "এখানে আপনি সমস্ত চ্যানেলে অথবা ক্যাটাগরি অনুযায়ী পোস্ট ও পোল ব্রডকাস্ট করতে পারবেন।\n"
+            "একটি পোস্টের ধরন সিলেক্ট করুন:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=kb_broadcast_main(),
+        )
+        return
+
+    if data.startswith("bc:type_"):
+        action_type = data.split("_")[-1]  # "post" or "poll"
+        await q.edit_message_text(
+            "🎯 <b>টার্গেট চ্যানেল সিলেক্ট করুন</b>\n\n"
+            "আপনি কোথায় ব্রডকাস্ট করতে চান?",
+            parse_mode=ParseMode.HTML,
+            reply_markup=kb_broadcast_targets(action_type)
+        )
+        return
+
+    if data.startswith("bc:target_"):
+        parts = data.split(":")
+        target_mode = parts[0].split("_")[-1]  # "all" or "cat"
+        action_type = parts[1]  # "post" or "poll"
+        
+        if target_mode == "all":
+            USER_STATES[uid] = {"action": f"{action_type}_wait_content" if action_type == "post" else "poll_wait_question", "target_type": "all"}
+            prompt = (
+                "📝 **পোস্টের কনটেন্ট পাঠান**\n\nআপনি একটি টেক্সট মেসেজ বা ছবি (ক্যাপশন সহ) পাঠাতে পারেন।"
+                if action_type == "post" else
+                "📊 **পোলের প্রশ্নটি পাঠান**\n\nযেমন: <code>আজকের খেলা কেমন লাগলো?</code>"
+            )
+            await q.edit_message_text(
+                prompt,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="menu:broadcast")]])
+            )
+        else:
+            await q.edit_message_text(
+                "📂 **একটি ক্যাটাগরি নির্বাচন করুন**\n\nকোন ক্যাটাগরির চ্যানেলে ব্রডকাস্ট করতে চান:",
+                reply_markup=kb_broadcast_categories(action_type)
+            )
+        return
+
+    if data.startswith("bc:choose_cat:"):
+        parts = data.split(":")
+        action_type = parts[2]
+        cat_name = parts[3]
+        USER_STATES[uid] = {
+            "action": f"{action_type}_wait_content" if action_type == "post" else "poll_wait_question",
+            "target_type": "cat",
+            "target_cat": cat_name
+        }
+        prompt = (
+            f"📝 **পোস্টের কনটেন্ট পাঠান (ক্যাটাগরি: {cat_name})**\n\nআপনি একটি টেক্সট মেসেজ বা ছবি (ক্যাপশন সহ) পাঠাতে পারেন।"
+            if action_type == "post" else
+            f"📊 **পোলের প্রশ্নটি পাঠান (ক্যাটাগরি: {cat_name})**\n\nযেমন: <code>আজকের খেলা কেমন লাগলো?</code>"
+        )
+        await q.edit_message_text(
+            prompt,
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="menu:broadcast")]])
+        )
+        return
+
+    if data.startswith("bc:send:"):
+        action_type = data.split(":")[-1]
+        state = USER_STATES.get(uid)
+        if not state:
+            await q.edit_message_text("❌ কোনো ব্রডকাস্ট প্রসেস চলমান নেই।", reply_markup=kb_back_main())
+            return
+            
+        target_type = state.get("target_type")
+        target_cat = state.get("target_cat")
+        
+        # Get target channels
+        all_ch = get_channels()
+        targets = []
+        if target_type == "all":
+            targets = all_ch
+        elif target_type == "cat":
+            targets = [c for c in all_ch if c.get("category") == target_cat]
+            
+        if not targets:
+            await q.edit_message_text("❌ কোনো টার্গেট চ্যানেল পাওয়া যায়নি।", reply_markup=kb_back_main())
+            USER_STATES.pop(uid, None)
+            return
+            
+        await q.edit_message_text(f"⏳ ব্রডকাস্ট পাঠানো হচ্ছে... (টার্গেট: {len(targets)} টি চ্যানেল)", reply_markup=None)
+        
+        success = 0
+        failed = 0
+        
+        if action_type == "post":
+            # Build keyboard markup
+            btns = state.get("buttons") or []
+            kb_list = []
+            for btn in btns:
+                kb_list.append([InlineKeyboardButton(btn["text"], url=btn["url"])])
+            kb = InlineKeyboardMarkup(kb_list) if kb_list else None
+            
+            for ch in targets:
+                try:
+                    if state.get("media_type") == "photo":
+                        await ctx.bot.send_photo(
+                            chat_id=ch["channel_id"],
+                            photo=state["media_id"],
+                            caption=state["text"],
+                            parse_mode=ParseMode.HTML,
+                            reply_markup=kb
+                        )
+                    else:
+                        await ctx.bot.send_message(
+                            chat_id=ch["channel_id"],
+                            text=state["text"],
+                            parse_mode=ParseMode.HTML,
+                            reply_markup=kb
+                        )
+                    success += 1
+                except Exception as e:
+                    logger.error(f"Broadcast failed for channel {ch['channel_id']}: {e}")
+                    failed += 1
+                    
+        elif action_type == "poll":
+            question = state.get("question")
+            options = state.get("options") or []
+            for ch in targets:
+                try:
+                    await ctx.bot.send_poll(
+                        chat_id=ch["channel_id"],
+                        question=question,
+                        options=options,
+                        is_anonymous=True
+                    )
+                    success += 1
+                except Exception as e:
+                    logger.error(f"Broadcast poll failed for channel {ch['channel_id']}: {e}")
+                    failed += 1
+                    
+        USER_STATES.pop(uid, None)
+        await ctx.bot.send_message(
+            chat_id=uid,
+            text=f"📢 **ব্রডকাস্ট সম্পন্ন হয়েছে!**\n\n✅ সফল: {success} টি চ্যানেল\n❌ ব্যর্থ: {failed} টি চ্যানেল",
+            parse_mode=ParseMode.HTML,
+            reply_markup=kb_back_main()
+        )
+        return
+
+    if data.startswith("ch:set_cat:"):
+        cid = int(data.split(":")[-1])
+        ch = get_channel(cid)
+        curr_cat = ch.get("category") or "Uncategorized"
+        USER_STATES[uid] = {"action": "set_category", "channel_id": cid}
+        await q.edit_message_text(
+            f"📂 <b>চ্যানেলের ক্যাটাগরি সেট করুন</b>\n\n"
+            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📂 বর্তমান ক্যাটাগরি: <code>{curr_cat}</code>\n\n"
+            f"এই চ্যানেলের জন্য একটি নতুন ক্যাটাগরির নাম লিখে পাঠান। (যেমন: Movies, Sports, News)\n"
+            f"ডিফল্ট করতে: <code>Uncategorized</code> লিখে পাঠান।",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:manage:{cid}")]])
         )
         return
 
@@ -1691,6 +1906,161 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     action = state.get("action")
+
+    # ── Set category ──
+    if action == "set_category":
+        cid = state.get("channel_id")
+        text = msg.text.strip() if msg.text else ""
+        if not text:
+            await msg.reply_text("❌ সঠিক ক্যাটাগরি নাম দিন।")
+            return
+        update_channel_setting(cid, "category", text)
+        USER_STATES.pop(uid, None)
+        await msg.reply_text(
+            f"✅ ক্যাটাগরি সফলভাবে সেট করা হয়েছে: <b>{text}</b>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ চ্যানেল সেটিংস", callback_data=f"ch:manage:{cid}")]])
+        )
+        return
+
+    # ── Post Broadcast Wait Content ──
+    if action == "post_wait_content":
+        media_id = None
+        media_type = None
+        text = ""
+        
+        if msg.photo:
+            media_id = msg.photo[-1].file_id
+            media_type = "photo"
+            text = msg.caption or ""
+        elif msg.text:
+            text = msg.text
+        else:
+            await msg.reply_text("❌ দয়া করে শুধুমাত্র টেক্সট অথবা একটি ইমেজ পাঠান।")
+            return
+            
+        state["media_id"] = media_id
+        state["media_type"] = media_type
+        state["text"] = text
+        state["action"] = "post_wait_buttons"
+        
+        await msg.reply_text(
+            "🔗 **বাটনসমূহ যোগ করুন (ঐচ্ছিক)**\n\n"
+            "বাটন যোগ করতে নিচের ফরম্যাটে পাঠান (প্রতি লাইনে একটি বাটন):\n"
+            "<code>বাটনের নাম | লিঙ্ক</code>\n\n"
+            "যেমন:\n"
+            "<code>📡 জয়েন চ্যানেল | https://t.me/mychannel\n"
+            "💬 সাপোর্ট গ্রুপ | https://t.me/support</code>\n\n"
+            "বাটন ছাড়া পোস্ট করতে <code>skip</code> লিখে পাঠান।",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="menu:broadcast")]])
+        )
+        return
+
+    # ── Post Broadcast Wait Buttons ──
+    if action == "post_wait_buttons":
+        text_input = msg.text.strip() if msg.text else ""
+        btns = []
+        
+        if text_input.lower() != "skip":
+            lines = text_input.split("\n")
+            for line in lines:
+                if "|" in line:
+                    parts = line.split("|")
+                    btn_text = parts[0].strip()
+                    btn_url = parts[1].strip()
+                    if btn_url.startswith("http://") or btn_url.startswith("https://") or btn_url.startswith("t.me/"):
+                        btns.append({"text": btn_text, "url": btn_url})
+            
+            if not btns and text_input.lower() != "skip":
+                await msg.reply_text(
+                    "❌ কোনো বাটন পার্স করা যায়নি বা লিঙ্কের ফরম্যাট ভুল ছিল।\n"
+                    "আবার সঠিক ফরম্যাটে বাটন পাঠান অথবা <code>skip</code> লিখুন।",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+                
+        state["buttons"] = btns
+        state["action"] = "post_confirm"
+        
+        # Build preview inline markup
+        preview_btns = []
+        for btn in btns:
+            preview_btns.append([InlineKeyboardButton(btn["text"], url=btn["url"])])
+        kb = InlineKeyboardMarkup(preview_btns) if preview_btns else None
+        
+        # Show post preview
+        if state.get("media_type") == "photo":
+            await msg.reply_photo(
+                photo=state["media_id"],
+                caption=f"📝 **পোস্টের প্রিভিউ:**\n\n{state['text']}",
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb
+            )
+        else:
+            await msg.reply_text(
+                text=f"📝 **পোস্টের প্রিভিউ:**\n\n{state['text']}",
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb
+            )
+            
+        target_info = "সব চ্যানেল" if state.get("target_type") == "all" else f"ক্যাটাগরি: {state.get('target_cat')}"
+        await msg.reply_text(
+            f"⚠️ **টার্গেট: {target_info}**\n\nআপনি কি নিশ্চিতভাবে এই ব্রডকাস্ট পোস্টটি পাঠাতে চান?",
+            reply_markup=kb_broadcast_confirm("post")
+        )
+        return
+
+    # ── Poll Broadcast Wait Question ──
+    if action == "poll_wait_question":
+        question = msg.text.strip() if msg.text else ""
+        if not question:
+            await msg.reply_text("❌ পোলের প্রশ্নটি অবশ্যই সঠিক টেক্সট হতে হবে। আবার পাঠান।")
+            return
+            
+        state["question"] = question
+        state["action"] = "poll_wait_options"
+        
+        await msg.reply_text(
+            "📝 **পোলের অপশনগুলো পাঠান**\n\n"
+            "প্রতি লাইনে একটি করে অপশন লিখুন। সর্বনিম্ন ২টি এবং সর্বোচ্চ ১০টি অপশন দেওয়া যাবে।\n\n"
+            "যেমন:\n"
+            "<code>অসাধারণ\n"
+            "ভালো\n"
+            "মোটামুটি\n"
+            "খারাপ</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="menu:broadcast")]])
+        )
+        return
+
+    # ── Poll Broadcast Wait Options ──
+    if action == "poll_wait_options":
+        text_input = msg.text.strip() if msg.text else ""
+        options = [line.strip() for line in text_input.split("\n") if line.strip()]
+        
+        if len(options) < 2 or len(options) > 10:
+            await msg.reply_text("❌ অপশন সংখ্যা অবশ্যই ২ থেকে ১০ এর মধ্যে হতে হবে। দয়া করে আবার পাঠান।")
+            return
+            
+        state["options"] = options
+        state["action"] = "poll_confirm"
+        
+        opt_text = "\n".join([f"🔹 {opt}" for opt in options])
+        target_info = "সব চ্যানেল" if state.get("target_type") == "all" else f"ক্যাটাগরি: {state.get('target_cat')}"
+        
+        await msg.reply_text(
+            f"📊 **পোলের প্রিভিউ:**\n\n"
+            f"❓ প্রশ্ন: <b>{state['question']}</b>\n\n"
+            f"📝 অপশনসমূহ:\n{opt_text}\n\n"
+            f"🎯 টার্গেট: <b>{target_info}</b>",
+            parse_mode=ParseMode.HTML
+        )
+        await msg.reply_text(
+            "⚠️ আপনি কি নিশ্চিতভাবে এই পোল পোস্টটি পাঠাতে চান?",
+            reply_markup=kb_broadcast_confirm("poll")
+        )
+        return
 
     # ── Add channel ──
     if action == "add_channel":
