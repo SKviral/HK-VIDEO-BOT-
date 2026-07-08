@@ -1,1864 +1,478 @@
 <!DOCTYPE html>
 <html lang="bn">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title id="site-title">Video Call Links</title>
-    
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        :root {
-            --primary: #e91e8c;
-            --primary-dark: #c2186e;
-            --primary-glow: rgba(233, 30, 140, 0.35);
-            --bg: #0a0a0a;
-            --surface: #131313;
-            --card: #1a1a1a;
-            --card2: #1e1e1e;
-            --border: rgba(255,255,255,0.07);
-            --border2: rgba(255,255,255,0.12);
-            --text: #ffffff;
-            --text-muted: #888888;
-            --text-secondary: #aaaaaa;
-            --success: #22c55e;
-            --accent: #f59e0b;
-            --heart: #ff4d6a;
-            --nav-bg: #111111;
-            --header-bg: #0f0f0f;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'Inter', 'Noto Sans Bengali', sans-serif;
-            padding-bottom: 70px;
-            min-height: 100vh;
-            -webkit-user-select: none;
-            user-select: none;
-            overflow-x: hidden;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        /* ─── HEADER ─── */
-        header {
-            background: var(--header-bg);
-            padding: 0;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .header-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px 10px;
-        }
-
-        .header-brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .brand-icon {
-            width: 34px;
-            height: 34px;
-            background: var(--primary);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .brand-icon i {
-            color: #fff;
-            font-size: 14px;
-        }
-
-        .brand-name {
-            font-size: 17px;
-            font-weight: 700;
-            color: var(--text);
-            letter-spacing: 0.2px;
-        }
-
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-
-        .header-actions i {
-            font-size: 19px;
-            color: var(--text-secondary);
-            cursor: pointer;
-        }
-
-        .header-actions .fa-bell {
-            position: relative;
-        }
-
-        .notif-dot {
-            position: absolute;
-            top: -3px;
-            right: -3px;
-            width: 8px;
-            height: 8px;
-            background: var(--primary);
-            border-radius: 50%;
-            border: 2px solid var(--header-bg);
-        }
-
-        .avatar-circle {
-            width: 32px;
-            height: 32px;
-            background: linear-gradient(135deg, #7c3aed, #a855f7);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: 700;
-            color: #fff;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-
-        /* Category/Filter row */
-        .category-bar {
-            display: flex;
-            gap: 8px;
-            overflow-x: auto;
-            padding: 8px 16px 10px;
-            scrollbar-width: none;
-        }
-        .category-bar::-webkit-scrollbar { display: none; }
-
-        .cat-btn {
-            background: transparent;
-            color: var(--text-muted);
-            border: 1px solid var(--border2);
-            padding: 6px 16px;
-            border-radius: 20px;
-            cursor: pointer;
-            white-space: nowrap;
-            font-size: 13px;
-            font-weight: 600;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .cat-btn.active {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: #fff;
-        }
-
-        /* ─── FEED ─── */
-        .feed {
-            padding: 0;
-        }
-
-        /* ─── VIDEO CARD ─── */
-        .card {
-            background: transparent;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-            transition: background 0.2s;
-        }
-
-        /* Collage Thumbnail */
-        .thumb-collage {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 16/9;
-            overflow: hidden;
-            background: #111;
-            cursor: pointer;
-        }
-
-        .thumb-collage .main-img {
-            position: absolute;
-            left: 0; top: 0;
-            width: 57%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .thumb-collage .side-imgs {
-            position: absolute;
-            right: 0; top: 0;
-            width: 43%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .thumb-collage .side-img {
-            flex: 1;
-            object-fit: cover;
-            width: 100%;
-        }
-
-        .thumb-collage::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 50%);
-            pointer-events: none;
-        }
-
-        /* Divider between main and side */
-        .thumb-divider {
-            position: absolute;
-            left: 57%;
-            top: 0; bottom: 0;
-            width: 2px;
-            background: var(--bg);
-            z-index: 1;
-        }
-
-        .heart-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 5;
-            background: rgba(0,0,0,0.5);
-            border-radius: 50%;
-            width: 34px;
-            height: 34px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s;
-            backdrop-filter: blur(4px);
-        }
-
-        .heart-btn i {
-            font-size: 16px;
-            color: rgba(255,255,255,0.7);
-            transition: color 0.2s;
-        }
-
-        .heart-btn.liked i {
-            color: var(--heart);
-        }
-
-        /* Card Info Section */
-        .card-meta {
-            padding: 12px 14px 0;
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-        }
-
-        .uploader-avatar {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, var(--primary), #a855f7);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: 700;
-            color: #fff;
-            flex-shrink: 0;
-        }
-
-        .card-text-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .card-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #f0f0f0;
-            line-height: 1.45;
-            margin-bottom: 4px;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
-        }
-
-        .card-sub {
-            font-size: 12px;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-
-        .card-sub .channel-name {
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .card-sub .dot-sep {
-            opacity: 0.4;
-        }
-
-        .views-stat {
-            display: flex;
-            align-items: center;
-            gap: 3px;
-        }
-
-        .heart-count {
-            color: var(--heart);
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 3px;
-        }
-
-        .more-btn {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            padding: 4px;
-            font-size: 16px;
-            flex-shrink: 0;
-            line-height: 1;
-            margin-top: -2px;
-        }
-
-        /* Quick action row under meta */
-        .card-quick {
-            padding: 6px 14px 4px;
-            font-size: 12px;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .card-quick i {
-            font-size: 11px;
-        }
-
-        /* Unlock Button Row */
-        .card-actions {
-            padding: 8px 14px 14px;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .btn-unlock {
-            flex: 1;
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            padding: 11px 16px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: 700;
-            font-size: 13.5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.2s ease;
-            font-family: 'Inter', sans-serif;
-            letter-spacing: 0.3px;
-        }
-
-        .btn-unlock:hover, .btn-unlock:active {
-            background: var(--primary-dark);
-            transform: scale(0.98);
-        }
-
-        .btn-unlock i {
-            font-size: 13px;
-        }
-
-        .copy-share-btn {
-            width: 44px;
-            height: 44px;
-            background: var(--card2);
-            border: 1px solid var(--border2);
-            border-radius: 10px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            color: var(--text-secondary);
-            font-size: 17px;
-            transition: all 0.2s;
-        }
-
-        .copy-share-btn:hover {
-            background: rgba(255,255,255,0.08);
-            color: #fff;
-        }
-
-        /* Full collection button */
-        .btn-full-collection {
-            background: linear-gradient(135deg, var(--accent), #f97316);
-            color: #fff;
-            border: none;
-            padding: 11px 14px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 12.5px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-
-        .btn-full-collection:hover {
-            transform: scale(0.98);
-            opacity: 0.92;
-        }
-
-        /* Reactions row */
-        .react-group {
-            display: flex;
-            gap: 8px;
-            padding: 0 14px 8px;
-        }
-
-        .react-btn {
-            background: var(--card2);
-            border: 1px solid var(--border);
-            color: var(--text-secondary);
-            padding: 7px 14px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            transition: all 0.2s ease;
-            flex: 1;
-            justify-content: center;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .react-btn:hover:not(:disabled) {
-            background: rgba(255,255,255,0.07);
-            color: #fff;
-        }
-
-        .react-btn.active-like {
-            background: rgba(34,197,94,0.12);
-            border-color: rgba(34,197,94,0.4);
-            color: var(--success);
-        }
-
-        .react-btn.active-dislike {
-            background: rgba(233,30,140,0.12);
-            border-color: rgba(233,30,140,0.4);
-            color: var(--primary);
-        }
-
-        .react-btn.comment-btn {
-            background: rgba(163,0,255,0.05);
-            border-color: rgba(163,0,255,0.2);
-        }
-
-        .react-btn:disabled {
-            cursor: not-allowed;
-            opacity: 0.55;
-        }
-
-        /* ─── BOTTOM NAV ─── */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0; right: 0;
-            background: var(--nav-bg);
-            border-top: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-around;
-            height: 62px;
-            z-index: 999;
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            cursor: pointer;
-            flex: 1;
-            height: 100%;
-            border: none;
-            background: none;
-            color: var(--text-muted);
-            transition: color 0.2s;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .nav-item.active {
-            color: var(--primary);
-        }
-
-        .nav-item i {
-            font-size: 20px;
-        }
-
-        .nav-item span {
-            font-size: 10px;
-            font-weight: 600;
-            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
-        }
-
-        /* ─── COMMENT MODAL ─── */
-        .comment-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.75);
-            backdrop-filter: blur(6px);
-            z-index: 2000;
-            display: none;
-            align-items: flex-end;
-            justify-content: center;
-        }
-
-        .comment-content {
-            background: #181818;
-            width: 100%;
-            max-width: 600px;
-            height: 72vh;
-            border-radius: 20px 20px 0 0;
-            display: flex;
-            flex-direction: column;
-            border-top: 1px solid var(--border2);
-            animation: slideUp 0.35s cubic-bezier(0.22,1,0.36,1);
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
-
-        .comment-handle {
-            display: flex;
-            justify-content: center;
-            padding: 10px 0 6px;
-        }
-
-        .comment-handle::before {
-            content: '';
-            width: 36px;
-            height: 4px;
-            background: rgba(255,255,255,0.15);
-            border-radius: 2px;
-        }
-
-        .comment-header {
-            padding: 2px 20px 14px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: 700;
-            font-size: 15px;
-        }
-
-        .close-comment {
-            background: rgba(255,255,255,0.06);
-            border-radius: 50%;
-            width: 30px; height: 30px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-            font-size: 15px;
-            border: 1px solid var(--border);
-        }
-
-        .comment-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .comment-item {
-            background: rgba(255,255,255,0.03);
-            padding: 12px 14px;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-        }
-
-        .comment-item strong {
-            color: var(--primary);
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .comment-item p {
-            font-size: 13px;
-            margin-top: 5px;
-            color: #ddd;
-            line-height: 1.5;
-        }
-
-        .admin-reply {
-            margin-top: 8px;
-            padding: 8px 10px;
-            border-radius: 8px;
-            border: 1px dashed rgba(34,197,94,0.25);
-            border-left: 3px solid var(--success);
-            font-size: 12px;
-            color: #c0f0d8;
-        }
-
-        .comment-input-area {
-            padding: 12px 16px;
-            background: #111;
-            display: flex;
-            gap: 8px;
-            border-top: 1px solid var(--border);
-        }
-
-        .comment-input-area input {
-            flex: 1;
-            padding: 10px 16px;
-            border-radius: 24px;
-            border: 1px solid var(--border2);
-            background: rgba(255,255,255,0.05);
-            color: #fff;
-            outline: none;
-            font-size: 14px;
-            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
-        }
-
-        .comment-input-area input:focus {
-            border-color: var(--primary);
-        }
-
-        .comment-input-area button {
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            padding: 0 20px;
-            border-radius: 24px;
-            font-weight: 700;
-            cursor: pointer;
-            font-size: 13px;
-            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
-        }
-
-        /* ─── IDLE MODAL ─── */
-        .idle-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.88);
-            backdrop-filter: blur(10px);
-            z-index: 3000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .idle-box {
-            background: #1a1a1a;
-            border: 1px solid rgba(233,30,140,0.25);
-            padding: 30px 22px;
-            border-radius: 18px;
-            text-align: center;
-            max-width: 360px;
-            width: 100%;
-        }
-
-        .idle-box p {
-            font-size: 15px;
-            margin-bottom: 22px;
-            color: #eee;
-            line-height: 1.6;
-            font-weight: 500;
-        }
-
-        .idle-btn {
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            padding: 11px 32px;
-            border-radius: 24px;
-            cursor: pointer;
-            font-weight: 700;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .idle-btn:hover { opacity: 0.9; }
-
-        /* ─── TOAST ─── */
-        .custom-toast {
-            position: fixed;
-            top: 16px;
-            left: 50%;
-            transform: translate(-50%, -20px);
-            z-index: 9999;
-            background: rgba(18,18,18,0.96);
-            backdrop-filter: blur(8px);
-            border-radius: 24px;
-            padding: 10px 22px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
-            opacity: 0;
-            transition: all 0.3s cubic-bezier(0.22,1,0.36,1);
-            border: 1px solid rgba(255,255,255,0.06);
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            width: max-content;
-            max-width: 90vw;
-        }
-
-        .custom-toast.show {
-            transform: translate(-50%, 0);
-            opacity: 1;
-        }
-
-        .toast-content {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .toast-success i { color: var(--success); }
-        .toast-error i { color: var(--primary); }
-
-        /* ─── SEARCH ─── */
-        .search-wrap {
-            padding: 0 16px 10px;
-        }
-
-        .search-wrap input {
-            width: 100%;
-            padding: 9px 16px;
-            border-radius: 10px;
-            border: 1px solid var(--border2);
-            background: rgba(255,255,255,0.04);
-            color: #fff;
-            outline: none;
-            font-size: 14px;
-            font-family: 'Inter', sans-serif;
-            transition: border-color 0.2s;
-        }
-
-        .search-wrap input:focus {
-            border-color: var(--primary);
-            background: rgba(255,255,255,0.06);
-        }
-
-        .search-wrap input::placeholder { color: var(--text-muted); }
-
-        /* Online badge */
-        .online-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 11px;
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .online-badge .dot {
-            width: 6px;
-            height: 6px;
-            background: var(--success);
-            border-radius: 50%;
-            animation: pulse 1.4s infinite;
-        }
-
-        @keyframes pulse {
-            0%,100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-
-        /* Section divider */
-        .section-label {
-            padding: 12px 16px 6px;
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-        }
-
-        /* Empty state */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-            font-size: 14px;
-        }
-
-        .empty-state i {
-            font-size: 40px;
-            margin-bottom: 12px;
-            display: block;
-            opacity: 0.3;
-        }
-
-        /* PROFILE MODAL */
-        .profile-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.85);
-            backdrop-filter: blur(8px);
-            z-index: 2000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .profile-content {
-            background: #1a1a1a;
-            border: 1px solid rgba(233,30,140,0.2);
-            border-radius: 16px;
-            width: 100%;
-            max-width: 380px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            animation: modalFadeIn 0.3s ease;
-        }
-        @keyframes modalFadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        .profile-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px;
-            border-bottom: 1px solid var(--border);
-            font-weight: 600;
-            color: var(--primary);
-        }
-        .close-profile {
-            font-size: 24px;
-            cursor: pointer;
-            color: var(--text-muted);
-        }
-        .profile-body {
-            padding: 24px 16px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-        }
-        .profile-avatar-large {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: var(--primary);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            font-weight: bold;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 12px var(--primary-glow);
-            overflow: hidden;
-        }
-        .profile-avatar-large img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        #profile-name {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        #profile-id {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 20px;
-        }
-        .profile-stats {
-            display: flex;
-            gap: 16px;
-            width: 100%;
-            margin-bottom: 20px;
-        }
-        .stat-box {
-            flex: 1;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px;
-        }
-        .stat-num {
-            display: block;
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--primary);
-        }
-        .stat-lbl {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-        .profile-unlocked-section {
-            width: 100%;
-            text-align: left;
-            border-top: 1px solid var(--border);
-            padding-top: 16px;
-        }
-        .profile-unlocked-section h3 {
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 12px;
-            color: var(--text-muted);
-        }
-        .unlocked-videos-list {
-            max-height: 150px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .unlocked-video-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .unlocked-video-item:hover {
-            background: rgba(255,255,255,0.05);
-        }
-        .unlocked-video-thumb {
-            width: 40px;
-            height: 30px;
-            border-radius: 4px;
-            object-fit: cover;
-        }
-        .unlocked-video-title {
-            font-size: 12px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Reward Bot</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',Tahoma,sans-serif; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#0f1420; --card:#1a2130; --card2:#232c3f;
+    --accent:#ffb703; --accent2:#fb8500; --green:#2dd36f;
+    --text:#e9edf5; --muted:#8b97ad; --line:#2a3547;
+  }
+  body{ background:var(--bg); color:var(--text); min-height:100vh; padding-bottom:80px; }
+
+  /* Header */
+  .header{ background:linear-gradient(135deg,#1a2130,#111826); padding:16px; position:sticky; top:0; z-index:50; border-bottom:1px solid var(--line);}
+  .user-row{ display:flex; align-items:center; gap:12px; }
+  .avatar{ width:46px; height:46px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; color:#111; }
+  .uname{ font-weight:600; font-size:15px; }
+  .uid{ font-size:12px; color:var(--muted); }
+
+  /* Balance card */
+  .balance-card{ margin:14px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:20px; padding:22px; color:#1a1a1a; box-shadow:0 8px 24px rgba(251,133,0,.25); text-align:center;}
+  .balance-card .label{ font-size:13px; opacity:.8; font-weight:600;}
+  .balance-card .amount{ font-size:38px; font-weight:800; margin:6px 0; display:flex; align-items:center; justify-content:center; gap:8px;}
+  .balance-card .sub{ font-size:12px; opacity:.75; }
+
+  /* Quick stats */
+  .stats{ display:flex; gap:10px; margin:0 14px 14px; }
+  .stat{ flex:1; background:var(--card); border-radius:14px; padding:12px; text-align:center; border:1px solid var(--line);}
+  .stat .v{ font-size:18px; font-weight:700; color:var(--accent);}
+  .stat .l{ font-size:11px; color:var(--muted); margin-top:2px;}
+
+  /* Sections */
+  .section{ margin:0 14px 16px; }
+  .section-title{ font-size:15px; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+  .badge{ background:var(--accent2); color:#111; font-size:11px; padding:2px 8px; border-radius:20px; font-weight:700;}
+
+  /* Task item */
+  .task{ background:var(--card); border-radius:14px; padding:14px; display:flex; align-items:center; gap:12px; margin-bottom:10px; border:1px solid var(--line);}
+  .task-ic{ width:42px; height:42px; border-radius:12px; background:var(--card2); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;}
+  .task-info{ flex:1; min-width:0;}
+  .task-info .t{ font-size:14px; font-weight:600;}
+  .task-info .r{ font-size:12px; color:var(--accent); margin-top:3px;}
+  .btn{ background:var(--accent); color:#111; border:none; padding:8px 16px; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap; transition:.15s;}
+  .btn:active{ transform:scale(.95);}
+  .btn.done{ background:var(--green); color:#fff;}
+  .btn.claim{ background:var(--card2); color:var(--accent); border:1px solid var(--accent);}
+  .btn:disabled{ opacity:.5; cursor:not-allowed;}
+
+  /* Daily check-in */
+  .checkin{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+  .day{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 4px; text-align:center; position:relative;}
+  .day.claimed{ background:rgba(45,211,111,.15); border-color:var(--green);}
+  .day.today{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(255,183,3,.3);}
+  .day .d{ font-size:10px; color:var(--muted);}
+  .day .amt{ font-size:14px; font-weight:700; margin-top:2px;}
+  .day .check{ position:absolute; top:2px; right:4px; font-size:10px; color:var(--green);}
+
+  /* Bottom nav */
+  .nav{ position:fixed; bottom:0; left:0; right:0; background:var(--card); border-top:1px solid var(--line); display:flex; justify-content:space-around; padding:8px 0 10px; z-index:100;}
+  .nav-item{ display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--muted); font-size:11px; cursor:pointer; padding:4px 12px; transition:.15s;}
+  .nav-item.active{ color:var(--accent);}
+  .nav-item .ic{ font-size:20px;}
+
+  /* Pages */
+  .page{ display:none; animation:fade .25s;}
+  .page.active{ display:block;}
+  @keyframes fade{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+
+  /* Referral */
+  .ref-box{ background:var(--card); border:1px dashed var(--accent); border-radius:14px; padding:14px; margin-bottom:12px;}
+  .ref-link{ display:flex; gap:8px; margin-top:10px;}
+  .ref-link input{ flex:1; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px; color:var(--text); font-size:12px;}
+
+  /* Wallet / withdraw */
+  .wd-form input, .wd-form select{ width:100%; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; color:var(--text); margin-bottom:12px; font-size:14px;}
+  .wd-form input:focus{ outline:none; border-color:var(--accent);}
+  .full-btn{ width:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#111; border:none; padding:15px; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer;}
+  .full-btn:active{ transform:scale(.98);}
+
+  /* Toast */
+  .toast{ position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--card2); color:#fff; padding:12px 20px; border-radius:12px; font-size:14px; box-shadow:0 6px 20px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:.3s; z-index:999; border:1px solid var(--line); max-width:85%; text-align:center;}
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* History */
+  .hist{ background:var(--card); border-radius:12px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border:1px solid var(--line);}
+  .hist .l{ font-size:13px;} .hist .l small{ display:block; color:var(--muted); font-size:11px;}
+  .hist .amt{ font-weight:700; color:var(--green);}
+  .hist .amt.neg{ color:#ff6b6b;}
+
+  .empty{ text-align:center; color:var(--muted); padding:30px; font-size:13px;}
+</style>
 </head>
-<body oncontextmenu="return false;" ondragstart="return false;" ondrop="return false;">
+<body>
 
-<!-- ─── HEADER ─── -->
-<header>
-    <div class="header-top">
-        <div class="header-brand">
-            <div class="brand-icon">
-                <i class="fa-solid fa-play"></i>
-            </div>
-            <span class="brand-name" id="site-name">VIDEO CALL LINKS</span>
-        </div>
-        <div class="header-actions">
-            <i class="fa-solid fa-magnifying-glass" onclick="document.getElementById('searchInput').focus()"></i>
-            <div style="position:relative;">
-                <i class="fa-regular fa-bell"></i>
-                <span class="notif-dot"></span>
-            </div>
-            <div class="avatar-circle" id="user-avatar" onclick="openProfileModal()">R</div>
-        </div>
+<!-- HEADER -->
+<div class="header">
+  <div class="user-row">
+    <div class="avatar" id="avatar">U</div>
+    <div>
+      <div class="uname" id="uname">User</div>
+      <div class="uid" id="uid">ID: —</div>
     </div>
-
-    <div class="search-wrap" id="search-area" style="display:none;">
-        <input type="text" id="searchInput" placeholder="ভিডিও খুঁজুন..." onkeyup="searchVideo()">
-    </div>
-
-    <div class="category-bar" id="category-container">
-        <button class="cat-btn active" onclick="filterCategory('All', this)">All</button>
-    </div>
-</header>
-
-<!-- Search toggle -->
-<script>
-    document.querySelector('.fa-magnifying-glass').addEventListener('click', function() {
-        const sa = document.getElementById('search-area');
-        sa.style.display = sa.style.display === 'none' ? 'block' : 'none';
-        if(sa.style.display === 'block') document.getElementById('searchInput').focus();
-    });
-</script>
-
-<!-- ─── FEED ─── -->
-<div class="feed" id="video-list">
-    <div class="empty-state">
-        <i class="fa-regular fa-film"></i>
-        ভিডিও লোড হচ্ছে...
-    </div>
+  </div>
 </div>
 
-<!-- ─── BOTTOM NAV ─── -->
-<nav class="bottom-nav">
-    <button class="nav-item active" id="bn-home" onclick="showHome(this)">
-        <i class="fa-solid fa-house"></i>
-        <span>হোম</span>
-    </button>
-    <button class="nav-item" onclick="showFavorites(this)">
-        <i class="fa-regular fa-heart"></i>
-        <span>পছন্দের</span>
-    </button>
-    <button class="nav-item" onclick="openTutorial()">
-        <i class="fa-solid fa-circle-info"></i>
-        <span>টিউটোরিয়াল</span>
-    </button>
-    <button class="nav-item" onclick="copyAppLink()">
-        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-        <span>লিংক</span>
-    </button>
-    <button class="nav-item" onclick="openProfileModal()">
-        <i class="fa-regular fa-user"></i>
-        <span>প্রোফাইল</span>
-    </button>
-</nav>
+<!-- ============ HOME PAGE ============ -->
+<div class="page active" id="page-home">
+  <div class="balance-card">
+    <div class="label">Total Balance</div>
+    <div class="amount">🪙 <span id="balance">0</span></div>
+    <div class="sub">≈ <span id="usd">$0.00</span> USD</div>
+  </div>
 
-<!-- ─── PROFILE MODAL ─── -->
-<div id="profileModal" class="profile-modal">
-    <div class="profile-content">
-        <div class="profile-header">
-            <span>👤 আমার প্রোফাইল</span>
-            <div class="close-profile" onclick="closeProfileModal()">&times;</div>
-        </div>
-        <div class="profile-body">
-            <div class="profile-avatar-large" id="profile-avatar-large">
-                <span id="profile-initials-large">?</span>
-            </div>
-            <h2 id="profile-name">Loading...</h2>
-            <p id="profile-id">ID: </p>
-            
-            <div class="profile-stats">
-                <div class="stat-box">
-                    <span class="stat-num" id="unlocked-count">0</span>
-                    <span class="stat-lbl">আনলকড ভিডিও</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-num" id="views-count-user">0</span>
-                    <span class="stat-lbl">মোট ভিউস</span>
-                </div>
-            </div>
-            
-            <div class="profile-unlocked-section">
-                <h3>🔓 আপনার আনলক করা ভিডিওসমূহ</h3>
-                <div class="unlocked-videos-list" id="unlocked-videos-list">
-                    <p class="no-videos">এখনো কোনো ভিডিও আনলক করা হয়নি</p>
-                </div>
-            </div>
-        </div>
+  <div class="stats">
+    <div class="stat"><div class="v" id="stat-tasks">0</div><div class="l">Tasks Done</div></div>
+    <div class="stat"><div class="v" id="stat-streak">0</div><div class="l">Day Streak</div></div>
+    <div class="stat"><div class="v" id="stat-refs">0</div><div class="l">Referrals</div></div>
+  </div>
+
+  <!-- Daily check-in -->
+  <div class="section">
+    <div class="section-title">📅 Daily Check-in <span class="badge">+Bonus</span></div>
+    <div class="checkin" id="checkin"></div>
+    <button class="full-btn" style="margin-top:12px" id="checkinBtn" onclick="doCheckin()">Claim Today's Reward</button>
+  </div>
+
+  <!-- Featured reward -->
+  <div class="section">
+    <div class="section-title">🎁 Free Reward</div>
+    <div class="task">
+      <div class="task-ic">⏰</div>
+      <div class="task-info">
+        <div class="t">Hourly Bonus</div>
+        <div class="r" id="hourlyTxt">+50 coins every hour</div>
+      </div>
+      <button class="btn" id="hourlyBtn" onclick="claimHourly()">Claim</button>
     </div>
+    <div class="task">
+      <div class="task-ic">🎬</div>
+      <div class="task-info">
+        <div class="t">Watch Ad</div>
+        <div class="r">+30 coins per ad</div>
+      </div>
+      <button class="btn" onclick="watchAd()">Watch</button>
+    </div>
+  </div>
 </div>
 
-<!-- ─── COMMENT MODAL ─── -->
-<div id="commentModal" class="comment-modal">
-    <div class="comment-content">
-        <div class="comment-handle"></div>
-        <div class="comment-header">
-            <span>💬 কমেন্টস (<span id="modal-comment-count">0</span>)</span>
-            <div class="close-comment" onclick="closeComments()">&times;</div>
-        </div>
-        <div class="comment-list" id="comment-list-container"></div>
-        <div class="comment-input-area">
-            <input type="text" id="new-comment-text" placeholder="আপনার মতামত লিখুন...">
-            <button onclick="postComment()">সেন্ড</button>
-        </div>
-    </div>
+<!-- ============ TASKS PAGE ============ -->
+<div class="page" id="page-tasks">
+  <div class="section" style="margin-top:14px">
+    <div class="section-title">✅ Daily Tasks</div>
+    <div id="taskList"></div>
+  </div>
 </div>
 
-<!-- ─── IDLE ADS POPUP ─── -->
-<div id="idle-popup" class="idle-modal">
-    <div class="idle-box">
-        <p>আপনি কি ভিডিও দেখতে চান বা ওয়েবসাইটে থাকতে চান?</p>
-        <button class="idle-btn" onclick="handleIdlePopupContinue()">কন্টিনিউ করুন</button>
+<!-- ============ REFER PAGE ============ -->
+<div class="page" id="page-refer">
+  <div class="section" style="margin-top:14px">
+    <div class="section-title">👥 Invite Friends</div>
+    <div class="ref-box">
+      <div style="font-size:14px; font-weight:600;">Earn 500 🪙 per friend!</div>
+      <div style="font-size:12px; color:var(--muted); margin-top:4px;">Your friend also gets 100 🪙 bonus.</div>
+      <div class="ref-link">
+        <input type="text" id="refLink" readonly>
+        <button class="btn" onclick="copyRef()">Copy</button>
+      </div>
     </div>
+    <button class="full-btn" onclick="shareRef()">📤 Share Invite Link</button>
+
+    <div class="stats" style="margin:16px 0 0;">
+      <div class="stat"><div class="v" id="ref-count">0</div><div class="l">Total Invites</div></div>
+      <div class="stat"><div class="v" id="ref-earn">0</div><div class="l">Coins Earned</div></div>
+    </div>
+  </div>
 </div>
+
+<!-- ============ WALLET PAGE ============ -->
+<div class="page" id="page-wallet">
+  <div class="balance-card" style="margin-top:14px;">
+    <div class="label">Available to Withdraw</div>
+    <div class="amount">🪙 <span id="wBalance">0</span></div>
+    <div class="sub">Minimum withdrawal: 5000 🪙</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">💸 Withdraw</div>
+    <div class="wd-form">
+      <select id="wdMethod">
+        <option value="bKash">bKash</option>
+        <option value="Nagad">Nagad</option>
+        <option value="USDT">USDT (TRC20)</option>
+        <option value="Binance">Binance Pay</option>
+      </select>
+      <input type="text" id="wdAccount" placeholder="Account / Wallet number">
+      <input type="number" id="wdAmount" placeholder="Amount (coins)">
+      <button class="full-btn" onclick="withdraw()">Request Withdrawal</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📜 History</div>
+    <div id="history"></div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="nav">
+  <div class="nav-item active" onclick="go('home',this)"><span class="ic">🏠</span>Home</div>
+  <div class="nav-item" onclick="go('tasks',this)"><span class="ic">✅</span>Tasks</div>
+  <div class="nav-item" onclick="go('refer',this)"><span class="ic">👥</span>Refer</div>
+  <div class="nav-item" onclick="go('wallet',this)"><span class="ic">👛</span>Wallet</div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script>
-    document.addEventListener('keydown', e => {
-        if (e.ctrlKey && ['c','s','u','p'].includes(e.key)) e.preventDefault();
-    });
-    if (window.Telegram?.WebApp) window.Telegram.WebApp.expand();
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyB_jnlb1nBmE97XXJoM5406mPO-XohEZBE",
-        authDomain: "telegram-bot-ca2a6.firebaseapp.com",
-        projectId: "telegram-bot-ca2a6",
-        storageBucket: "telegram-bot-ca2a6.firebasestorage.app",
-        messagingSenderId: "146679908038",
-        appId: "1:146679908038:web:aff6867b1d7ed806aa79c7",
-        databaseURL: "https://telegram-bot-ca2a6-default-rtdb.firebaseio.com"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    let monetagZone = "", adsgramId = "", tgAppUrl = "";
-    let adsgramController = null, currentVideoForComment = null;
-    let tgUserName = "Anonymous User";
-    let tgUserId = null;
-    let idleTimeout = null, idleAdInterval = 0, idleAdsgramId = "", idleAdsgramController = null;
-
-    let repeatAdDelay = 0;
-    let adInterval = 15; // default to 15s to prevent rate limit
-    let userUnlockCache = {};
-    let userViewedCache = {};
-    let adCooldowns = {};
-    const videoUrls = {};
-
-    // ─── Safe Local Storage Helpers ───
-    const progressCache = {};
-    function getProgress(id) {
-        try {
-            const val = localStorage.getItem('unlock_progress_' + id);
-            const parsed = parseInt(val);
-            return isNaN(parsed) ? (progressCache[id] || 0) : parsed;
-        } catch (e) {
-            return progressCache[id] || 0;
-        }
-    }
-    function setProgress(id, val) {
-        progressCache[id] = val;
-        try {
-            localStorage.setItem('unlock_progress_' + id, val);
-        } catch (e) {
-            console.error("LocalStorage write failed:", e);
-        }
-    }
-
-    const fcProgressCache = {};
-    function getFcProgress(id) {
-        try {
-            const val = localStorage.getItem('fc_progress_' + id);
-            const parsed = parseInt(val);
-            return isNaN(parsed) ? (fcProgressCache[id] || 0) : parsed;
-        } catch (e) {
-            return fcProgressCache[id] || 0;
-        }
-    }
-    function setFcProgress(id, val) {
-        fcProgressCache[id] = val;
-        try {
-            localStorage.setItem('fc_progress_' + id, val);
-        } catch (e) {
-            console.error("LocalStorage write failed:", e);
-        }
-    }
-
-    const reactCache = {};
-    function getReact(id) {
-        try { return localStorage.getItem('react_' + id) || reactCache[id] || null; }
-        catch(e) { return reactCache[id] || null; }
-    }
-    function setReact(id, val) {
-        reactCache[id] = val;
-        try { localStorage.setItem('react_' + id, val); } catch(e) {}
-    }
-
-    function isUnlocked(id, unlockAds) {
-        if (unlockAds === undefined) {
-            const card = document.getElementById('card-' + id);
-            unlockAds = parseInt(card ? card.getAttribute('data-watch-ads') : '3') || 3;
-        }
-        const localProg = getProgress(id);
-        return (localProg >= unlockAds) || !!userUnlockCache[id];
-    }
-
-    // Cooldown logic
-    function isWithinCooldown(id) {
-        const unlockTime = userUnlockCache[id];
-        if (!unlockTime) return false;
-        if (unlockTime === true) return true;
-        const elapsedMinutes = (Date.now() - unlockTime) / 60000;
-        if (!repeatAdDelay || repeatAdDelay <= 0) return false;
-        return elapsedMinutes < repeatAdDelay;
-    }
-
-    function timeAgo(time) {
-        if(!time) return '';
-        const s = Math.floor((Date.now() - time)/1000);
-        let i;
-        i = s/31536000; if(i>1) return Math.floor(i)+" বছর আগে";
-        i = s/2592000;  if(i>1) return Math.floor(i)+" মাস আগে";
-        i = s/86400;    if(i>1) return Math.floor(i)+" দিন আগে";
-        i = s/3600;     if(i>1) return Math.floor(i)+" ঘণ্টা আগে";
-        i = s/60;       if(i>1) return Math.floor(i)+" মিনিট আগে";
-        return "কয়েক সেকেন্ড আগে";
-    }
-
-    function getInitials(name) {
-        if(!name) return 'V';
-        return name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,1);
-    }
-
-    const list = document.getElementById('video-list');
-    const videoCategoriesMap = {};
-    const renderedCategories = new Set(['All']);
-
-    function ensureCategoryButton(catName) {
-        if (!catName) return;
-        if (renderedCategories.has(catName)) return;
-        renderedCategories.add(catName);
-        
-        const cc = document.getElementById('category-container');
-        cc.insertAdjacentHTML('beforeend', `<button class="cat-btn" onclick="filterCategory('${catName}', this)">${catName}</button>`);
-    }
-
-    db.ref('categories').on('value', snap => {
-        const cc = document.getElementById('category-container');
-        const activeBtn = cc.querySelector('.cat-btn.active');
-        const activeCat = activeBtn ? activeBtn.textContent : 'All';
-        
-        cc.innerHTML = `<button class="cat-btn ${activeCat === 'All' ? 'active' : ''}" onclick="filterCategory('All', this)">All</button>`;
-        renderedCategories.clear();
-        renderedCategories.add('All');
-        
-        const cats = snap.val();
-        if(cats) Object.values(cats).forEach(c => {
-            if (c.name) ensureCategoryButton(c.name);
-        });
-        
-        // Also ensure categories from loaded videos are displayed
-        Object.values(videoCategoriesMap).forEach(cat => {
-            ensureCategoryButton(cat);
-        });
-        
-        // Restore active state
-        const btns = cc.querySelectorAll('.cat-btn');
-        let restored = false;
-        btns.forEach(btn => {
-            if (btn.textContent === activeCat) {
-                btn.classList.add('active');
-                restored = true;
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-        if (!restored && btns.length > 0) btns[0].classList.add('active');
-    });
-
-    if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
-        let u = window.Telegram.WebApp.initDataUnsafe.user;
-        tgUserId = String(u.id);
-        tgUserName = (u.first_name + " " + (u.last_name || "")).trim();
-        const initials = tgUserName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
-        document.getElementById('user-avatar').textContent = initials || 'U';
-    }
-
-    function loadUserState() {
-        if (!tgUserId) return Promise.resolve();
-        return db.ref(`users/${tgUserId}`).once('value').then(snap => {
-            const d = snap.val() || {};
-            userUnlockCache = d.unlocked || {};
-            userViewedCache = d.viewed || {};
-        });
-    }
-
-    function showToast(message, type = 'success') {
-        const old = document.querySelector('.custom-toast');
-        if (old) old.remove();
-        const toast = document.createElement('div');
-        toast.className = `custom-toast toast-${type}`;
-        toast.innerHTML = `<div class="toast-content"><i class="${type==='success'?'fa-solid fa-circle-check':'fa-solid fa-circle-xmark'}"></i><span>${message}</span></div>`;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.classList.add('show'), 10);
-        setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 350); }, 3000);
-    }
-
-    db.ref('settings').on('value', (snap) => {
-        const data = snap.val() || {};
-        document.getElementById('site-name').innerText = data.siteName || "VIDEO CALL LINKS";
-        tgAppUrl = data.tgAppUrl || "";
-        repeatAdDelay = parseInt(data.repeatAdDelay) || 0;
-        adInterval = (data.adInterval !== undefined && data.adInterval !== "") ? parseInt(data.adInterval) : 15;
-
-        if (data.adsgramId && data.adsgramId !== adsgramId) {
-            adsgramId = data.adsgramId;
-            if (window.Adsgram) adsgramController = window.Adsgram.init({ blockId: adsgramId });
-        }
-        if (data.monetagZone && data.monetagZone !== monetagZone) {
-            monetagZone = data.monetagZone;
-            let old = document.getElementById('monetag-script');
-            if(old) old.remove();
-            let s = document.createElement('script');
-            s.id='monetag-script'; s.src='//libtl.com/sdk.js';
-            s.setAttribute('data-zone', monetagZone);
-            s.setAttribute('data-sdk', `show_${monetagZone}`);
-            document.head.appendChild(s);
-        }
-        idleAdInterval = parseInt(data.idleAdInterval) || 0;
-        if(data.idleAdsgramId && data.idleAdsgramId !== idleAdsgramId) {
-            idleAdsgramId = data.idleAdsgramId;
-            if(window.Adsgram) idleAdsgramController = window.Adsgram.init({ blockId: idleAdsgramId });
-        }
-        resetIdleTimer();
-    });
-
-    const userRef = db.ref('online_users').push();
-    db.ref('.info/connected').on('value', s => {
-        if(s.val()){ userRef.onDisconnect().remove(); userRef.set(true); }
-    });
-
-    let targetVideoId = new URLSearchParams(window.location.search).get('v') || window.Telegram?.WebApp?.initDataUnsafe?.start_param;
-    let scrolledToTarget = false;
-    let loadedCount = 0;
-
-    loadUserState().catch(e => {
-        console.error("Failed to load user state:", e);
-    }).finally(() => {
-        db.ref('videos').on('child_added', (snapshot) => {
-            const id = snapshot.key;
-            const v = snapshot.val();
-            videoUrls[id] = v.url;
-            
-            const cat = v.category || 'Others';
-            videoCategoriesMap[id] = cat;
-            ensureCategoryButton(cat);
-
-            let commentCount = v.comments ? Object.keys(v.comments).length : 0;
-
-            if(loadedCount === 0) list.innerHTML = '';
-            loadedCount++;
-
-            let fcHtml = '';
-            let fcVisible = false;
-
-            if (v.fullCollectionUrl && v.fullCollectionUrl.trim() !== "") {
-                fcVisible = true;
-                let reqAds = parseInt(v.fullCollectionAds) || 0;
-                let prog = getFcProgress(id);
-                let btnText = prog >= reqAds
-                    ? '<i class="fa-solid fa-unlock"></i> Full Collection'
-                    : `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
-                let btnBg = prog >= reqAds
-                    ? 'linear-gradient(135deg,#22c55e,#16a34a)'
-                    : 'linear-gradient(135deg,#f59e0b,#f97316)';
-                fcHtml = `<button class="btn-full-collection" id="fc-btn-${id}" style="background:${btnBg}" onclick="handleFC('${id}','${v.fullCollectionUrl}',${reqAds})">${btnText}</button>`;
-            }
-
-            // Thumb: use main + two side images, or fallback
-            const thumbMain = v.thumb || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=400';
-            const thumbSide1 = v.thumb2 || v.thumb || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200';
-            const thumbSide2 = v.thumb3 || v.thumb || 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200';
-
-            const uploaderInitial = getInitials(v.uploaderName || 'V');
-            const viewCount = v.views || 0;
-            const likeCount = v.likes || 0;
-            const timeStr = timeAgo(v.timestamp);
-
-            const unlockAds = parseInt(v.watchAds) || parseInt(v.fullCollectionAds) || 3;
-            const unlockProg = getProgress(id);
-            const unlocked = isUnlocked(id);
-
-            let btnContent = "";
-            let btnBg = "";
-            let btnClass = "btn-unlock";
-
-            if (unlocked) {
-                if (isWithinCooldown(id)) {
-                    btnClass = "btn-unlock btn-unlocked";
-                    btnBg = 'linear-gradient(135deg,#22c55e,#16a34a)';
-                    btnContent = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
-                } else {
-                    btnClass = "btn-unlock btn-repeat";
-                    btnBg = 'linear-gradient(135deg,#f59e0b,#f97316)';
-                    btnContent = `<i class="fa-solid fa-rotate-right"></i> পুনরায় দেখুন (Repeat Ad)`;
-                }
-            } else {
-                if (unlockAds > 1) {
-                    btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK — ${unlockProg}/${unlockAds} ADS`;
-                } else {
-                    btnContent = `<i class="fa-solid fa-lock"></i> UNLOCK — Full Ad দেখুন`;
-                }
-            }
-
-            list.insertAdjacentHTML('afterbegin', `
-            <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}" data-watch-ads="${unlockAds}" data-url="${v.url}">
-                
-                <!-- Collage Thumbnail -->
-                <div class="thumb-collage" onclick="watchVideo('${id}','${v.url}')">
-                    <img class="main-img" src="${thumbMain}" id="img-${id}" draggable="false" alt="thumb">
-                    <div class="thumb-divider"></div>
-                    <div class="side-imgs">
-                        <img class="side-img" src="${thumbSide1}" draggable="false" alt="">
-                        <img class="side-img" src="${thumbSide2}" draggable="false" alt="">
-                    </div>
-                    <button class="heart-btn ${getReact(id)==='like' ? 'liked' : ''}" id="heart-btn-${id}" onclick="event.stopPropagation(); handleReact('${id}','like')">
-                        <i class="fa-${getReact(id)==='like' ? 'solid' : 'regular'} fa-heart"></i>
-                    </button>
-                </div>
-
-                <!-- Meta -->
-                <div class="card-meta">
-                    <div class="uploader-avatar">${uploaderInitial}</div>
-                    <div class="card-text-info">
-                        <div class="card-title" id="title-${id}">${v.title || 'Untitled'}</div>
-                        <div class="card-sub">
-                            <span class="channel-name">VIDEO CALL LINKS</span>
-                            <span class="dot-sep">·</span>
-                            <span class="views-stat"><span id="views-${id}">${viewCount}</span>K views</span>
-                            <span class="dot-sep">·</span>
-                            <span class="heart-count"><i class="fa-solid fa-heart"></i><span id="likes-${id}">${likeCount}</span></span>
-                        </div>
-                    </div>
-                    <button class="more-btn">⋮</button>
-                </div>
-
-                <!-- Quick CTA text -->
-                <div class="card-quick">
-                    <i class="fa-solid fa-hand-pointer"></i>
-                    <span>তাড়াতাড়ি দেখুন 👇</span>
-                </div>
-
-                <!-- Reactions -->
-                <div class="react-group">
-                    <button id="like-btn-${id}" class="react-btn ${getReact(id)==='like'?'active-like':''}" onclick="handleReact('${id}','like')" ${getReact(id)?'disabled':''}>
-                        <i class="fa-solid fa-thumbs-up"></i> <span id="like-count-${id}">${likeCount}</span>
-                    </button>
-                    <button id="dislike-btn-${id}" class="react-btn ${getReact(id)==='dislike'?'active-dislike':''}" onclick="handleReact('${id}','dislike')" ${getReact(id)?'disabled':''}>
-                        <i class="fa-solid fa-thumbs-down"></i>
-                    </button>
-                    <button class="react-btn comment-btn" onclick="openComments('${id}')">
-                        <i class="fa-solid fa-comment-dots"></i> <span id="comments-count-${id}">${commentCount}</span>
-                    </button>
-                </div>
-
-                <!-- Main Unlock Button + copy -->
-                <div class="card-actions">
-                    <button class="${btnClass}" id="btn-${id}" style="background:${btnBg}" onclick="watchVideo('${id}','${v.url}')">
-                        ${btnContent}
-                    </button>
-                    ${fcVisible ? '' : `<button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>`}
-                </div>
-
-                ${fcVisible ? `
-                <div class="card-actions" style="padding-top:0;">
-                    ${fcHtml}
-                    <button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>
-                </div>` : ''}
-            </div>
-            `);
-
-        if (targetVideoId === id && !scrolledToTarget) {
-            scrolledToTarget = true;
-            setTimeout(() => {
-                const el = document.getElementById('card-'+id);
-                if(el) { el.scrollIntoView({behavior:'smooth', block:'center'}); }
-            }, 800);
-        }
-    });
-    });
-
-    db.ref('videos').on('child_changed', (snapshot) => {
-        const id = snapshot.key, v = snapshot.val();
-        if(document.getElementById('views-'+id)) document.getElementById('views-'+id).innerText = v.views||0;
-        if(document.getElementById('likes-'+id)) document.getElementById('likes-'+id).innerText = v.likes||0;
-        if(document.getElementById('like-count-'+id)) document.getElementById('like-count-'+id).innerText = v.likes||0;
-        let cCount = v.comments ? Object.keys(v.comments).length : 0;
-        if(document.getElementById('comments-count-'+id)) document.getElementById('comments-count-'+id).innerText = cCount;
-        if(currentVideoForComment === id) renderComments(v.comments);
-
-        let fcBtn = document.getElementById('fc-btn-'+id);
-        if(fcBtn && v.fullCollectionUrl) {
-            let reqAds = parseInt(v.fullCollectionAds)||0;
-            let prog = getFcProgress(id);
-            if(prog>=reqAds) {
-                fcBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection';
-                fcBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-            } else {
-                fcBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
-                fcBtn.style.background = 'linear-gradient(135deg,#f59e0b,#f97316)';
-            }
-            fcBtn.onclick = function() { handleFC(id, v.fullCollectionUrl, reqAds); };
-        }
-    });
-
-    db.ref('videos').on('child_removed', (snapshot) => {
-        const el = document.getElementById('card-'+snapshot.key);
-        if(el) el.remove();
-    });
-
-    // Idle Timer
-    function resetIdleTimer() {
-        if(idleTimeout) clearTimeout(idleTimeout);
-        if(idleAdInterval <= 0) return;
-        idleTimeout = setTimeout(() => {
-            if(idleAdsgramController) document.getElementById('idle-popup').style.display = 'flex';
-        }, idleAdInterval * 1000);
-    }
-    ['mousemove','mousedown','keypress','touchmove','touchstart'].forEach(e => document.addEventListener(e, resetIdleTimer, true));
-
-    function handleIdlePopupContinue() {
-        document.getElementById('idle-popup').style.display = 'none';
-        if(idleAdsgramController) {
-            idleAdsgramController.show().then(()=>resetIdleTimer()).catch(()=>resetIdleTimer());
-        } else resetIdleTimer();
-    }
-
-    function handleReact(id, type) {
-        if(getReact(id)) return;
-        db.ref('videos/'+id+'/'+type+'s').transaction(v => (v||0)+1);
-        setReact(id, type);
-        ['like-btn-'+id, 'dislike-btn-'+id].forEach(bid => {
-            const b = document.getElementById(bid);
-            if(b) b.disabled = true;
-        });
-        const btn = document.getElementById(type+'-btn-'+id);
-        if(btn) btn.classList.add('active-'+type);
-        // Heart button
-        const hb = document.getElementById('heart-btn-'+id);
-        if(type==='like' && hb) {
-            hb.classList.add('liked');
-            hb.querySelector('i').className = 'fa-solid fa-heart';
-        }
-        showToast("আপনার প্রতিক্রিয়া সংরক্ষিত হয়েছে!", "success");
-    }
-
-    function watchVideo(id, url) {
-        const card = document.getElementById('card-'+id);
-        const unlockBtn = document.getElementById('btn-'+id);
-        const unlockAds = parseInt(card ? card.getAttribute('data-watch-ads') : '3') || 3;
-        
-        if (isUnlocked(id)) {
-            if (isWithinCooldown(id)) {
-                // Play directly
-                if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
-                else window.open(url, '_blank');
-            } else {
-                // Cooldown expired → show Repeat Ad (1 ad)
-                showToast("অ্যাক্সেস রিনিউ করতে ১টি অ্যাড দেখুন", "success");
-                showAdNetwork(() => {
-                    const now = Date.now();
-                    userUnlockCache[id] = now;
-                    if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
-                    
-                    if (unlockBtn) {
-                        unlockBtn.innerHTML = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
-                        unlockBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-                    }
-                    showToast("🎉 অ্যাক্সেস রিনিউ হয়েছে! ভিডিও ওপেন হচ্ছে...", "success");
-                    setTimeout(() => {
-                        if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
-                        else window.open(url, '_blank');
-                    }, 800);
-                });
-            }
-            return;
-        }
-
-        // v.views increment (only first time)
-        if(!localStorage.getItem('viewed_'+id)) {
-            db.ref('videos/'+id+'/views').transaction(v => (v||0)+1);
-            localStorage.setItem('viewed_'+id, 'true');
-        }
-
-        let prog = getProgress(id);
-        showToast(`অ্যাড দেখুন (${prog+1}/${unlockAds}) — তারপর ভিডিও ওপেন হবে`, "success");
-
-        showAdNetwork(() => {
-            prog = prog + 1;
-            setProgress(id, prog);
-
-            if(unlockBtn) {
-                if(prog >= unlockAds) {
-                    const now = Date.now();
-                    userUnlockCache[id] = now;
-                    if (tgUserId) db.ref(`users/${tgUserId}/unlocked/${id}`).set(now);
-                    
-                    unlockBtn.innerHTML = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
-                    unlockBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-                    showToast("🎉 আনলক হয়েছে! ভিডিও ওপেন হচ্ছে...", "success");
-                    setTimeout(() => {
-                        if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
-                        else window.open(url, '_blank');
-                    }, 800);
-                } else {
-                    showToast(`আরো ${unlockAds - prog}টি অ্যাড দেখতে হবে`, "success");
-                    if (adInterval > 0) {
-                        startButtonCooldown(id, adInterval, unlockAds, prog);
-                    } else {
-                        unlockBtn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK — ${prog}/${unlockAds} ADS`;
-                    }
-                }
-            }
-        });
-    }
-
-    function handleFC(id, url, reqAds) {
-        let prog = getFcProgress(id);
-        if(prog>=reqAds) {
-            if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
-            else window.open(url,'_blank');
-        } else {
-            showToast("কালেকশন আনলক করতে অ্যাড লোড হচ্ছে...", "success");
-            showAdNetwork(() => {
-                prog++;
-                setFcProgress(id, prog);
-                let btn = document.getElementById('fc-btn-'+id);
-                if(prog>=reqAds) {
-                    btn.innerHTML = '<i class="fa-solid fa-unlock"></i> Full Collection';
-                    btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-                    showToast("🎉 কালেকশন আনলক সম্পন্ন!", "success");
-                } else {
-                    btn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
-                }
-            });
-        }
-    }
-
-    function showAdNetwork(callback) {
-        let mFunc = window[`show_${monetagZone}`];
-        if(adsgramController) {
-            adsgramController.show().then(callback).catch(() => {
-                if(typeof mFunc==='function') mFunc().then(callback).catch(callback);
-                else callback();
-            });
-        } else if(typeof mFunc==='function') {
-            mFunc().then(callback).catch(callback);
-        } else callback();
-    }
-
-    function startButtonCooldown(id, duration, unlockAds, prog) {
-        const btn = document.getElementById('btn-' + id);
-        if (!btn) return;
-        
-        btn.disabled = true;
-        btn.classList.add('disabled');
-        btn.style.opacity = '0.6';
-        btn.style.cursor = 'not-allowed';
-        
-        let timeLeft = duration;
-        btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
-        
-        if (adCooldowns[id]) clearInterval(adCooldowns[id]);
-        
-        const timer = setInterval(() => {
-            timeLeft--;
-            if (timeLeft <= 0) {
-                clearInterval(timer);
-                delete adCooldowns[id];
-                btn.disabled = false;
-                btn.classList.remove('disabled');
-                btn.style.opacity = '1';
-                btn.style.cursor = 'pointer';
-                btn.innerHTML = `<i class="fa-solid fa-lock"></i> UNLOCK — ${prog}/${unlockAds} ADS`;
-            } else {
-                btn.innerHTML = `<i class="fa-solid fa-hourglass-start"></i> অপেক্ষা করুন (${timeLeft}s)`;
-            }
-        }, 1000);
-        
-        adCooldowns[id] = timer;
-    }
-
-    // ─── Bottom Navigation and Profile Modal Actions ───
-    let activeTab = 'home';
-    function showFavorites(el) {
-        activeTab = 'favorites';
-        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
-        el.classList.add('active');
-        
-        const cards = document.querySelectorAll('.card');
-        let count = 0;
-        cards.forEach(card => {
-            const id = card.id.replace('card-', '');
-            if (getReact(id) === 'like') {
-                card.style.display = '';
-                count++;
-            } else {
-                card.style.display = 'none';
-            }
-        });
-        
-        if (count === 0) {
-            showToast("আপনার পছন্দের তালিকায় কোনো ভিডিও নেই!", "info");
-        }
-    }
-
-    function showHome(el) {
-        activeTab = 'home';
-        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
-        el.classList.add('active');
-        filterCategory('All', document.querySelector('.cat-btn'));
-    }
-
-    function openTutorial() {
-        if (tgAppUrl) {
-            if (window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(tgAppUrl);
-            else window.open(tgAppUrl, '_blank');
-        }
-        else showToast("টিউটোরিয়াল লিঙ্ক সেট করা নেই!", "info");
-    }
-
-    function copyAppLink() {
-        const shareUrl = window.location.href;
-        navigator.clipboard.writeText(shareUrl).then(() => {
-            showToast("🔗 লিঙ্কটি ক্লিপবোর্ডে কপি করা হয়েছে!", "success");
-        }).catch(() => {
-            showToast("কপি করা যায়নি, লিঙ্কটি হলো: " + shareUrl, "info");
-        });
-    }
-
-    function openProfileModal() {
-        document.getElementById('profileModal').style.display = 'flex';
-        
-        document.getElementById('profile-name').textContent = tgUserName;
-        document.getElementById('profile-id').textContent = tgUserId ? `ID: ${tgUserId}` : "ID: N/A";
-        
-        const largeAvatar = document.getElementById('profile-avatar-large');
-        const photoUrl = (window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url) ? window.Telegram.WebApp.initDataUnsafe.user.photo_url : null;
-        if (photoUrl) {
-            largeAvatar.innerHTML = `<img src="${photoUrl}" alt="avatar" onerror="this.parentNode.innerHTML='<span id=\\'profile-initials-large\\'>${getInitials(tgUserName)}</span>'">`;
-        } else {
-            largeAvatar.innerHTML = `<span id="profile-initials-large">${getInitials(tgUserName)}</span>`;
-        }
-        
-        const unlockedIds = Object.keys(userUnlockCache).filter(key => !!userUnlockCache[key]);
-        document.getElementById('unlocked-count').textContent = unlockedIds.length;
-        
-        const viewedIds = Object.keys(userViewedCache).filter(key => !!userViewedCache[key]);
-        document.getElementById('views-count-user').textContent = viewedIds.length;
-        
-        const listContainer = document.getElementById('unlocked-videos-list');
-        listContainer.innerHTML = '';
-        
-        if (unlockedIds.length === 0) {
-            listContainer.innerHTML = '<p class="no-videos">এখনো কোনো ভিডিও আনলক করা হয়নি</p>';
-            return;
-        }
-        
-        unlockedIds.forEach(vidId => {
-            const cardTitleEl = document.getElementById('title-' + vidId);
-            const cardImgEl = document.getElementById('img-' + vidId);
-            
-            const title = cardTitleEl ? cardTitleEl.textContent : 'ভিডিও #' + vidId;
-            const thumb = cardImgEl ? cardImgEl.src : '';
-            
-            const itemHtml = `
-                <div class="unlocked-video-item" onclick="closeProfileModal(); watchVideo('${vidId}', videoUrls['${vidId}'])">
-                    ${thumb ? `<img class="unlocked-video-thumb" src="${thumb}" alt="">` : ''}
-                    <span class="unlocked-video-title">${title}</span>
-                </div>
-            `;
-            listContainer.insertAdjacentHTML('beforeend', itemHtml);
-        });
-    }
-
-    function closeProfileModal() {
-        document.getElementById('profileModal').style.display = 'none';
-    }
-
-    function openComments(id) {
-        currentVideoForComment = id;
-        document.getElementById('commentModal').style.display = 'flex';
-        db.ref('videos/'+id+'/comments').once('value', snap => renderComments(snap.val()));
-    }
-
-    function closeComments() {
-        document.getElementById('commentModal').style.display = 'none';
-        currentVideoForComment = null;
-    }
-
-    function renderComments(obj) {
-        const c = document.getElementById('comment-list-container');
-        c.innerHTML = '';
-        if(!obj) {
-            document.getElementById('modal-comment-count').innerText = '0';
-            c.innerHTML = '<p style="text-align:center;color:#666;margin-top:24px;font-size:14px;">প্রথম কমেন্টটি আপনি করুন!</p>';
-            return;
-        }
-        const keys = Object.keys(obj).reverse();
-        document.getElementById('modal-comment-count').innerText = keys.length;
-        keys.forEach(k => {
-            let item = obj[k];
-            let replyHtml = item.adminReply ? `<div class="admin-reply"><strong>Admin 🛡️:</strong> ${item.adminReply}</div>` : '';
-            c.innerHTML += `
-                <div class="comment-item">
-                    <strong><i class="fa-solid fa-circle-user"></i> ${item.userName||'Anonymous'}</strong>
-                    <p>${item.text}</p>
-                    ${replyHtml}
-                </div>`;
-        });
-    }
-
-    function postComment() {
-        if(!currentVideoForComment) return;
-        const inp = document.getElementById('new-comment-text');
-        const text = inp.value.trim();
-        if(!text) return;
-        db.ref('videos/'+currentVideoForComment+'/comments').push({
-            userName: tgUserName, text, timestamp: Date.now()
-        }).then(() => { inp.value=''; showToast("কমেন্ট পোস্ট হয়েছে!", "success"); });
-    }
-
-    function searchVideo() {
-        const q = document.getElementById('searchInput').value.toLowerCase();
-        document.querySelectorAll('.card').forEach(card => {
-            card.style.display = card.getAttribute('data-title').includes(q) ? '' : 'none';
-        });
-    }
-
-    function filterCategory(cat, btnEl) {
-        document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-        btnEl.classList.add('active');
-        document.querySelectorAll('.card').forEach(card => {
-            card.style.display = (cat==='All' || card.getAttribute('data-category')===cat) ? '' : 'none';
-        });
-        // also update nav active state
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.querySelector('.nav-item').classList.add('active');
-    }
-
-    function copyLink(id) {
-        let url = (tgAppUrl&&tgAppUrl.trim()!=='')
-            ? tgAppUrl.split('?')[0]+'?startapp='+id
-            : window.location.origin+window.location.pathname+'?v='+id;
-        const tmp = document.createElement('input');
-        document.body.appendChild(tmp);
-        tmp.value = url; tmp.select(); document.execCommand('copy');
-        document.body.removeChild(tmp);
-        showToast("শেয়ার লিংক কপি হয়েছে!", "success");
-    }
+/* ================= TELEGRAM INIT ================= */
+const tg = window.Telegram?.WebApp;
+let tgUser = { id: '10000000', first_name: 'Guest', username: 'guest' };
+if (tg) {
+  tg.ready(); tg.expand();
+  try { tg.setHeaderColor('#0f1420'); tg.setBackgroundColor('#0f1420'); } catch(e){}
+  if (tg.initDataUnsafe?.user) tgUser = tg.initDataUnsafe.user;
+}
+
+/* ================= STORAGE / STATE ================= */
+const KEY = 'rewardbot_' + tgUser.id;
+const COIN_TO_USD = 0.0001; // 10000 coin = $1
+const BOT_USERNAME = 'YourBotUsername_bot'; // <-- এখানে আপনার বটের ইউজারনেম দিন
+
+let state = load();
+function defaults(){
+  return {
+    balance: 0,
+    tasksDone: 0,
+    streak: 0,
+    refs: 0,
+    refEarn: 0,
+    lastCheckin: 0,
+    lastHourly: 0,
+    completedTasks: [],
+    history: []
+  };
+}
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); return s ? {...defaults(),...s} : defaults(); }
+  catch(e){ return defaults(); }
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+
+/* ================= TASK DATA ================= */
+const TASKS = [
+  { id:'tg1', ic:'📢', t:'Join Telegram Channel', r:200, url:'https://t.me/telegram' },
+  { id:'yt1', ic:'▶️', t:'Subscribe YouTube', r:250, url:'https://youtube.com' },
+  { id:'ig1', ic:'📸', t:'Follow Instagram', r:150, url:'https://instagram.com' },
+  { id:'fb1', ic:'👍', t:'Like Facebook Page', r:150, url:'https://facebook.com' },
+  { id:'tw1', ic:'🐦', t:'Follow on X (Twitter)', r:180, url:'https://x.com' },
+  { id:'app1', ic:'📱', t:'Try Partner App', r:300, url:'https://t.me/telegram' },
+];
+
+/* ================= UI HELPERS ================= */
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(()=>t.classList.remove('show'), 2200);
+  if(tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+}
+function fmt(n){ return n.toLocaleString(); }
+
+function addCoins(n, label){
+  state.balance += n;
+  state.history.unshift({ label, amt:n, time:Date.now() });
+  if(state.history.length>50) state.history.pop();
+  save(); render();
+}
+
+/* ================= RENDER ================= */
+function render(){
+  // header
+  const name = tgUser.first_name || 'User';
+  document.getElementById('uname').textContent = name + (tgUser.last_name? ' '+tgUser.last_name : '');
+  document.getElementById('uid').textContent = 'ID: ' + tgUser.id;
+  document.getElementById('avatar').textContent = name.charAt(0).toUpperCase();
+
+  // balances
+  document.getElementById('balance').textContent = fmt(state.balance);
+  document.getElementById('wBalance').textContent = fmt(state.balance);
+  document.getElementById('usd').textContent = '$' + (state.balance*COIN_TO_USD).toFixed(2);
+  document.getElementById('stat-tasks').textContent = state.tasksDone;
+  document.getElementById('stat-streak').textContent = state.streak;
+  document.getElementById('stat-refs').textContent = state.refs;
+  document.getElementById('ref-count').textContent = state.refs;
+  document.getElementById('ref-earn').textContent = fmt(state.refEarn);
+
+  renderCheckin();
+  renderTasks();
+  renderHistory();
+  updateHourlyBtn();
+
+  document.getElementById('refLink').value = `https://t.me/${BOT_USERNAME}?start=${tgUser.id}`;
+}
+
+/* ---- Daily check-in ---- */
+const CHECKIN_REWARDS = [50,75,100,150,200,300,500];
+function renderCheckin(){
+  const c = document.getElementById('checkin'); c.innerHTML='';
+  const todayIdx = state.streak % 7;
+  const claimedToday = isSameDay(state.lastCheckin, Date.now());
+  for(let i=0;i<7;i++){
+    const d = document.createElement('div');
+    d.className = 'day';
+    const claimed = i < todayIdx || (i===todayIdx && claimedToday);
+    if(claimed) d.classList.add('claimed');
+    if(i===todayIdx && !claimedToday) d.classList.add('today');
+    d.innerHTML = `${claimed?'<span class="check">✓</span>':''}<div class="d">Day ${i+1}</div><div class="amt">${CHECKIN_REWARDS[i]}</div>`;
+    c.appendChild(d);
+  }
+  const btn = document.getElementById('checkinBtn');
+  if(claimedToday){ btn.textContent='✓ Claimed Today'; btn.disabled=true; btn.style.opacity=.6; }
+  else { btn.textContent="Claim Today's Reward"; btn.disabled=false; btn.style.opacity=1; }
+}
+function doCheckin(){
+  if(isSameDay(state.lastCheckin, Date.now())){ toast('Already claimed today!'); return; }
+  // reset streak if missed a day
+  if(state.lastCheckin && !isSameDay(state.lastCheckin, Date.now()-86400000) && !isSameDay(state.lastCheckin, Date.now())){
+    if(Date.now() - state.lastCheckin > 2*86400000) state.streak = 0;
+  }
+  const reward = CHECKIN_REWARDS[state.streak % 7];
+  state.streak += 1;
+  state.lastCheckin = Date.now();
+  addCoins(reward, 'Daily Check-in');
+  toast(`🎉 +${reward} coins! Day ${((state.streak-1)%7)+1} claimed`);
+}
+
+/* ---- Tasks ---- */
+function renderTasks(){
+  const list = document.getElementById('taskList'); list.innerHTML='';
+  TASKS.forEach(task=>{
+    const done = state.completedTasks.includes(task.id);
+    const started = state.completedTasks.includes(task.id+'_started');
+    const div = document.createElement('div');
+    div.className='task';
+    let btn;
+    if(done) btn = `<button class="btn done" disabled>✓ Done</button>`;
+    else if(started) btn = `<button class="btn claim" onclick="claimTask('${task.id}',${task.r})">Claim</button>`;
+    else btn = `<button class="btn" onclick="startTask('${task.id}','${task.url}')">Go</button>`;
+    div.innerHTML = `
+      <div class="task-ic">${task.ic}</div>
+      <div class="task-info"><div class="t">${task.t}</div><div class="r">+${task.r} coins</div></div>
+      ${btn}`;
+    list.appendChild(div);
+  });
+}
+function startTask(id,url){
+  if(tg) tg.openLink ? tg.openLink(url) : window.open(url,'_blank');
+  else window.open(url,'_blank');
+  state.completedTasks.push(id+'_started'); save();
+  setTimeout(()=>{ renderTasks(); toast('✅ Now claim your reward!'); }, 1200);
+}
+function claimTask(id,reward){
+  if(state.completedTasks.includes(id)){ toast('Already claimed'); return; }
+  state.completedTasks.push(id);
+  state.tasksDone += 1;
+  addCoins(reward, 'Task Reward');
+  toast(`🎉 +${reward} coins earned!`);
+}
+
+/* ---- Hourly bonus ---- */
+const HOURLY = 50, HOUR_MS = 3600000;
+function claimHourly(){
+  const diff = Date.now() - state.lastHourly;
+  if(diff < HOUR_MS){ toast('⏳ Come back later!'); return; }
+  state.lastHourly = Date.now();
+  addCoins(HOURLY, 'Hourly Bonus');
+  toast(`⏰ +${HOURLY} hourly bonus!`);
+}
+function updateHourlyBtn(){
+  const btn=document.getElementById('hourlyBtn'), txt=document.getElementById('hourlyTxt');
+  const diff = Date.now()-state.lastHourly;
+  if(diff<HOUR_MS){
+    const left = HOUR_MS-diff;
+    const m=Math.floor(left/60000), s=Math.floor((left%60000)/1000);
+    btn.textContent=`${m}:${s.toString().padStart(2,'0')}`; btn.disabled=true;
+    txt.textContent='Next bonus available soon';
+  } else { btn.textContent='Claim'; btn.disabled=false; txt.textContent='+50 coins every hour'; }
+}
+setInterval(updateHourlyBtn, 1000);
+
+/* ---- Watch ad (demo) ---- */
+function watchAd(){
+  toast('📺 Loading ad...');
+  setTimeout(()=>{ addCoins(30,'Ad Reward'); toast('🎉 +30 coins for watching!'); }, 1500);
+}
+
+/* ---- Referral ---- */
+function copyRef(){
+  const inp=document.getElementById('refLink');
+  navigator.clipboard?.writeText(inp.value).then(()=>toast('📋 Link copied!'))
+   .catch(()=>{ inp.select(); document.execCommand('copy'); toast('📋 Copied!'); });
+}
+function shareRef(){
+  const link = document.getElementById('refLink').value;
+  const text = `🎁 Join and earn free rewards! Use my link: ${link}`;
+  if(tg?.openTelegramLink){
+    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('🎁 Join and earn free rewards!')}`);
+  } else { copyRef(); }
+}
+
+/* ---- Withdraw ---- */
+function withdraw(){
+  const method=document.getElementById('wdMethod').value;
+  const acc=document.getElementById('wdAccount').value.trim();
+  const amt=parseInt(document.getElementById('wdAmount').value);
+  if(!acc){ toast('⚠️ Enter your account number'); return; }
+  if(!amt || amt<=0){ toast('⚠️ Enter valid amount'); return; }
+  if(amt<5000){ toast('⚠️ Minimum 5000 coins'); return; }
+  if(amt>state.balance){ toast('⚠️ Insufficient balance'); return; }
+  state.balance -= amt;
+  state.history.unshift({ label:`Withdraw (${method})`, amt:-amt, time:Date.now() });
+  save(); render();
+  document.getElementById('wdAccount').value=''; document.getElementById('wdAmount').value='';
+  toast('✅ Withdrawal requested! Processing...');
+  // এখানে আপনি tg.sendData দিয়ে বট ব্যাকএন্ডে পাঠাতে পারেন:
+  if(tg?.sendData){
+    try{ tg.sendData(JSON.stringify({action:'withdraw',method,acc,amt})); }catch(e){}
+  }
+}
+
+/* ---- History ---- */
+function renderHistory(){
+  const h=document.getElementById('history'); h.innerHTML='';
+  if(!state.history.length){ h.innerHTML='<div class="empty">No transactions yet</div>'; return; }
+  state.history.slice(0,20).forEach(x=>{
+    const d=new Date(x.time);
+    const div=document.createElement('div'); div.className='hist';
+    div.innerHTML=`<div class="l">${x.label}<small>${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</small></div>
+      <div class="amt ${x.amt<0?'neg':''}">${x.amt<0?'':'+'}${fmt(x.amt)} 🪙</div>`;
+    h.appendChild(div);
+  });
+}
+
+/* ---- Navigation ---- */
+function go(page, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  window.scrollTo(0,0);
+  if(tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
+}
+
+/* ---- Utils ---- */
+function isSameDay(t1,t2){
+  if(!t1) return false;
+  const a=new Date(t1), b=new Date(t2);
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+
+/* ---- Referral bonus on first open (from start param) ---- */
+(function checkReferral(){
+  const startParam = tg?.initDataUnsafe?.start_param;
+  if(startParam && !state.refBonusGiven && startParam !== String(tgUser.id)){
+    state.refBonusGiven = true;
+    addCoins(100, 'Referral Welcome Bonus');
+    setTimeout(()=>toast('🎁 +100 welcome bonus!'), 800);
+  }
+})();
+
+/* ---- INIT ---- */
+render();
 </script>
 </body>
 </html>
