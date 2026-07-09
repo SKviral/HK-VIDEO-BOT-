@@ -564,6 +564,8 @@ def _send_media(ch_id, mtype, mid, caption, markup, protect=False):
     kw = {"caption": caption, "reply_markup": markup, "protect_content": False}
     if mtype == 'photo': bot.send_photo(ch_id, mid, **kw)
     elif mtype == 'video': bot.send_video(ch_id, mid, **kw)
+    elif mtype == 'document': bot.send_document(ch_id, mid, **kw)
+    elif mtype == 'audio': bot.send_audio(ch_id, mid, **kw)
 
 def execute_channel_post(chat_id, user, mtype, mid, scheduled_at=None):
     d_link = user.get("pending_link", "")
@@ -769,17 +771,33 @@ def cb(call):
         user = get_user(cid)
         pending_link = user.get("pending_link", "")
         match = re.search(r'[?&]start=([A-Za-z0-9]+)', pending_link)
-        thumb_file_id = None
+        auto_thumb_url = None
         orig_file_id = None
         orig_file_type = None
+        thumb_file_id = None
+        key = None
+        file_doc = None
         
         if match:
             key = match.group(1)
             file_doc = files_col.find_one({"$or": [{"file_key": key}, {"batch_id": key}]})
             if file_doc:
-                thumb_file_id = file_doc.get("thumb_file_id")
                 orig_file_id = file_doc.get("file_id")
                 orig_file_type = file_doc.get("type")
+                auto_thumb_url = file_doc.get("auto_thumb_url")
+                thumb_file_id = file_doc.get("thumb_file_id")
+                
+                # Check batch for auto_thumb_url
+                if not auto_thumb_url:
+                    other_doc = files_col.find_one({"batch_id": key, "auto_thumb_url": {"$exists": True, "$ne": ""}})
+                    if other_doc:
+                        auto_thumb_url = other_doc.get("auto_thumb_url")
+                
+                # Check batch for thumb_file_id
+                if not thumb_file_id:
+                    other_doc_thumb = files_col.find_one({"batch_id": key, "thumb_file_id": {"$exists": True, "$ne": None}})
+                    if other_doc_thumb:
+                        thumb_file_id = other_doc_thumb.get("thumb_file_id")
         
         if not orig_file_id:
             bot.answer_callback_query(call.id, "❌ কোনো ফাইল পাওয়া যায়নি!", show_alert=True)
@@ -789,28 +807,38 @@ def cb(call):
             bot.answer_callback_query(call.id, "⚠️ এই ফাইল থেকে থাম্বনেইল জেনারেট করা সম্ভব নয়!", show_alert=True)
             return
             
-        bot.answer_callback_query(call.id, "⏳ থাম্বনেইল জেনারেট হচ্ছে...")
-        status_msg = bot.send_message(cid, "⏳ ভিডিও থাম্বনেইল আপলোড হচ্ছে...")
+        # Fallback if auto_thumb_url is missing but thumb_file_id is present (e.g. older files)
+        if not auto_thumb_url:
+            bot.answer_callback_query(call.id, "⏳ থাম্বনেইল ডাউনলোড ও আপলোড হচ্ছে...")
+            status_msg = bot.send_message(cid, "⏳ ভিডিও থাম্বনেইল আপলোড হচ্ছে...")
+            thumb_url = upload_photo_to_imgbb(thumb_file_id)
+            if thumb_url:
+                auto_thumb_url = thumb_url
+                try: bot.delete_message(cid, status_msg.message_id)
+                except: pass
+            else:
+                try: bot.delete_message(cid, status_msg.message_id)
+                except: pass
+                auto_thumb_url = ""
+
+        bot.answer_callback_query(call.id, "⏳ থাম্বনেইল সেট করা হচ্ছে...")
         
-        thumb_url = upload_photo_to_imgbb(thumb_file_id)
-        if thumb_url:
-            update_user(cid, {
-                "pending_thumb_url": thumb_url,
-                "temp_media_id": orig_file_id,
-                "temp_media_type": orig_file_type,
-                "step": "none"
-            })
-            try: bot.delete_message(cid, status_msg.message_id)
-            except: pass
+        update_user(cid, {
+            "pending_thumb_url": auto_thumb_url,
+            "temp_media_id": thumb_file_id,
+            "temp_media_type": "photo",
+            "step": "none"
+        })
+        
+        if auto_thumb_url:
             bot.send_message(cid, "✅ থাম্বনেইল অটো-জেনারেট করা হয়েছে।")
-            try: bot.delete_message(cid, mid)
-            except: pass
-            user2 = get_user(cid)
-            _ask_web_title(cid, user2, orig_file_type, orig_file_id)
         else:
-            try: bot.delete_message(cid, status_msg.message_id)
-            except: pass
-            bot.send_message(cid, "❌ থাম্বনেইল জেনারেট করতে সমস্যা হয়েছে! দয়া করে নিজে আপলোড করুন বা Skip করুন।")
+            bot.send_message(cid, "⚠️ থাম্বনেইল ইমেজ সেট হয়েছে (ImgBB আপলোড করা যায়নি)।")
+            
+        try: bot.delete_message(cid, mid)
+        except: pass
+        user2 = get_user(cid)
+        _ask_web_title(cid, user2, "photo", thumb_file_id)
         return
 
     if data == "skip_thumb":
@@ -1827,9 +1855,15 @@ def handle_message(message):
                 if res: lch,lmid=log_ch['channel_id'],res.message_id
             except Exception as e: logger.warning(f"Log backup: {e}")
 
+        auto_thumb_url = ""
+        if thumb_id:
+            auto_thumb_url = upload_photo_to_imgbb(thumb_id)
+
         doc={"file_key":uid,"file_id":fid,"type":ftype,"uploader":cid,"log_chat_id":lch,"log_msg_id":lmid,"uploaded_at":datetime.now().isoformat()}
         if thumb_id:
             doc["thumb_file_id"] = thumb_id
+        if auto_thumb_url:
+            doc["auto_thumb_url"] = auto_thumb_url
 
         if step=="wait_batch":
             doc["batch_id"]=user.get("batch_id"); files_col.insert_one(doc)
