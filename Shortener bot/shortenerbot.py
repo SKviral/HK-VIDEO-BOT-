@@ -116,6 +116,7 @@ def apply_filters(text, uploader_id):
 # ══════════════════════════════════════════════════
 _DEFAULTS = {
     "header": "", "footer": "", "post_header": "", "post_footer": "",
+    "saved_title": "",
     "auto_delete": 0, "pending_link": "", "pending_short_link": "",
     "step": "none", "batch_id": "",
     "btn_download": 1, "btn_download_1": 1, "btn_download_2": 1, "btn_share": 1, "btn_tutorial": 1,
@@ -548,10 +549,13 @@ def _ask_web_title(chat_id, user, mtype, mid):
     default_title = (user.get("post_header") or "").strip()
     hint = f"\n\nবর্তমান caption/title: <b>{default_title[:80]}</b>" if default_title else ""
     m = InlineKeyboardMarkup()
-    m.add(InlineKeyboardButton("Skip", callback_data="skip_web_title"))
+    m.row(
+        InlineKeyboardButton("Skip ⏩", callback_data="skip_web_title"),
+        InlineKeyboardButton("Save Title 💾", callback_data="use_saved_title")
+    )
     bot.send_message(
         chat_id,
-        "ভিডিওর title/name দিন।\nনা দিতে চাইলে <code>/skip</code> লিখুন বা Skip বাটনে ক্লিক করুন।"
+        "ভিডিওর title/name দিন।\nনা দিতে চাইলে <code>/skip</code> লিখুন বা বাটন ব্যবহার করুন।"
         f"{hint}",
         reply_markup=m
     )
@@ -761,6 +765,85 @@ def cb(call):
     if not is_admin(cid):
         bot.answer_callback_query(call.id, "⛔ এডমিন অ্যাক্সেস প্রয়োজন!", show_alert=True); return
 
+    if data == "autogen_thumb":
+        user = get_user(cid)
+        pending_link = user.get("pending_link", "")
+        match = re.search(r'[?&]start=([A-Za-z0-9]+)', pending_link)
+        thumb_file_id = None
+        orig_file_id = None
+        orig_file_type = None
+        
+        if match:
+            key = match.group(1)
+            file_doc = files_col.find_one({"$or": [{"file_key": key}, {"batch_id": key}]})
+            if file_doc:
+                thumb_file_id = file_doc.get("thumb_file_id")
+                orig_file_id = file_doc.get("file_id")
+                orig_file_type = file_doc.get("type")
+        
+        if not orig_file_id:
+            bot.answer_callback_query(call.id, "❌ কোনো ফাইল পাওয়া যায়নি!", show_alert=True)
+            return
+            
+        if not thumb_file_id:
+            bot.answer_callback_query(call.id, "⚠️ এই ফাইল থেকে থাম্বনেইল জেনারেট করা সম্ভব নয়!", show_alert=True)
+            return
+            
+        bot.answer_callback_query(call.id, "⏳ থাম্বনেইল জেনারেট হচ্ছে...")
+        status_msg = bot.send_message(cid, "⏳ ভিডিও থাম্বনেইল আপলোড হচ্ছে...")
+        
+        thumb_url = upload_photo_to_imgbb(thumb_file_id)
+        if thumb_url:
+            update_user(cid, {
+                "pending_thumb_url": thumb_url,
+                "temp_media_id": orig_file_id,
+                "temp_media_type": orig_file_type,
+                "step": "none"
+            })
+            try: bot.delete_message(cid, status_msg.message_id)
+            except: pass
+            bot.send_message(cid, "✅ থাম্বনেইল অটো-জেনারেট করা হয়েছে।")
+            try: bot.delete_message(cid, mid)
+            except: pass
+            user2 = get_user(cid)
+            _ask_web_title(cid, user2, orig_file_type, orig_file_id)
+        else:
+            try: bot.delete_message(cid, status_msg.message_id)
+            except: pass
+            bot.send_message(cid, "❌ থাম্বনেইল জেনারেট করতে সমস্যা হয়েছে! দয়া করে নিজে আপলোড করুন বা Skip করুন।")
+        return
+
+    if data == "skip_thumb":
+        user = get_user(cid)
+        pending_link = user.get("pending_link", "")
+        match = re.search(r'[?&]start=([A-Za-z0-9]+)', pending_link)
+        orig_file_id = None
+        orig_file_type = None
+        
+        if match:
+            key = match.group(1)
+            file_doc = files_col.find_one({"$or": [{"file_key": key}, {"batch_id": key}]})
+            if file_doc:
+                orig_file_id = file_doc.get("file_id")
+                orig_file_type = file_doc.get("type")
+                
+        if not orig_file_id:
+            bot.answer_callback_query(call.id, "❌ কোনো ফাইল পাওয়া যায়নি!", show_alert=True)
+            return
+            
+        bot.answer_callback_query(call.id, "⏩ থাম্বনেইল স্কিপ করা হয়েছে।")
+        update_user(cid, {
+            "pending_thumb_url": "",
+            "temp_media_id": orig_file_id,
+            "temp_media_type": orig_file_type,
+            "step": "none"
+        })
+        try: bot.delete_message(cid, mid)
+        except: pass
+        user2 = get_user(cid)
+        _ask_web_title(cid, user2, orig_file_type, orig_file_id)
+        return
+
     if data == "confirm_vid_thumb":
         bot.delete_message(cid, mid)
         _ask_web_title(cid, user, user.get("temp_media_type"), user.get("temp_media_id")); return
@@ -776,6 +859,22 @@ def cb(call):
             title = (user.get("post_header") or "Untitled Video").strip()
         else:
             title = "Untitled Video"
+        update_user(cid, {"pending_web_title": title, "step": "none"})
+        user2 = get_user(cid)
+        _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
+        return
+
+    if data == "use_saved_title":
+        user = get_user(cid)
+        title = user.get("saved_title", "").strip()
+        if not title:
+            bot.answer_callback_query(call.id, "⚠️ সেটিংস থেকে প্রথমে Save Title সেট করুন!", show_alert=True)
+            return
+        
+        bot.answer_callback_query(call.id, "✅ সেভ টাইটেল ব্যবহার করা হয়েছে।")
+        try: bot.delete_message(cid, mid)
+        except: pass
+        
         update_user(cid, {"pending_web_title": title, "step": "none"})
         user2 = get_user(cid)
         _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
@@ -858,9 +957,15 @@ def cb(call):
         dl = f"https://t.me/{BOT_USERNAME}?start={bid}"
         sl = get_short_link(dl)
         update_user(cid, {"step":"wait_thumbnail","pending_link":dl,"pending_short_link":sl,"batch_id":"","pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
+        m = InlineKeyboardMarkup()
+        m.row(
+            InlineKeyboardButton("Auto Generate 🤖", callback_data="autogen_thumb"),
+            InlineKeyboardButton("Skip ⏩", callback_data="skip_thumb")
+        )
         bot.edit_message_text(
-            f"✅ <b>{cnt}টি ফাইল সেভ হয়েছে!</b>\n\n💎 Direct Link:\n<code>{dl}</code>\n\n📺 Short Link:\n<code>{sl}</code>\n\n🖼️ থাম্বনেইল (ছবি/ভিডিও) পাঠান বা /skip লিখুন।",
-            cid, mid, disable_web_page_preview=True
+            f"✅ <b>{cnt}টি ফাইল সেভ হয়েছে!</b>\n\n💎 Direct Link:\n<code>{dl}</code>\n\n📺 Short Link:\n<code>{sl}</code>\n\n🖼️ থাম্বনেইল (ছবি/ভিডিও) পাঠান অথবা নিচের বাটন ব্যবহার করুন।",
+            cid, mid, disable_web_page_preview=True,
+            reply_markup=m
         )
 
     elif data.startswith("postcat_"):
@@ -1065,17 +1170,19 @@ def cb(call):
         u  = get_user(cid)
         ph = u.get("post_header","") or "—"
         pf = u.get("post_footer","") or "—"
+        st = u.get("saved_title","") or "—"
         lf = _ico(u.get("link_filter",0))
         tf = _ico(u.get("text_filter",0))
         m = _mk()
         m.row(_btn("✏️ Header সেট",  "set_post_header"), _btn("🗑️ Header মুছুন","del_post_header"))
         m.row(_btn("✏️ Footer সেট",  "set_post_footer"), _btn("🗑️ Footer মুছুন","del_post_footer"))
+        m.row(_btn("✏️ Save Title সেট", "set_saved_title"), _btn("🗑️ Save Title মুছুন","del_saved_title"))
         m.add(_btn("─────────────────────────", "noop"))
         m.row(_btn(f"🔗 লিংক ফিল্টার {lf}",  "toggle_link_filter"), _btn(f"📝 টেক্সট ফিল্টার {tf}", "toggle_text_filter"))
         m.add(_btn("─────────────────────────", "noop"))
         m.add(_btn("🔘 পোস্ট বাটন অন/অফ ও কনফিগ", "menu_post_buttons"))
         m.add(_back("settings"))
-        bot.edit_message_text(f"📝 <b>পোস্ট সেটিংস</b>\n{'─'*26}\n📌 <b>Header:</b>\n<i>{ph[:80]}</i>\n\n📌 <b>Footer:</b>\n<i>{pf[:80]}</i>", cid, mid, reply_markup=m)
+        bot.edit_message_text(f"📝 <b>পোস্ট সেটিংস</b>\n{'─'*26}\n📌 <b>Header:</b>\n<i>{ph[:80]}</i>\n\n📌 <b>Footer:</b>\n<i>{pf[:80]}</i>\n\n📌 <b>Save Title:</b>\n<i>{st[:80]}</i>", cid, mid, reply_markup=m)
 
     elif data == "del_post_header":
         update_user(cid, {"post_header":""}); bot.answer_callback_query(call.id,"✅ Header মুছে ফেলা হয়েছে!", show_alert=True)
@@ -1083,6 +1190,10 @@ def cb(call):
 
     elif data == "del_post_footer":
         update_user(cid, {"post_footer":""}); bot.answer_callback_query(call.id,"✅ Footer মুছে ফেলা হয়েছে!", show_alert=True)
+        call.data="menu_post_settings"; cb(call)
+
+    elif data == "del_saved_title":
+        update_user(cid, {"saved_title":""}); bot.answer_callback_query(call.id,"✅ Save Title মুছে ফেলা হয়েছে!", show_alert=True)
         call.data="menu_post_settings"; cb(call)
 
     elif data == "toggle_link_filter":
@@ -1353,6 +1464,7 @@ def cb(call):
     _step_map = {
         "set_post_header": ("wait_post_header","📝 পোস্টের <b>Header</b> লিখুন:"),
         "set_post_footer": ("wait_post_footer","📝 পোস্টের <b>Footer</b> লিখুন:"),
+        "set_saved_title": ("wait_saved_title","📝 সেটিংসের জন্য <b>Save Title</b> লিখুন:"),
         "set_file_header": ("wait_file_header","📁 ফাইলের <b>Header</b> লিখুন:"),
         "set_file_footer": ("wait_file_footer","📁 ফাইলের <b>Footer</b> লিখুন:"),
         "add_channel":     ("wait_add_channel","📢 ফরম্যাট: <code>নাম | লিংক</code>"),
@@ -1562,7 +1674,8 @@ def handle_message(message):
         update_step(cid,"none"); return
 
     ts = {"wait_post_header":("post_header","📝 Post Header"),"wait_post_footer":("post_footer","📝 Post Footer"),
-          "wait_file_header":("header","📁 File Header"),"wait_file_footer":("footer","📁 File Footer")}
+          "wait_file_header":("header","📁 File Header"),"wait_file_footer":("footer","📁 File Footer"),
+          "wait_saved_title":("saved_title","📝 Save Title")}
     if step in ts and message.text:
         k,lbl=ts[step]; update_user(cid,{k:text,"step":"none"}); bot.send_message(cid,f"✅ <b>{lbl}</b> সেট হয়েছে!"); return
 
@@ -1611,8 +1724,29 @@ def handle_message(message):
 
     if step=="wait_thumbnail":
         if text=="/skip":
-            update_user(cid,{"step":"none","pending_link":"","pending_short_link":"","pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
-            bot.send_message(cid,"✅ স্কিপ করা হয়েছে।"); return
+            pending_link = user.get("pending_link", "")
+            match = re.search(r'[?&]start=([A-Za-z0-9]+)', pending_link)
+            orig_file_id = None
+            orig_file_type = None
+            if match:
+                key = match.group(1)
+                file_doc = files_col.find_one({"$or": [{"file_key": key}, {"batch_id": key}]})
+                if file_doc:
+                    orig_file_id = file_doc.get("file_id")
+                    orig_file_type = file_doc.get("type")
+            if orig_file_id:
+                update_user(cid, {
+                    "pending_thumb_url": "",
+                    "temp_media_id": orig_file_id,
+                    "temp_media_type": orig_file_type,
+                    "step": "none"
+                })
+                bot.send_message(cid, "✅ থাম্বনেইল স্কিপ করা হয়েছে।")
+                _ask_web_title(cid, get_user(cid), orig_file_type, orig_file_id)
+            else:
+                update_user(cid,{"step":"none","pending_link":"","pending_short_link":"","pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
+                bot.send_message(cid,"✅ স্কিপ করা হয়েছে।")
+            return
         if message.video:
             thumb_caption = message.caption or ""
             if thumb_caption:
@@ -1663,8 +1797,19 @@ def handle_message(message):
             bot.send_message(cid,"⚠️ ছবি বা ভিডিও দিন অথবা /skip লিখুন।"); return
 
     fid=ftype=None
-    if message.document:                           fid,ftype=message.document.file_id,"document"
-    elif message.video and step!="wait_thumbnail": fid,ftype=message.video.file_id,"video"
+    thumb_id=None
+    if message.document:
+        fid,ftype=message.document.file_id,"document"
+        if hasattr(message.document, 'thumbnail') and message.document.thumbnail:
+            thumb_id = message.document.thumbnail.file_id
+        elif hasattr(message.document, 'thumb') and message.document.thumb:
+            thumb_id = message.document.thumb.file_id
+    elif message.video and step!="wait_thumbnail":
+        fid,ftype=message.video.file_id,"video"
+        if hasattr(message.video, 'thumbnail') and message.video.thumbnail:
+            thumb_id = message.video.thumbnail.file_id
+        elif hasattr(message.video, 'thumb') and message.video.thumb:
+            thumb_id = message.video.thumb.file_id
     elif message.audio:                            fid,ftype=message.audio.file_id,"audio"
     elif message.photo and step!="wait_thumbnail": fid,ftype=message.photo[-1].file_id,"photo"
 
@@ -1683,6 +1828,8 @@ def handle_message(message):
             except Exception as e: logger.warning(f"Log backup: {e}")
 
         doc={"file_key":uid,"file_id":fid,"type":ftype,"uploader":cid,"log_chat_id":lch,"log_msg_id":lmid,"uploaded_at":datetime.now().isoformat()}
+        if thumb_id:
+            doc["thumb_file_id"] = thumb_id
 
         if step=="wait_batch":
             doc["batch_id"]=user.get("batch_id"); files_col.insert_one(doc)
@@ -1694,9 +1841,15 @@ def handle_message(message):
             dl=f"https://t.me/{BOT_USERNAME}?start={uid}"; sl=get_short_link(dl)
             update_user(cid,{"step":"wait_thumbnail","pending_link":dl,"pending_short_link":sl,"total_uploads":user.get("total_uploads",0)+1,"pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
             _inc_stat("uploads")
+            m = InlineKeyboardMarkup()
+            m.row(
+                InlineKeyboardButton("Auto Generate 🤖", callback_data="autogen_thumb"),
+                InlineKeyboardButton("Skip ⏩", callback_data="skip_thumb")
+            )
             bot.send_message(cid,
-                f"✅ <b>ফাইল সেভ হয়েছে!</b>\n\n💎 Direct Link:\n<code>{dl}</code>\n\n📺 Short Link:\n<code>{sl}</code>\n\n🖼️ থাম্বনেইল দিন বা /skip লিখুন।",
-                disable_web_page_preview=True
+                f"✅ <b>ফাইল সেভ হয়েছে!</b>\n\n💎 Direct Link:\n<code>{dl}</code>\n\n📺 Short Link:\n<code>{sl}</code>\n\n🖼️ থাম্বনেইল (ছবি/ভিডিও) পাঠান অথবা নিচের বাটন ব্যবহার করুন।",
+                disable_web_page_preview=True,
+                reply_markup=m
             )
 
 # ══════════════════════════════════════════════════
