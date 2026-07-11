@@ -618,6 +618,11 @@
                     <label>টার্গেট ভিডিও / ওয়েবসাইট লিঙ্ক (Target Website/Video URL)</label>
                     <div class="input-wrapper"><i class="fa-solid fa-link"></i><input type="text" id="add-url" placeholder="ইউজার অ্যাড দেখে এই লিঙ্কে যাবে"></div>
                 </div>
+                <div class="input-group">
+                    <label>ভিডিও আনলক করতে কতটি অ্যাড দেখতে হবে? <span style="color:#fb3a68;">★</span></label>
+                    <div class="input-wrapper"><i class="fa-solid fa-clapperboard"></i><input type="number" id="add-watch-ads" placeholder="যেমন: 1, 3, 5" min="1" value="1"></div>
+                    <p class="field-hint">মেইন আনলক বাটনের জন্য অ্যাড সংখ্যা। খালি রাখলে ডিফল্ট ১টি।</p>
+                </div>
 
                 <div class="section-label"><i class="fa-solid fa-unlock"></i> ফুল কালেকশন আনলক সেটিংস (ঐচ্ছিক)</div>
                 <div class="grid-2">
@@ -668,6 +673,10 @@
         <div class="input-group">
             <label>টার্গেট ভিডিও / ওয়েবসাইট লিঙ্ক</label>
             <div class="input-wrapper"><i class="fa-solid fa-link"></i><input type="text" id="edit-url"></div>
+        </div>
+        <div class="input-group">
+            <label>ভিডিও আনলক করতে কতটি অ্যাড দেখতে হবে?</label>
+            <div class="input-wrapper"><i class="fa-solid fa-clapperboard"></i><input type="number" id="edit-watch-ads" min="1"></div>
         </div>
 
         <div class="section-label"><i class="fa-solid fa-unlock"></i> ফুল কালেকশন আনলক সেটিংস</div>
@@ -836,6 +845,7 @@
         const c = document.getElementById('add-category').value || "Others";
         const th = document.getElementById('add-thumb').value.trim();
         const u = document.getElementById('add-url').value.trim();
+        const watchAds = parseInt(document.getElementById('add-watch-ads').value) || 1;
         const fcUrl = document.getElementById('add-fc-url').value.trim();
         const fcAds = parseInt(document.getElementById('add-fc-ads').value) || 0;
 
@@ -846,6 +856,7 @@
             category: c,
             thumb: th,
             url: u,
+            watchAds: watchAds,
             fullCollectionUrl: fcUrl,
             fullCollectionAds: fcAds,
             views: 0,
@@ -859,6 +870,7 @@
             document.getElementById('add-title').value = "";
             document.getElementById('add-thumb').value = "";
             document.getElementById('add-url').value = "";
+            document.getElementById('add-watch-ads').value = "1";
             document.getElementById('add-fc-url').value = "";
             document.getElementById('add-fc-ads').value = "";
         });
@@ -901,6 +913,7 @@
                         <div class="vcard-title">${v.title}</div>
                         <div class="vcard-badges">
                             <span class="badge badge-info"><i class="fa-solid fa-folder"></i> ${v.category || 'Others'}</span>
+                            <span class="badge"><i class="fa-solid fa-clapperboard"></i> ${v.watchAds || 1} Ads</span>
                             <span class="badge"><i class="fa-solid fa-eye"></i> ${v.views || 0} Views</span>
                             <span class="badge"><i class="fa-solid fa-thumbs-up"></i> ${v.likes || 0} Likes</span>
                             <span class="badge badge-success"><i class="fa-solid fa-comments"></i> ${cCount} Comments</span>
@@ -935,6 +948,7 @@
             document.getElementById('edit-category').value = v.category || "Others";
             document.getElementById('edit-thumb').value = v.thumb || "";
             document.getElementById('edit-url').value = v.url || "";
+            document.getElementById('edit-watch-ads').value = v.watchAds || 1;
             document.getElementById('edit-fc-url').value = v.fullCollectionUrl || "";
             document.getElementById('edit-fc-ads').value = v.fullCollectionAds || "";
             document.getElementById('editModal').style.display = 'flex';
@@ -948,6 +962,7 @@
             category: document.getElementById('edit-category').value || "Others",
             thumb: document.getElementById('edit-thumb').value.trim(),
             url: document.getElementById('edit-url').value.trim(),
+            watchAds: parseInt(document.getElementById('edit-watch-ads').value) || 1,
             fullCollectionUrl: document.getElementById('edit-fc-url').value.trim(),
             fullCollectionAds: parseInt(document.getElementById('edit-fc-ads').value) || 0
         }).then(() => {
