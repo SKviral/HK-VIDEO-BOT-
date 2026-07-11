@@ -1144,12 +1144,8 @@
     let adInterval = 15; // default to 15s to prevent rate limit
     let userUnlockCache = {};
     let userViewedCache = {};
+    let adCooldowns = {};
     const videoUrls = {};
-    const fcUrls = {};   // full-collection লিংক (special-char URL নিরাপদে রাখতে)
-
-    // ভিডিও আনলক করার মাঝপথে বাটন কুলডাউন টাইমার রাখার জন্য (আগে ডিক্লেয়ার করা ছিল না — এই কারণেই
-    // ১টার বেশি অ্যাড লাগলে দ্বিতীয় অ্যাডের পর ReferenceError হয়ে বাটন আটকে যেত ও ভিডিও ওপেন হতো না)
-    const adCooldowns = {};
 
     // ─── Safe Local Storage Helpers ───
     const progressCache = {};
@@ -1370,7 +1366,6 @@
 
             if (v.fullCollectionUrl && v.fullCollectionUrl.trim() !== "") {
                 fcVisible = true;
-                fcUrls[id] = v.fullCollectionUrl;
                 let reqAds = parseInt(v.fullCollectionAds) || 0;
                 let prog = getFcProgress(id);
                 let btnText = prog >= reqAds
@@ -1379,7 +1374,7 @@
                 let btnBg = prog >= reqAds
                     ? 'linear-gradient(135deg,#22c55e,#16a34a)'
                     : 'linear-gradient(135deg,#f59e0b,#f97316)';
-                fcHtml = `<button class="btn-full-collection" id="fc-btn-${id}" style="background:${btnBg}" onclick="handleFC('${id}',null,${reqAds})">${btnText}</button>`;
+                fcHtml = `<button class="btn-full-collection" id="fc-btn-${id}" style="background:${btnBg}" onclick="handleFC('${id}','${v.fullCollectionUrl}',${reqAds})">${btnText}</button>`;
             }
 
             // Thumb: use main + two side images, or fallback
@@ -1422,7 +1417,7 @@
             <div class="card" id="card-${id}" data-title="${(v.title||'').toLowerCase()}" data-category="${v.category || 'Others'}" data-watch-ads="${unlockAds}" data-url="${v.url}">
                 
                 <!-- Collage Thumbnail -->
-                <div class="thumb-collage" onclick="watchVideo('${id}')">
+                <div class="thumb-collage" onclick="watchVideo('${id}','${v.url}')">
                     <img class="main-img" src="${thumbMain}" id="img-${id}" draggable="false" alt="thumb">
                     <div class="thumb-divider"></div>
                     <div class="side-imgs">
@@ -1471,7 +1466,7 @@
 
                 <!-- Main Unlock Button + copy -->
                 <div class="card-actions">
-                    <button class="${btnClass}" id="btn-${id}" style="background:${btnBg}" onclick="watchVideo('${id}')">
+                    <button class="${btnClass}" id="btn-${id}" style="background:${btnBg}" onclick="watchVideo('${id}','${v.url}')">
                         ${btnContent}
                     </button>
                     ${fcVisible ? '' : `<button class="copy-share-btn" onclick="copyLink('${id}')"><i class="fa-solid fa-link"></i></button>`}
@@ -1493,6 +1488,7 @@
             }, 800);
         }
     });
+    });
 
     db.ref('videos').on('child_changed', (snapshot) => {
         const id = snapshot.key, v = snapshot.val();
@@ -1505,7 +1501,6 @@
 
         let fcBtn = document.getElementById('fc-btn-'+id);
         if(fcBtn && v.fullCollectionUrl) {
-            fcUrls[id] = v.fullCollectionUrl;
             let reqAds = parseInt(v.fullCollectionAds)||0;
             let prog = getFcProgress(id);
             if(prog>=reqAds) {
@@ -1515,7 +1510,7 @@
                 fcBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Unlock Full (${prog}/${reqAds})`;
                 fcBtn.style.background = 'linear-gradient(135deg,#f59e0b,#f97316)';
             }
-            fcBtn.onclick = function() { handleFC(id, null, reqAds); };
+            fcBtn.onclick = function() { handleFC(id, v.fullCollectionUrl, reqAds); };
         }
     });
 
@@ -1560,40 +1555,16 @@
         showToast("আপনার প্রতিক্রিয়া সংরক্ষিত হয়েছে!", "success");
     }
 
-    // ─── ভিডিও/লিংক ওপেন করার কমন হেল্পার ───
-    // টেলিগ্রাম WebApp থাকলে openLink, নাহলে window.open — খালি বা ভুল URL হলে ইউজারকে জানায়
-    function openTargetLink(url) {
-        if (!url || typeof url !== 'string' || url.trim() === '') {
-            showToast("⚠️ এই ভিডিওর লিংক সেট করা নেই!", "error");
-            return false;
-        }
-        url = url.trim();
-        try {
-            if (window.Telegram?.WebApp?.openLink) {
-                window.Telegram.WebApp.openLink(url);
-            } else {
-                const w = window.open(url, '_blank');
-                if (!w) window.location.href = url; // পপআপ ব্লক হলে ফলব্যাক
-            }
-            return true;
-        } catch (e) {
-            console.error("Link open failed:", e);
-            window.location.href = url;
-            return true;
-        }
-    }
-
     function watchVideo(id, url) {
         const card = document.getElementById('card-'+id);
         const unlockBtn = document.getElementById('btn-'+id);
         const unlockAds = parseInt(card ? card.getAttribute('data-watch-ads') : '3') || 3;
-        // URL param খালি হলে videoUrls map বা data-url থেকে নিই (special-char URL হ্যান্ডেল করতে)
-        if (!url) url = videoUrls[id] || (card ? card.getAttribute('data-url') : '') || '';
-
+        
         if (isUnlocked(id)) {
             if (isWithinCooldown(id)) {
                 // Play directly
-                openTargetLink(url);
+                if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
+                else window.open(url, '_blank');
             } else {
                 // Cooldown expired → show Repeat Ad (1 ad)
                 showToast("অ্যাক্সেস রিনিউ করতে ১টি অ্যাড দেখুন", "success");
@@ -1607,7 +1578,10 @@
                         unlockBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
                     }
                     showToast("🎉 অ্যাক্সেস রিনিউ হয়েছে! ভিডিও ওপেন হচ্ছে...", "success");
-                    setTimeout(() => openTargetLink(url), 800);
+                    setTimeout(() => {
+                        if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
+                        else window.open(url, '_blank');
+                    }, 800);
                 });
             }
             return;
@@ -1635,7 +1609,10 @@
                     unlockBtn.innerHTML = `<i class="fa-solid fa-play"></i> সরাসরি দেখুন (Direct Play)`;
                     unlockBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
                     showToast("🎉 আনলক হয়েছে! ভিডিও ওপেন হচ্ছে...", "success");
-                    setTimeout(() => openTargetLink(url), 800);
+                    setTimeout(() => {
+                        if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
+                        else window.open(url, '_blank');
+                    }, 800);
                 } else {
                     showToast(`আরো ${unlockAds - prog}টি অ্যাড দেখতে হবে`, "success");
                     if (adInterval > 0) {
@@ -1649,10 +1626,10 @@
     }
 
     function handleFC(id, url, reqAds) {
-        if (!url) url = fcUrls[id] || '';   // onclick থেকে null এলে map থেকে নিই
         let prog = getFcProgress(id);
         if(prog>=reqAds) {
-            openTargetLink(url);
+            if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
+            else window.open(url,'_blank');
         } else {
             showToast("কালেকশন আনলক করতে অ্যাড লোড হচ্ছে...", "success");
             showAdNetwork(() => {
@@ -1798,7 +1775,7 @@
             const thumb = cardImgEl ? cardImgEl.src : '';
             
             const itemHtml = `
-                <div class="unlocked-video-item" onclick="closeProfileModal(); watchVideo('${vidId}')">
+                <div class="unlocked-video-item" onclick="closeProfileModal(); watchVideo('${vidId}', videoUrls['${vidId}'])">
                     ${thumb ? `<img class="unlocked-video-thumb" src="${thumb}" alt="">` : ''}
                     <span class="unlocked-video-title">${title}</span>
                 </div>
