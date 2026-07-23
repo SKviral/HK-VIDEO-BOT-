@@ -550,12 +550,15 @@ def _ask_web_title(chat_id, user, mtype, mid):
     hint = f"\n\nবর্তমান caption/title: <b>{default_title[:80]}</b>" if default_title else ""
     m = InlineKeyboardMarkup()
     m.row(
-        InlineKeyboardButton("Skip ⏩", callback_data="skip_web_title"),
+        InlineKeyboardButton("Use Post Title 📝", callback_data="use_post_title"),
         InlineKeyboardButton("Save Title 💾", callback_data="use_saved_title")
+    )
+    m.row(
+        InlineKeyboardButton("No Title 🚫", callback_data="use_no_title")
     )
     bot.send_message(
         chat_id,
-        "ভিডিওর title/name দিন।\nনা দিতে চাইলে <code>/skip</code> লিখুন বা বাটন ব্যবহার করুন।"
+        "ভিডিওর title/name দিন।\nনা দিতে চাইলে বাটন ব্যবহার করুন বা <code>/skip</code> লিখুন।"
         f"{hint}",
         reply_markup=m
     )
@@ -880,14 +883,14 @@ def cb(call):
         update_user(cid, {"step":"wait_thumbnail","temp_media_id":"","temp_media_type":""})
         bot.send_message(cid, "❌ বাতিল। নতুন থাম্বনেইল দিন।"); return
 
-    if data == "skip_web_title":
-        bot.delete_message(cid, mid)
+    if data in ["use_post_title", "skip_web_title"]:
+        try: bot.delete_message(cid, mid)
+        except: pass
         user = get_user(cid)
-        if user.get("auto_title_from_caption", 1):
-            title = (user.get("post_header") or "Untitled Video").strip()
-        else:
+        title = (user.get("post_header") or "Untitled Video").strip()
+        if not title:
             title = "Untitled Video"
-        update_user(cid, {"pending_web_title": title, "step": "none"})
+        update_user(cid, {"pending_web_title": title, "post_header": title, "step": "none"})
         user2 = get_user(cid)
         _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
         return
@@ -903,7 +906,16 @@ def cb(call):
         try: bot.delete_message(cid, mid)
         except: pass
         
-        update_user(cid, {"pending_web_title": title, "step": "none"})
+        update_user(cid, {"pending_web_title": title, "post_header": title, "step": "none"})
+        user2 = get_user(cid)
+        _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
+        return
+
+    if data == "use_no_title":
+        try: bot.delete_message(cid, mid)
+        except: pass
+        bot.answer_callback_query(call.id, "✅ টাইটেল ছাড়া পোস্ট করা হবে।")
+        update_user(cid, {"pending_web_title": "", "post_header": "", "step": "none"})
         user2 = get_user(cid)
         _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
         return
@@ -1741,11 +1753,10 @@ def handle_message(message):
     if step=="wait_web_title":
         title = "" if text == "/skip" else text.strip()
         if not title:
-            if user.get("auto_title_from_caption", 1):
-                title = (user.get("post_header") or "Untitled Video").strip()
-            else:
+            title = (user.get("post_header") or "Untitled Video").strip()
+            if not title:
                 title = "Untitled Video"
-        update_user(cid, {"pending_web_title": title, "step": "none"})
+        update_user(cid, {"pending_web_title": title, "post_header": title, "step": "none"})
         user2 = get_user(cid)
         _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
         return
@@ -1842,6 +1853,8 @@ def handle_message(message):
     elif message.photo and step!="wait_thumbnail": fid,ftype=message.photo[-1].file_id,"photo"
 
     if fid:
+        if message.caption:
+            update_user(cid, {"post_header": message.caption})
         uid=str(uuid.uuid4().hex)[:10]; lch=""; lmid=""
         log_ch=auto_channels_col.find_one({"type":"log","status":"on"})
         if log_ch:
