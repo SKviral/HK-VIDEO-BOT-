@@ -587,7 +587,8 @@ def execute_channel_post(chat_id, user, mtype, mid, scheduled_at=None):
         })
         cat = get_category(user.get("pending_category","")) if user.get("pending_category") else None
         cat_name = f"📂 {cat['name']}" if cat else "🌐 সব চ্যানেল"
-        bot.send_message(chat_id, f"⏰ <b>সিডিউল পোস্ট সেভ হয়েছে!</b>\n📅 সময়: <b>{scheduled_at[:16].replace('T',' ')}</b>\n📌 ক্যাটাগরি: {cat_name}\n🆔 ID: <code>{sched_id}</code>")
+        time_txt = "অনির্ধারিত (প্যানেল থেকে সেট করুন)" if "203" in scheduled_at else scheduled_at[:16].replace('T',' ')
+        bot.send_message(chat_id, f"⏰ <b>সিডিউল পোস্ট সেভ হয়েছে!</b>\n📅 সময়: <b>{time_txt}</b>\n📌 ক্যাটাগরি: {cat_name}\n🆔 ID: <code>{sched_id}</code>")
         update_user(chat_id, {"step":"none","pending_link":"","pending_short_link":"","pending_category":"","pending_schedule":"","temp_media_id":"","temp_media_type":"","pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
         return
 
@@ -1111,8 +1112,47 @@ def cb(call):
                 bot.answer_callback_query(call.id,"⚠️ ক্যাটাগরি পাওয়া যায়নি!", show_alert=True)
 
     elif data == "ask_schedule":
-        update_user(cid, {"step":"wait_schedule_time"})
-        bot.send_message(cid, "⏰ <b>সিডিউল পোস্টের সময় দিন:</b>\n\nফরম্যাট: <code>YYYY-MM-DD HH:MM</code>\n\n<i>সময় UTC+6 (বাংলাদেশ সময়) ধরা হবে।</i>")
+        cats = get_categories()
+        m = _mk()
+        if cats:
+            for c in cats:
+                m.add(_btn(f"📂 {c['name']}", f"schedcat_{c['cat_id']}"))
+            m.add(_btn("🌐 সব চ্যানেলে সিডিউল করো", "schedcat_all"))
+        else:
+            m.add(_btn("⏰ সব চ্যানেলে সিডিউল করো", "schedcat_all"))
+        m.add(_back("back_to_post_options"))
+        bot.edit_message_text(
+            "⏰ <b>সিডিউল পোস্টের জন্য ক্যাটাগরি সিলেক্ট করুন:</b>\n\nকোন ক্যাটাগরিতে সিডিউল পোস্টটি সেভ করতে চান?",
+            cid, mid, reply_markup=m
+        )
+
+    elif data.startswith("schedcat_"):
+        try: bot.delete_message(cid, mid)
+        except: pass
+        user = get_user(cid)
+        cat_target = data[9:]
+        if cat_target == "all":
+            cat_target = ""
+        
+        # Set a placeholder far-future scheduled time (e.g. 10 years from now)
+        future_dt = datetime.utcnow() + timedelta(days=3650)
+        future_iso = future_dt.isoformat()
+        
+        update_user(cid, {"pending_category": cat_target})
+        user2 = get_user(cid)
+        mtype_s = user2.get("temp_media_type","")
+        mmid_s  = user2.get("temp_media_id","")
+        
+        if not user2.get("pending_web_post_link"):
+            if cat_target:
+                cat = get_category(cat_target)
+                cat_name = cat.get("name", "Others") if cat else "Others"
+            else:
+                cat_name = "Others"
+            user2["pending_web_post_link"] = create_web_video_entry(user2, cat_name)
+            
+        execute_channel_post(cid, user2, mtype_s, mmid_s, scheduled_at=future_iso)
+        return
 
     elif data == "menu_schedule":
         scheds = list(scheduled_col.find({"status": "pending"}).sort("scheduled_at", 1).limit(10))
@@ -2331,3 +2371,4 @@ def run_bot():
         except Exception as e:
             logger.error(f"Shortener Bot Polling error: {e}")
             time.sleep(5)
+
