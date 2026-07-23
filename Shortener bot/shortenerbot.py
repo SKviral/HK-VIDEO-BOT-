@@ -133,6 +133,7 @@ _DEFAULTS = {
     "pending_thumb_url": "", "pending_web_title": "",
     "pending_web_video_id": "", "pending_web_post_link": "",
     "pending_web_ads": 1, # কতটি অ্যাড দেখতে হবে
+    "last_thumb_file_id": "",
 }
 
 def get_user(chat_id):
@@ -830,18 +831,28 @@ def cb(call):
             "pending_thumb_url": auto_thumb_url,
             "temp_media_id": thumb_file_id,
             "temp_media_type": "photo",
+            "last_thumb_file_id": thumb_file_id or "",
             "step": "none"
         })
         
         if auto_thumb_url:
             bot.send_message(cid, "✅ থাম্বনেইল অটো-জেনারেট করা হয়েছে।")
+            try: bot.delete_message(cid, mid)
+            except: pass
+            user2 = get_user(cid)
+            _ask_web_title(cid, user2, "photo", thumb_file_id)
         else:
-            bot.send_message(cid, "⚠️ থাম্বনেইল ইমেজ সেট হয়েছে (ImgBB আপলোড করা যায়নি)।")
-            
-        try: bot.delete_message(cid, mid)
-        except: pass
-        user2 = get_user(cid)
-        _ask_web_title(cid, user2, "photo", thumb_file_id)
+            m = InlineKeyboardMarkup()
+            m.row(
+                InlineKeyboardButton("🔄 রি-আপলোড ImgBB", callback_data="reupload_thumb_imgbb"),
+                InlineKeyboardButton("🔗 ম্যানুয়াল লিংক", callback_data="manual_thumb_url")
+            )
+            m.row(
+                InlineKeyboardButton("⏩ স্কিপ / কনটিনিউ", callback_data="continue_no_thumb")
+            )
+            try: bot.delete_message(cid, mid)
+            except: pass
+            bot.send_message(cid, "⚠️ ImgBB সার্ভার সমস্যার কারণে থাম্বনেইল আপলোড করা যায়নি।\nনিচের অপশন সিলেক্ট করুন:", reply_markup=m)
         return
 
     if data == "skip_thumb":
@@ -882,6 +893,59 @@ def cb(call):
         bot.delete_message(cid, mid)
         update_user(cid, {"step":"wait_thumbnail","temp_media_id":"","temp_media_type":""})
         bot.send_message(cid, "❌ বাতিল। নতুন থাম্বনেইল দিন।"); return
+
+    if data == "manual_thumb_url":
+        try: bot.delete_message(cid, mid)
+        except: pass
+        update_step(cid, "wait_manual_thumb_url")
+        bot.send_message(
+            cid,
+            "🖼️ <b>ম্যানুয়াল থাম্বনেইল ইমেজ লিংক দিন</b>\n\n"
+            "ছবির সরাসরি URL লিখে পাঠান (যেমন: <code>https://i.ibb.co/xxxx/image.jpg</code>)\n\n"
+            "অথবা স্কিপ করতে <code>/skip</code> লিখুন।"
+        )
+        return
+
+    if data == "reupload_thumb_imgbb":
+        user = get_user(cid)
+        last_fid = user.get("last_thumb_file_id") or user.get("temp_media_id")
+        if not last_fid:
+            bot.answer_callback_query(call.id, "❌ কোনো থাম্বনেইল ফাইল পাওয়া যায়নি!", show_alert=True)
+            return
+        
+        bot.answer_callback_query(call.id, "⏳ ImgBB তে আবার আপলোড করা হচ্ছে...")
+        status_msg = bot.send_message(cid, "⏳ ImgBB তে রি-আপলোড হচ্ছে...")
+        thumb_url = upload_photo_to_imgbb(last_fid)
+        try: bot.delete_message(cid, status_msg.message_id)
+        except: pass
+        
+        if thumb_url:
+            update_user(cid, {"pending_thumb_url": thumb_url})
+            bot.send_message(cid, "✅ থাম্বনেইল সফলভাবে ImgBB তে রি-আপলোড হয়েছে!")
+            try: bot.delete_message(cid, mid)
+            except: pass
+            mtype = user.get("temp_media_type") or "photo"
+            _ask_web_title(cid, get_user(cid), mtype, last_fid)
+        else:
+            m = InlineKeyboardMarkup()
+            m.row(
+                InlineKeyboardButton("🔄 আবার চেষ্টা করুন", callback_data="reupload_thumb_imgbb"),
+                InlineKeyboardButton("🔗 ম্যানুয়াল লিংক", callback_data="manual_thumb_url")
+            )
+            m.row(
+                InlineKeyboardButton("⏩ স্কিপ / কনটিনিউ", callback_data="continue_no_thumb")
+            )
+            bot.send_message(cid, "❌ আবার চেষ্টা করা হয়েছে কিন্তু ImgBB আপলোড ফেল হয়েছে। ম্যানুয়াল লিংক ব্যবহার করতে পারেন:", reply_markup=m)
+        return
+
+    if data == "continue_no_thumb":
+        try: bot.delete_message(cid, mid)
+        except: pass
+        user = get_user(cid)
+        mtype = user.get("temp_media_type") or "photo"
+        mid_val = user.get("temp_media_id") or ""
+        _ask_web_title(cid, user, mtype, mid_val)
+        return
 
     if data in ["use_post_title", "skip_web_title"]:
         try: bot.delete_message(cid, mid)
@@ -1761,6 +1825,26 @@ def handle_message(message):
         _ask_post_options(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
         return
 
+    if step == "wait_manual_thumb_url":
+        if text == "/skip":
+            update_step(cid, "none")
+            bot.send_message(cid, "⏩ থাম্বনেইল স্কিপ করা হয়েছে।")
+            user2 = get_user(cid)
+            _ask_web_title(cid, user2, user2.get("temp_media_type"), user2.get("temp_media_id"))
+            return
+        
+        url_input = text.strip()
+        if url_input.startswith("http://") or url_input.startswith("https://"):
+            update_user(cid, {"pending_thumb_url": url_input, "step": "none"})
+            bot.send_message(cid, "✅ ম্যানুয়াল থাম্বনেইল URL সেট করা হয়েছে!")
+            user2 = get_user(cid)
+            mtype = user2.get("temp_media_type") or "photo"
+            mid_val = user2.get("temp_media_id") or ""
+            _ask_web_title(cid, user2, mtype, mid_val)
+        else:
+            bot.send_message(cid, "⚠️ সঠিক ছবির URL দিন (http:// বা https:// দিয়ে শুরু হতে হবে) অথবা <code>/skip</code> লিখুন।")
+        return
+
     if step=="wait_thumbnail":
         if text=="/skip":
             pending_link = user.get("pending_link", "")
@@ -1805,33 +1889,51 @@ def handle_message(message):
             updates = {
                 "temp_media_id": message.video.file_id,
                 "temp_media_type": "video",
-                "pending_thumb_url": thumb_url
+                "pending_thumb_url": thumb_url,
+                "last_thumb_file_id": thumb_file_id or ""
             }
             update_user(cid, updates)
             
             if thumb_url:
                 bot.send_message(cid, "✅ ভিডিও থাম্বেইল ইমেজ তৈরি হয়েছে।")
+                m=InlineKeyboardMarkup()
+                m.row(InlineKeyboardButton("✅ Confirm",callback_data="confirm_vid_thumb"),InlineKeyboardButton("❌ বাতিল",callback_data="cancel_vid_thumb"))
+                preview = (f"📝 ক্যাপশন সেট: <b>{thumb_caption[:50]}</b>\n\n") if thumb_caption else ""
+                bot.send_message(cid, f"{preview}🎥 এই ভিডিওটি পোস্ট করবেন?", reply_markup=m); return
             else:
-                bot.send_message(cid, "⚠️ ভিডিও থাম্বেইল তৈরি করা যায়নি, তবুও পোস্ট flow চলবে।")
-
-            m=InlineKeyboardMarkup()
-            m.row(InlineKeyboardButton("✅ Confirm",callback_data="confirm_vid_thumb"),InlineKeyboardButton("❌ বাতিল",callback_data="cancel_vid_thumb"))
-            preview = (f"📝 ক্যাপশন সেট: <b>{thumb_caption[:50]}</b>\n\n") if thumb_caption else ""
-            bot.send_message(cid, f"{preview}🎥 এই ভিডিওটি পোস্ট করবেন?", reply_markup=m); return
+                m = InlineKeyboardMarkup()
+                m.row(
+                    InlineKeyboardButton("🔄 রি-আপলোড ImgBB", callback_data="reupload_thumb_imgbb"),
+                    InlineKeyboardButton("🔗 ম্যানুয়াল লিংক", callback_data="manual_thumb_url")
+                )
+                m.row(
+                    InlineKeyboardButton("✅ Confirm (থাম্বেইল ছাড়া)", callback_data="confirm_vid_thumb"),
+                    InlineKeyboardButton("❌ বাতিল", callback_data="cancel_vid_thumb")
+                )
+                bot.send_message(cid, "⚠️ ImgBB সার্ভার সমস্যার কারণে থাম্বেইল URL তৈরি হয়নি।\nপুনরায় আপলোড করতে 'রি-আপলোড' চাপুন বা ম্যানুয়ালি লিংক দিন:", reply_markup=m); return
         elif message.photo:
             thumb_caption = message.caption or ""
             if thumb_caption:
                 update_user(cid, {"post_header": thumb_caption})
                 logger.info(f"Thumbnail caption set for {cid}: {thumb_caption[:50]}")
             bot.send_message(cid, "⏳ থাম্বেইল upload হচ্ছে...")
-            thumb_url = upload_photo_to_imgbb(message.photo[-1].file_id)
-            updates = {"pending_thumb_url": thumb_url}
+            photo_file_id = message.photo[-1].file_id
+            thumb_url = upload_photo_to_imgbb(photo_file_id)
+            updates = {"pending_thumb_url": thumb_url, "last_thumb_file_id": photo_file_id}
+            update_user(cid, updates)
             if thumb_url:
                 bot.send_message(cid, "✅ থাম্বেইল URL তৈরি হয়েছে।")
+                _ask_web_title(cid, get_user(cid), "photo", photo_file_id); return
             else:
-                bot.send_message(cid, "⚠️ থাম্বেইল URL তৈরি হয়নি, তবুও পোস্ট flow চলবে।")
-            update_user(cid, updates)
-            _ask_web_title(cid, get_user(cid), "photo", message.photo[-1].file_id); return
+                m = InlineKeyboardMarkup()
+                m.row(
+                    InlineKeyboardButton("🔄 রি-আপলোড ImgBB", callback_data="reupload_thumb_imgbb"),
+                    InlineKeyboardButton("🔗 ম্যানুয়াল লিংক", callback_data="manual_thumb_url")
+                )
+                m.row(
+                    InlineKeyboardButton("⏩ স্কিপ / কনটিনিউ", callback_data="continue_no_thumb")
+                )
+                bot.send_message(cid, "⚠️ ImgBB সার্ভার সমস্যার কারণে থাম্বেইল আপলোড ফেল হয়েছে।\nনিচের অপশন সিলেক্ট করুন:", reply_markup=m); return
         else:
             bot.send_message(cid,"⚠️ ছবি বা ভিডিও দিন অথবা /skip লিখুন।"); return
 
@@ -1892,6 +1994,9 @@ def handle_message(message):
             m.row(
                 InlineKeyboardButton("Auto Generate 🤖", callback_data="autogen_thumb"),
                 InlineKeyboardButton("Skip ⏩", callback_data="skip_thumb")
+            )
+            m.row(
+                InlineKeyboardButton("🔗 ম্যানুয়াল ইমেজ লিংক", callback_data="manual_thumb_url")
             )
             bot.send_message(cid,
                 f"✅ <b>ফাইল সেভ হয়েছে!</b>\n\n💎 Direct Link:\n<code>{dl}</code>\n\n📺 Short Link:\n<code>{sl}</code>\n\n🖼️ থাম্বনেইল (ছবি/ভিডিও) পাঠান অথবা নিচের বাটন ব্যবহার করুন।",
