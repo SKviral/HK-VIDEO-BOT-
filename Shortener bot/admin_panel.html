@@ -643,15 +643,18 @@ select.fc{cursor:pointer}
 let CFG={}, D={scheduled:[],categories:[],channels:[],admins:[],users:[],files:[]};
 let currentFilter='all';
 
-function loadCFG(){try{CFG=JSON.parse(localStorage.getItem('botpanel')||'{}')}catch{CFG={}}}
+function loadCFG(){
+  try{CFG=JSON.parse(localStorage.getItem('botpanel')||'{}')}catch{CFG={}}
+  if(!CFG.url) CFG.url = window.location.origin;
+}
 function saveCFG(){localStorage.setItem('botpanel',JSON.stringify(CFG))}
 
 loadCFG();
-if(CFG.url&&CFG.key) hideSetup();
+if(CFG.key) hideSetup();
 
 function autoLoad(){
   loadCFG();
-  $('s-url').value=CFG.url||'';
+  $('s-url').value=CFG.url||window.location.origin;
   $('s-key').value=CFG.key||'';
   $('s-admin').value=CFG.admin||'';
   $('s-user').value=CFG.user||'';
@@ -660,11 +663,10 @@ function autoLoad(){
 
 // ══════════ SETUP ══════════
 async function doSetup(){
-  const url=$('s-url').value.trim().replace(/\/+$/,'');
+  const url=($('s-url').value.trim()||window.location.origin).replace(/\/+$/,'');
   const key=$('s-key').value.trim();
   const admin=$('s-admin').value.trim();
   const user=$('s-user').value.trim();
-  if(!url){showSS('❌ Bot API URL দিন!','s-err');return}
   if(!key){showSS('❌ Secret Key দিন!','s-err');return}
   const btn=$('setup-btn');
   btn.disabled=true; btn.textContent='⏳ পরীক্ষা হচ্ছে…';
@@ -686,7 +688,7 @@ async function doSetup(){
 function showSS(msg,cls){const el=$('setup-status');el.textContent=msg;el.className=cls;el.style.display='block'}
 function hideSetup(){
   $('setup-screen').style.display='none';
-  const short=(CFG.url||'').replace('https://','').split('.')[0];
+  const short=(CFG.url||window.location.origin).replace('https://','').replace('http://','').split('.')[0];
   $('conn-url').textContent=short;
   loadPage('dashboard');
 }
@@ -695,9 +697,10 @@ function resetCFG(){if(!confirm('সেটআপ রিসেট করবেন
 // ══════════ API ══════════
 async function api(path,method='GET',body=null){
   try{
+    const baseUrl = CFG.url || window.location.origin;
     const opts={method,headers:{'Content-Type':'application/json','X-Admin-Key':CFG.key||''},signal:AbortSignal.timeout(12000)};
     if(body) opts.body=JSON.stringify(body);
-    const r=await fetch((CFG.url||'').replace(/\/+$/,'')+path,opts);
+    const r=await fetch(baseUrl.replace(/\/+$/,'')+path,opts);
     if(r.status===401){toast('❌ Auth Error — Secret Key ভুল?','danger');return null}
     if(!r.ok){toast('⚠️ API Error: '+r.status,'warn');return null}
     return await r.json();
@@ -778,6 +781,7 @@ async function loadDash(){
           <div style="font-size:14px;font-weight:600">${s.category_id?'📂 ক্যাটাগরি':'🌐 সব চ্যানেল'}</div>
           <div style="font-size:12px;color:var(--text3);font-family:var(--mono);margin-top:2px">${ft(s.scheduled_at)}</div>
         </div>
+        <button class="btn btn-p btn-sm" onclick="postNowSched('${s.sched_id}')" title="এখনই পোস্ট">🚀</button>
         <button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')">🗑️</button>
       </div>`).join('');
   }
@@ -820,7 +824,10 @@ function filterSched(f,el){
       <div class="si-footer">
         <span class="si-id">🆔 ${s.sched_id||'—'}</span>
         <span class="badge ${sbadge(s.status)}">${slbl(s.status)}</span>
-        ${s.status==='pending'?`<button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')">🗑️ ডিলিট</button>`:''}
+        ${s.status==='pending'?`
+          <button class="btn btn-p btn-sm" style="margin-left:auto" onclick="postNowSched('${s.sched_id}')">🚀 এখনই পোস্ট</button>
+          <button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')">🗑️ ডিলিট</button>
+        `:''}
       </div>
     </div>`).join('');
 }
@@ -833,6 +840,15 @@ async function delSched(id){
     const bnb=$('bn-badge');if(p>0){bnb.textContent=p;bnb.style.display='block'}else bnb.style.display='none';
     toast('🗑️ সিডিউল ডিলিট হয়েছে','danger');
   }else toast('❌ ডিলিট ব্যর্থ','danger');
+}
+async function postNowSched(id){
+  if(!confirm('এই সিডিউল পোস্টটি এখনই পোস্ট করতে চান?'))return;
+  toast('⏳ পোস্ট পাঠানো হচ্ছে…','info');
+  const r=await api('/api/scheduled/post_now/'+id,'POST');
+  if(r?.ok){
+    toast('✅ সফলভাবে পোস্ট পাঠানো হয়েছে!','success');
+    loadSched();
+  }else toast('❌ '+(r?.error||'পোস্ট পাঠাতে ব্যর্থ'),'danger');
 }
 
 // ══════════ CATEGORIES ══════════
