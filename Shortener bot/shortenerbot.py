@@ -2043,6 +2043,8 @@ PANEL_SECRET = os.environ.get("PANEL_SECRET", "my-secret-key-change-this")
 def require_auth(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
+        if request.method == 'OPTIONS':
+            return jsonify({"ok": True}), 200
         key = request.headers.get("X-Admin-Key", "")
         if key != PANEL_SECRET:
             return jsonify({"error": "Unauthorized"}), 401
@@ -2071,7 +2073,9 @@ def panel():
     for p in ['Shortener bot/admin_panel.html', 'admin_panel.html', 'static/admin_panel.html']:
         if os.path.exists(p):
             with open(p, encoding='utf-8') as f:
-                return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+                content = f.read()
+                content = content.replace('let CFG={},', f'let CFG={{key:"{PANEL_SECRET}"}},')
+                return content, 200, {'Content-Type': 'text/html; charset=utf-8'}
     return '<h2>admin_panel.html ফাইল পাওয়া যায়নি। bot.py এর পাশে রাখুন।</h2>', 200, {'Content-Type': 'text/html; charset=utf-8'}
 
 @shortener_bp.route('/api/stats', methods=['GET','OPTIONS'])
@@ -2092,6 +2096,43 @@ def api_scheduled():
 def api_delete_sched(sched_id):
     result = scheduled_col.delete_one({"sched_id": sched_id})
     return jsonify({"ok": True, "deleted": result.deleted_count})
+
+@shortener_bp.route('/api/scheduled/post_now/<sched_id>', methods=['POST','OPTIONS'])
+@require_auth
+def api_post_now_sched(sched_id):
+    item = scheduled_col.find_one({"sched_id": sched_id, "status": "pending"})
+    if not item:
+        return jsonify({"ok": False, "error": "সিডিউল পোস্ট পাওয়া যায়নি বা আগেই পোস্ট হয়েছে"}), 404
+    
+    admin_id = item['admin_id']
+    user = get_user(admin_id)
+    cat_id = item.get("category_id", "")
+    mtype  = item['media_type']
+    mid_   = item['media_id']
+    d_link = item.get('d_link','')
+    s_link = item.get('s_link','')
+    user["pending_link"] = d_link
+    user["pending_short_link"] = s_link
+    user["pending_web_title"] = item.get("web_title", "")
+    user["pending_thumb_url"] = item.get("thumb_url", "")
+    user["pending_web_video_id"] = item.get("web_video_id", "")
+    user["pending_web_post_link"] = item.get("web_post_link", "")
+    user["pending_web_ads"] = item.get("web_ads", 1)
+
+    count = 0
+    if cat_id:
+        cat = get_category(cat_id)
+        if not user.get("pending_web_post_link"):
+            user["pending_web_post_link"] = create_web_video_entry(user, cat.get("name", "Others") if cat else "Others")
+        count = _post_to_category(cat_id, mtype, mid_, user, d_link, s_link)
+    else:
+        if not user.get("pending_web_post_link"):
+            user["pending_web_post_link"] = create_web_video_entry(user, "Others")
+        _do_post_all_channels(admin_id, user, mtype, mid_, d_link, s_link)
+        count = 1
+
+    scheduled_col.update_one({"sched_id": sched_id}, {"$set": {"status": "done", "posted_at": datetime.now().isoformat()}})
+    return jsonify({"ok": True, "count": count})
 
 @shortener_bp.route('/api/categories', methods=['GET','OPTIONS'])
 @require_auth
