@@ -9,7 +9,7 @@
 import os, re, time, json, uuid, threading, requests, telebot, logging, base64
 from datetime import datetime, timedelta
 from functools import wraps
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from pymongo import MongoClient
 from flask import Blueprint, request, jsonify
 from urllib.parse import quote
@@ -722,6 +722,12 @@ def _main_menu():
     m.row(_btn("📢 ব্রডকাস্ট", "broadcast"), _btn("⏰ সিডিউল", "menu_schedule"))
     m.row(_btn("📂 ক্যাটাগরি", "menu_categories"), _btn("ℹ️ হেল্প", "help_menu"))
     return m
+
+def _admin_reply_keyboard():
+    rk = ReplyKeyboardMarkup(resize_keyboard=True)
+    rk.row(KeyboardButton("📦 ব্যাচ আপলোড"), KeyboardButton("🤖 এডমিন প্যানেল"))
+    rk.row(KeyboardButton("❌ বাতিল"))
+    return rk
 
 def _post_btn_menu(u):
     dl  = _ico(u.get("btn_download",1))
@@ -1615,6 +1621,7 @@ def handle_message(message):
                     f"╔══════════════════════════╗\n║   🤖 <b>এডমিন প্যানেল</b>   ║\n╚══════════════════════════╝\n\n👥 মোট ইউজার : <b>{s['total_users']}</b>\n📁 মোট ফাইল  : <b>{s['total_files']}</b>\n🟢 আজ সক্রিয় : <b>{s['active_today']}</b>",
                     reply_markup=_main_menu()
                 )
+                bot.send_message(cid, "📌 কুইক অ্যাকশন কিবোর্ড সক্রিয় করা হয়েছে:", reply_markup=_admin_reply_keyboard())
             else:
                 m = InlineKeyboardMarkup()
                 for tut in tutorials_col.find(): m.add(InlineKeyboardButton(f"📽️ {tut['name']}", url=tut['url']))
@@ -1647,8 +1654,30 @@ def handle_message(message):
             except: bot.send_message(cid,"❌ পাঠানো যায়নি।")
         return
 
-    if text=="/cancel":
+    if text in ["/cancel", "❌ বাতিল", "❌ Cancel"]:
         update_step(cid,"none"); bot.send_message(cid,"❌ বাতিল করা হয়েছে।"); return
+
+    if adm and text in ["📦 ব্যাচ আপলোড", "📦 Batch Upload"]:
+        bid = str(uuid.uuid4().hex)[:10]
+        update_user(cid, {"batch_id": bid, "step": "wait_batch"})
+        m = _mk()
+        m.add(_btn("✅ আপলোড শেষ — Finish", "finish_batch"))
+        bot.send_message(
+            cid,
+            f"📦 <b>ব্যাচ আপলোড শুরু হয়েছে!</b>\n🆔 Batch ID: <code>{bid}</code>\n\nপরপর সব ফাইল পাঠাতে থাকুন। শেষ হলে নিচের <b>Finish</b> বাটনে চাপুন।",
+            reply_markup=m
+        )
+        return
+
+    if adm and text in ["🤖 এডমিন প্যানেল", "🤖 Admin Panel"]:
+        update_step(cid, "none")
+        s = get_stats()
+        bot.send_message(
+            cid,
+            f"╔══════════════════════════╗\n║   🤖 <b>এডমিন প্যানেল</b>   ║\n╚══════════════════════════╝\n\n👥 মোট ইউজার : <b>{s['total_users']}</b>\n📁 মোট ফাইল  : <b>{s['total_files']}</b>\n🟢 আজ সক্রিয় : <b>{s['active_today']}</b>",
+            reply_markup=_main_menu()
+        )
+        return
 
     if not adm:
         try:
