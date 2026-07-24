@@ -2174,6 +2174,69 @@ def api_post_now_sched(sched_id):
     scheduled_col.update_one({"sched_id": sched_id}, {"$set": {"status": "done", "posted_at": datetime.now().isoformat()}})
     return jsonify({"ok": True, "count": count})
 
+@shortener_bp.route('/api/scheduled/update_time/<sched_id>', methods=['POST','OPTIONS'])
+@require_auth
+def api_update_sched_time(sched_id):
+    data = request.json or {}
+    new_time = data.get("scheduled_at", "")
+    if not new_time:
+        return jsonify({"ok": False, "error": "নতুন সময় দিন"}), 400
+    
+    try:
+        new_time = new_time.replace("T", " ")
+        dt = datetime.strptime(new_time.strip(), "%Y-%m-%d %H:%M")
+        dt_utc = dt - timedelta(hours=6) # UTC+6 to UTC
+        scheduled_col.update_one({"sched_id": sched_id}, {"$set": {"scheduled_at": dt_utc.isoformat(), "status": "pending"}})
+        return jsonify({"ok": True})
+    except ValueError:
+        return jsonify({"ok": False, "error": "সঠিক ফরম্যাট দিন (YYYY-MM-DD HH:MM)"}), 400
+
+@shortener_bp.route('/api/scheduled/bulk_interval', methods=['POST','OPTIONS'])
+@require_auth
+def api_bulk_interval_sched():
+    data = request.json or {}
+    sched_ids = data.get("sched_ids", [])
+    start_time_str = data.get("start_time", "")
+    interval_minutes = int(data.get("interval_minutes", 360))
+
+    if not sched_ids:
+        pending_items = list(scheduled_col.find({"status": "pending"}).sort("created_at", 1))
+    else:
+        pending_items = list(scheduled_col.find({"sched_id": {"$in": sched_ids}}).sort("created_at", 1))
+
+    if not pending_items:
+        return jsonify({"ok": False, "error": "কোনো সিডিউল পোস্ট পাওয়া যায়নি"}), 404
+
+    if start_time_str:
+        try:
+            dt_start_local = datetime.strptime(start_time_str.replace("T", " ").strip(), "%Y-%m-%d %H:%M")
+            dt_start_utc = dt_start_local - timedelta(hours=6)
+        except ValueError:
+            dt_start_utc = datetime.utcnow()
+    else:
+        dt_start_utc = datetime.utcnow()
+
+    updated_count = 0
+    for idx, item in enumerate(pending_items):
+        scheduled_dt = dt_start_utc + timedelta(minutes=idx * interval_minutes)
+        scheduled_col.update_one(
+            {"sched_id": item["sched_id"]},
+            {"$set": {"scheduled_at": scheduled_dt.isoformat(), "status": "pending"}}
+        )
+        updated_count += 1
+
+    return jsonify({"ok": True, "updated_count": updated_count})
+
+@shortener_bp.route('/api/scheduled/bulk_delete', methods=['POST','DELETE','OPTIONS'])
+@require_auth
+def api_bulk_delete_sched():
+    data = request.json or {}
+    sched_ids = data.get("sched_ids", [])
+    if not sched_ids:
+        return jsonify({"ok": False, "error": "কোনো পোস্ট সিলেক্ট করা হয়নি"}), 400
+    res = scheduled_col.delete_many({"sched_id": {"$in": sched_ids}})
+    return jsonify({"ok": True, "deleted": res.deleted_count})
+
 @shortener_bp.route('/api/categories', methods=['GET','OPTIONS'])
 @require_auth
 def api_categories():
@@ -2371,4 +2434,3 @@ def run_bot():
         except Exception as e:
             logger.error(f"Shortener Bot Polling error: {e}")
             time.sleep(5)
-
