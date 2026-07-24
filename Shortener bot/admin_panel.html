@@ -459,6 +459,15 @@ select.fc{cursor:pointer}
       <button class="ftag" onclick="filterSched('done',this)">✅ সম্পন্ন</button>
       <button class="ftag" onclick="filterSched('error',this)">❌ ব্যর্থ</button>
     </div>
+    <div class="bulk-bar" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;background:var(--bg3);padding:10px 14px;border-radius:var(--rs);border:1px solid var(--border2)">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;font-weight:600">
+        <input type="checkbox" id="chk-select-all" onchange="toggleSelectAllSched(this.checked)">
+        <span>সব সিলেক্ট করুন</span>
+      </label>
+      <span id="bulk-count-lbl" style="font-size:12px;color:var(--text3);margin-left:auto">(0টি সিলেক্টেড)</span>
+      <button class="btn btn-p btn-sm" onclick="openBulkIntervalModal()">⚡ বাল্ক ইনটারভাল সিডিউল</button>
+      <button class="btn btn-d btn-sm" onclick="bulkDeleteSched()">🗑️ সিলেক্টেড ডিলিট</button>
+    </div>
     <div id="sched-list"><div class="empty"><span class="eico">⏰</span><p>লোড হচ্ছে…</p></div></div>
   </div>
 
@@ -654,6 +663,55 @@ select.fc{cursor:pointer}
   </div>
 </div>
 
+<div class="mbg" id="m-bulk-interval">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">⚡ বাল্ক ইনটারভাল সিডিউলিং</span><button class="mclose" onclick="closeM('m-bulk-interval')">✕</button></div>
+    <div class="mbody">
+      <div class="alert a-info">সিলেক্টেড পেন্ডিং পোস্টগুলোতে প্রতি নির্দিষ্ট সময় পর পর অটোমেটিক সময় সেট হয়ে যাবে।</div>
+      
+      <div class="fg">
+        <label class="fl">📌 শুরু করার সময় (বাংলাদেশ সময় UTC+6)</label>
+        <select class="fc" id="bulk-start-type" onchange="toggleBulkStartInput(this.value)">
+          <option value="now">⚡ এখনই শুরু করুন (Start Now)</option>
+          <option value="custom">📅 নির্দিষ্ট সময় থেকে শুরু (Custom Time)</option>
+        </select>
+      </div>
+
+      <div class="fg" id="bulk-start-custom-wrap" style="display:none">
+        <label class="fl">⏰ প্রথম পোস্টের তারিখ ও সময়</label>
+        <input class="fc" id="bulk-start-time" type="datetime-local">
+      </div>
+
+      <div class="fg">
+        <label class="fl">⏳ সময় বিরতি (Interval Gap)</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <button type="button" class="btn btn-g btn-sm" onclick="setBulkIntervalValue(60)">১ ঘণ্টা</button>
+          <button type="button" class="btn btn-g btn-sm" onclick="setBulkIntervalValue(120)">২ ঘণ্টা</button>
+          <button type="button" class="btn btn-g btn-sm" onclick="setBulkIntervalValue(180)">৩ ঘণ্টা</button>
+          <button type="button" class="btn btn-g btn-sm" onclick="setBulkIntervalValue(360)">৬ ঘণ্টা</button>
+          <button type="button" class="btn btn-g btn-sm" onclick="setBulkIntervalValue(720)">১২ ঘণ্টা</button>
+          <button type="button" class="btn btn-g btn-sm" onclick="setBulkIntervalValue(1440)">২৪ ঘণ্টা</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input class="fc" id="bulk-interval-val" type="number" min="1" value="6" oninput="updateBulkPreview()" style="width:100px">
+          <select class="fc" id="bulk-interval-unit" onchange="updateBulkPreview()" style="width:120px">
+            <option value="hours">ঘণ্টা (Hours)</option>
+            <option value="minutes">মিনিট (Minutes)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="alert a-warn" id="bulk-preview-txt">
+        📋 <b>প্রিভিউ:</b> মোট 0টি পোস্টে ৬ ঘণ্টা পর পর সময় সেট করা হবে।
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-g" onclick="closeM('m-bulk-interval')">বাতিল</button>
+      <button class="btn btn-p" onclick="applyBulkInterval()">⚡ সিডিউল কার্যকর করুন</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -820,20 +878,27 @@ async function loadDash(){
 }
 
 // ══════════ SCHEDULED ══════════
+let selectedSchedIds = new Set();
+
 async function loadSched(){
   const res=await api('/api/scheduled');
   if(res) D.scheduled=res;
   filterSched(currentFilter);
 }
+
 function filterSched(f,el){
   currentFilter=f||currentFilter;
   if(el){document.querySelectorAll('.ftag').forEach(t=>t.classList.remove('active'));el.classList.add('active')}
   const items=currentFilter==='all'?D.scheduled:D.scheduled.filter(x=>x.status===currentFilter);
   const cont=$('sched-list');
   if(!items.length){cont.innerHTML='<div class="empty"><span class="eico">⏰</span><p>কোনো সিডিউল পোস্ট নেই</p></div>';return}
+  
   cont.innerHTML=items.map(s=>`
     <div class="si">
-      <div class="si-row">
+      <div class="si-row" style="align-items:center">
+        ${s.status==='pending'?`
+          <input type="checkbox" class="sched-chk" value="${s.sched_id}" ${selectedSchedIds.has(s.sched_id)?'checked':''} onchange="onSchedChkChange('${s.sched_id}',this.checked)" style="width:18px;height:18px;margin-right:8px;cursor:pointer">
+        `:''}
         <div class="si-thumb">${mico(s.media_type)}</div>
         <div class="si-info">
           <div class="si-title">${s.category_id?'📂 ক্যাটাগরি পোস্ট':'🌐 সব চ্যানেলে পোস্ট'}</div>
@@ -850,6 +915,135 @@ function filterSched(f,el){
         `:''}
       </div>
     </div>`).join('');
+    
+  updateBulkCountLabel();
+}
+
+function toggleSelectAllSched(checked) {
+  selectedSchedIds.clear();
+  document.querySelectorAll('.sched-chk').forEach(chk => {
+    chk.checked = checked;
+    if(checked) selectedSchedIds.add(chk.value);
+  });
+  updateBulkCountLabel();
+}
+
+function onSchedChkChange(id, checked) {
+  if(checked) selectedSchedIds.add(id);
+  else selectedSchedIds.delete(id);
+  
+  const allChks = document.querySelectorAll('.sched-chk');
+  const allChk = document.getElementById('chk-select-all');
+  if(allChk) {
+    allChk.checked = allChks.length > 0 && selectedSchedIds.size === allChks.length;
+  }
+  updateBulkCountLabel();
+}
+
+function updateBulkCountLabel() {
+  const lbl = document.getElementById('bulk-count-lbl');
+  if(lbl) {
+    lbl.textContent = `(${selectedSchedIds.size}টি সিলেক্টেড)`;
+  }
+}
+
+function openBulkIntervalModal() {
+  const pendingItems = D.scheduled.filter(x => x.status === 'pending');
+  if(!pendingItems.length) {
+    toast('⚠️ কোনো পেন্ডিং সিডিউল পোস্ট নেই!', 'warn');
+    return;
+  }
+  updateBulkPreview();
+  openM('m-bulk-interval');
+}
+
+function toggleBulkStartInput(val) {
+  const wrap = document.getElementById('bulk-start-custom-wrap');
+  if(wrap) wrap.style.display = (val === 'custom') ? 'block' : 'none';
+  updateBulkPreview();
+}
+
+function setBulkIntervalValue(mins) {
+  if(mins >= 60 && mins % 60 === 0) {
+    document.getElementById('bulk-interval-val').value = mins / 60;
+    document.getElementById('bulk-interval-unit').value = 'hours';
+  } else {
+    document.getElementById('bulk-interval-val').value = mins;
+    document.getElementById('bulk-interval-unit').value = 'minutes';
+  }
+  updateBulkPreview();
+}
+
+function updateBulkPreview() {
+  const targetCount = selectedSchedIds.size > 0 ? selectedSchedIds.size : D.scheduled.filter(x => x.status === 'pending').length;
+  const val = parseInt(document.getElementById('bulk-interval-val')?.value || 6);
+  const unit = document.getElementById('bulk-interval-unit')?.value || 'hours';
+  const unitText = unit === 'hours' ? 'ঘণ্টা' : 'মিনিট';
+  
+  const previewEl = document.getElementById('bulk-preview-txt');
+  if(previewEl) {
+    previewEl.innerHTML = `📋 <b>প্রিভিউ:</b> মোট <b>${targetCount}টি</b> পোস্টে প্রতি <b>${val} ${unitText}</b> পর পর সময় সেট করা হবে।`;
+  }
+}
+
+async function applyBulkInterval() {
+  const targetIds = Array.from(selectedSchedIds);
+  const startType = document.getElementById('bulk-start-type').value;
+  let startTimeStr = '';
+  
+  if(startType === 'custom') {
+    const customVal = document.getElementById('bulk-start-time').value;
+    if(!customVal) {
+      toast('⚠️ শুরু করার সময় নির্বাচন করুন', 'warn');
+      return;
+    }
+    startTimeStr = customVal.replace('T', ' ');
+  }
+  
+  const val = parseInt(document.getElementById('bulk-interval-val').value || 6);
+  const unit = document.getElementById('bulk-interval-unit').value;
+  const intervalMinutes = unit === 'hours' ? val * 60 : val;
+  
+  toast('⏳ বাল্ক সিডিউল সেট করা হচ্ছে…', 'info');
+  const r = await api('/api/scheduled/bulk_interval', 'POST', {
+    sched_ids: targetIds,
+    start_time: startTimeStr,
+    interval_minutes: intervalMinutes
+  });
+  
+  if(r?.ok) {
+    closeM('m-bulk-interval');
+    selectedSchedIds.clear();
+    const allChk = document.getElementById('chk-select-all');
+    if(allChk) allChk.checked = false;
+    updateBulkCountLabel();
+    loadSched();
+    toast(`✅ ${r.updated_count}টি সিডিউল পোস্টে সফলভাবে সময় সেট করা হয়েছে!`, 'success');
+  } else {
+    toast('❌ ' + (r?.error || 'বাল্ক সিডিউল সেট ব্যর্থ'), 'danger');
+  }
+}
+
+async function bulkDeleteSched() {
+  const targetIds = Array.from(selectedSchedIds);
+  if(!targetIds.length) {
+    toast('⚠️ প্রথমে পোস্ট সিলেক্ট করুন!', 'warn');
+    return;
+  }
+  if(!confirm(`সিলেক্টেড ${targetIds.length}টি সিডিউল পোস্ট মুছে ফেলতে চান?`)) return;
+  
+  toast('⏳ ডিলিট করা হচ্ছে…', 'info');
+  const r = await api('/api/scheduled/bulk_delete', 'POST', { sched_ids: targetIds });
+  if(r?.ok) {
+    selectedSchedIds.clear();
+    const allChk = document.getElementById('chk-select-all');
+    if(allChk) allChk.checked = false;
+    updateBulkCountLabel();
+    loadSched();
+    toast(`🗑️ ${r.deleted}টি সিডিউল পোস্ট মুছে ফেলা হয়েছে!`, 'danger');
+  } else {
+    toast('❌ ডিলিট ব্যর্থ', 'danger');
+  }
 }
 async function delSched(id){
   if(!confirm('এই সিডিউল পোস্ট ডিলিট করবেন?'))return;
