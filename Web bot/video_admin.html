@@ -505,6 +505,10 @@
                         <label>টেলিগ্রাম মিনি অ্যাপ লিংক</label>
                         <div class="input-wrapper"><i class="fa-brands fa-telegram"></i><input type="text" id="set-tg-app-url" placeholder="https://t.me/Bot/App"></div>
                     </div>
+                    <div class="input-group">
+                        <label>টিউটোরিয়াল ভিডিও লিংক</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-circle-play"></i><input type="text" id="set-tutorial-url" placeholder="https://t.me/yourchannel/123"></div>
+                    </div>
                 </div>
 
                 <div class="section-label"><i class="fa-solid fa-rectangle-ad"></i> অ্যাড সেটিংস</div>
@@ -768,6 +772,7 @@
             const data = snap.val();
             document.getElementById('set-site-name').value = data.siteName || "";
             document.getElementById('set-tg-app-url').value = data.tgAppUrl || "";
+            document.getElementById('set-tutorial-url').value = data.tutorialUrl || "";
             document.getElementById('set-ad-interval').value = data.adInterval || "";
             document.getElementById('set-adsgram-id').value = data.adsgramId || "";
             document.getElementById('set-monetag-zone').value = data.monetagZone || "";
@@ -783,6 +788,7 @@
         db.ref('settings').set({
             siteName: document.getElementById('set-site-name').value,
             tgAppUrl: document.getElementById('set-tg-app-url').value,
+            tutorialUrl: document.getElementById('set-tutorial-url').value,
             adInterval: document.getElementById('set-ad-interval').value,
             adsgramId: document.getElementById('set-adsgram-id').value,
             monetagZone: document.getElementById('set-monetag-zone').value,
