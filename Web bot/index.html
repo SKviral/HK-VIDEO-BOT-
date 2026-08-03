@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Earn Coins & Cash - Telegram Mini App</title>
+  
+  <!-- Telegram WebApp & Adsgram SDKs -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+  
+  <!-- Google Fonts: Outfit (Headings) + Inter (Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome 6.4 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --bg-dark: #070a12;
+      --card-bg: rgba(16, 24, 40, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-glow: rgba(0, 242, 254, 0.12);
+      
+      --cyan: #00f2fe;
+      --blue: #4facfe;
+      --purple: #7f00ff;
+      --pink: #e100ff;
+      --gold: #ffb703;
+      --green: #2ea043;
+      --red: #f85149;
+      --yellow: #d29922;
+
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(0, 242, 254, 0.15), transparent 45%),
+        radial-gradient(circle at 90% 40%, rgba(127, 0, 255, 0.12), transparent 40%),
+        radial-gradient(circle at 10% 80%, rgba(225, 0, 255, 0.08), transparent 40%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 84px;
+      overflow-x: hidden;
+    }
+
+    /* App Header */
+    .app-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(16px);
+      background: rgba(7, 10, 18, 0.85);
+      border-bottom: 1px solid var(--card-border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .avatar-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 18px;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(0, 242, 254, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .user-details .name {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text-main);
+    }
+
+    .user-details .badge {
+      font-size: 11px;
+      color: var(--cyan);
+      background: rgba(0, 242, 254, 0.12);
+      border: 1px solid rgba(0, 242, 254, 0.25);
+      padding: 2px 8px;
+      border-radius: 20px;
+      display: inline-block;
+      margin-top: 2px;
+      font-weight: 600;
+    }
+
+    .balance-badge {
+      text-align: right;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--card-border);
+    }
+
+    .balance-badge .coins {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 17px;
+      color: var(--gold);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .balance-badge .taka {
+      font-size: 11px;
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    /* Live Payout Ticker */
+    .payout-ticker {
+      background: rgba(46, 160, 67, 0.1);
+      border-bottom: 1px solid rgba(46, 160, 67, 0.2);
+      padding: 8px 16px;
+      font-size: 12px;
+      color: #3fb950;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .ticker-track {
+      display: flex;
+      gap: 30px;
+      animation: marquee 25s linear infinite;
+    }
+
+    @keyframes marquee {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+
+    /* Main Content */
+    .app-body {
+      padding: 16px;
+      max-width: 480px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .view-tab {
+      display: none;
+      animation: slideUp 0.3s ease-out;
+    }
+
+    .view-tab.active {
+      display: block;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Glass Cards */
+    .glass-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Hero Balance Banner */
+    .hero-card {
+      text-align: center;
+      padding: 28px 16px;
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.12) 0%, rgba(127, 0, 255, 0.12) 100%);
+      border: 1px solid rgba(0, 242, 254, 0.3);
+      box-shadow: 0 0 40px rgba(0, 242, 254, 0.15);
+    }
+
+    .hero-title {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-weight: 700;
+    }
+
+    .hero-coins-val {
+      font-family: 'Outfit', sans-serif;
+      font-size: 46px;
+      font-weight: 900;
+      color: #ffffff;
+      margin: 6px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      text-shadow: 0 0 25px rgba(0, 242, 254, 0.5);
+    }
+
+    .hero-taka-val {
+      font-size: 15px;
+      color: #3fb950;
+      font-weight: 700;
+      background: rgba(46, 160, 67, 0.18);
+      border: 1px solid rgba(46, 160, 67, 0.3);
+      display: inline-block;
+      padding: 4px 16px;
+      border-radius: 20px;
+    }
+
+    /* Adsgram Banner */
+    .ad-box {
+      background: linear-gradient(135deg, #1c1538 0%, #0c1a2e 100%);
+      border: 1px solid rgba(127, 0, 255, 0.4);
+    }
+
+    .ad-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .ad-counter {
+      font-size: 12px;
+      color: var(--cyan);
+      font-weight: 700;
+      background: rgba(0, 242, 254, 0.1);
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+
+    /* UI Buttons */
+    .btn {
+      width: 100%;
+      padding: 15px 20px;
+      border: none;
+      border-radius: var(--radius-md);
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .btn-gradient-cyan {
+      background: linear-gradient(135deg, var(--cyan), var(--blue));
+      color: #050811;
+      box-shadow: 0 6px 20px rgba(0, 242, 254, 0.35);
+    }
+
+    .btn-gradient-purple {
+      background: linear-gradient(135deg, var(--purple), var(--pink));
+      color: #ffffff;
+      box-shadow: 0 6px 20px rgba(127, 0, 255, 0.4);
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-sm {
+      padding: 9px 16px;
+      font-size: 13px;
+      border-radius: var(--radius-sm);
+      width: auto;
+    }
+
+    /* Stats Grid */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-tile {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      text-align: center;
+    }
+
+    .stat-num {
+      font-family: 'Outfit', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--cyan);
+      margin-top: 4px;
+    }
+
+    .stat-lbl {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Task Item Row */
+    .task-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      margin-bottom: 10px;
+    }
+
+    .task-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .task-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: rgba(0, 242, 254, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: var(--cyan);
+      border: 1px solid rgba(0, 242, 254, 0.2);
+    }
+
+    .task-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .task-prize {
+      font-size: 12px;
+      color: var(--gold);
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    /* Spin Wheel */
+    .wheel-wrapper {
+      position: relative;
+      width: 250px;
+      height: 250px;
+      margin: 20px auto;
+    }
+
+    .spin-disc {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 6px solid var(--purple);
+      background: conic-gradient(
+        #7f00ff 0deg 60deg,
+        #4facfe 60deg 120deg,
+        #2ea043 120deg 180deg,
+        #ffb703 180deg 240deg,
+        #e100ff 240deg 300deg,
+        #00f2fe 300deg 360deg
+      );
+      transition: transform 3.5s cubic-bezier(0.15, 0.99, 0.18, 0.99);
+      box-shadow: 0 0 35px rgba(127, 0, 255, 0.45);
+      position: relative;
+    }
+
+    .wheel-center-pin {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 4px solid var(--purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: var(--purple);
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+      z-index: 5;
+    }
+
+    .wheel-arrow {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 14px solid transparent;
+      border-right: 14px solid transparent;
+      border-top: 22px solid #ffffff;
+      z-index: 10;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+    }
+
+    /* Forms & Inputs */
+    .field-group {
+      margin-bottom: 14px;
+    }
+
+    .field-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: block;
+      font-weight: 500;
+    }
+
+    .field-input, .field-select {
+      width: 100%;
+      padding: 13px 16px;
+      background: rgba(7, 10, 18, 0.7);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .field-input:focus, .field-select:focus {
+      border-color: var(--cyan);
+    }
+
+    /* Status Badges */
+    .badge-pending { color: var(--yellow); background: rgba(210, 153, 34, 0.15); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+    .badge-approved { color: var(--green); background: rgba(46, 160, 67, 0.15); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+    .badge-rejected { color: var(--red); background: rgba(248, 81, 73, 0.15); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+
+    /* Bottom Navigation Bar */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 72px;
+      background: rgba(7, 10, 18, 0.95);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .nav-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.2s;
+      width: 16%;
+    }
+
+    .nav-btn i {
+      font-size: 19px;
+    }
+
+    .nav-btn.active {
+      color: var(--cyan);
+      font-weight: 700;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 16px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-box {
+      background: var(--bg-dark);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      max-width: 440px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="user-pill">
+      <div class="avatar-box" id="u-avatar">U</div>
+      <div class="user-details">
+        <div class="name" id="u-name">Loading...</div>
+        <div class="badge" id="u-level">Bronze Member</div>
+      </div>
+    </div>
+    <div class="balance-badge">
+      <div class="coins"><i class="fa-solid fa-coins"></i> <span id="u-coins-top">0</span></div>
+      <div class="taka" id="u-taka-top">৳ 0.00 BDT</div>
+    </div>
+  </header>
+
+  <!-- Live Payout Ticker -->
+  <div class="payout-ticker">
+    <i class="fa-solid fa-bolt" style="color: var(--gold);"></i>
+    <div class="ticker-track" id="ticker-feed">
+      <span>Rahim * withdrew ৳50 via bKash</span>
+      <span>Karim * withdrew ৳100 via Nagad</span>
+      <span>Tanvir * withdrew ৳50 via Rocket</span>
+      <span>Nusrat * withdrew ৳150 via bKash</span>
+    </div>
+  </div>
+
+  <!-- Main View Router -->
+  <main class="app-body">
+
+    <!-- TAB 1: HOME -->
+    <section id="tab-home" class="view-tab active">
+      
+      <!-- Hero Balance -->
+      <div class="glass-card hero-card">
+        <div class="hero-title">Total Coin Balance</div>
+        <div class="hero-coins-val">
+          <i class="fa-solid fa-coins" style="color: var(--gold);"></i>
+          <span id="hero-coins">0</span>
+        </div>
+        <div class="hero-taka-val">
+          Estimated Value: <span id="hero-taka">৳ 0.00</span> BDT
+        </div>
+      </div>
+
+      <!-- Adsgram Rewarded Video Unit -->
+      <div class="glass-card ad-box">
+        <div class="ad-header">
+          <div>
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 17px;">Watch Adsgram Video Ad</h3>
+            <p style="font-size: 12px; color: var(--text-muted);">Earn +25 Coins per video view</p>
+          </div>
+          <div class="ad-counter" id="ad-limit-badge">0 / 30 Today</div>
+        </div>
+
+        <button id="btn-watch-ad" class="btn btn-gradient-purple" onclick="playAdsgramAd()">
+          <i class="fa-solid fa-circle-play"></i> Watch Video Ad (+25 Coins)
+        </button>
+        <p id="ad-cooldown-lbl" style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 8px; display: none;"></p>
+      </div>
+
+      <!-- Quick Metrics -->
+      <div class="grid-2">
+        <div class="stat-tile">
+          <div class="stat-lbl">Today's Earnings</div>
+          <div class="stat-num" id="stat-today-earned">+0</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-lbl">Login Streak</div>
+          <div class="stat-num" id="stat-streak">🔥 1 Days</div>
+        </div>
+      </div>
+
+      <!-- Daily Login Bonus -->
+      <div class="glass-card" style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <h4 style="font-size: 14px;">Daily Login Streak Bonus</h4>
+          <p style="font-size: 12px; color: var(--text-muted);">Claim consecutive day reward</p>
+        </div>
+        <button id="btn-streak-claim" class="btn btn-gradient-cyan btn-sm" onclick="claimStreakBonus()">Claim Bonus</button>
+      </div>
+
+    </section>
+
+    <!-- TAB 2: TASKS -->
+    <section id="tab-tasks" class="view-tab">
+      <div class="glass-card">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 19px; margin-bottom: 4px;">Available Daily Tasks</h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Complete tasks to earn massive coin bonuses!</p>
+
+        <div id="tasks-list-container">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: REFERRAL -->
+    <section id="tab-referral" class="view-tab">
+      <div class="glass-card" style="text-align: center;">
+        <i class="fa-solid fa-users-viewfinder" style="font-size: 42px; color: var(--cyan); margin-bottom: 12px;"></i>
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 22px;">Invite Friends & Earn Cash</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 16px;">Get <b style="color: var(--gold);">200 Coins</b> for every friend who joins using your link!</p>
+
+        <div class="field-group">
+          <label class="field-label">Your Unique Telegram Referral Link</label>
+          <input type="text" id="ref-link-val" class="field-input" readonly value="Loading...">
+        </div>
+
+        <button class="btn btn-gradient-cyan" onclick="copyRefLink()">
+          <i class="fa-solid fa-copy"></i> Copy Referral Link
+        </button>
+      </div>
+
+      <div class="glass-card">
+        <h4 style="font-size: 15px; margin-bottom: 12px;">Referral Statistics</h4>
+        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px;">
+          <span>Total Invited Friends:</span>
+          <b id="ref-total-count">0 Users</b>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 13px;">
+          <span>Total Referral Coins Earned:</span>
+          <b id="ref-total-coins" style="color: var(--gold);">0 Coins</b>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: SPIN & WIN -->
+    <section id="tab-spin" class="view-tab">
+      <div class="glass-card" style="text-align: center;">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 20px;">Spin & Win Fortune Wheel</h3>
+        <p style="font-size: 12px; color: var(--text-muted);">Spin the wheel to win up to 500 Coins!</p>
+
+        <div class="wheel-wrapper">
+          <div class="wheel-arrow"></div>
+          <div class="spin-disc" id="spin-wheel-disc"></div>
+          <div class="wheel-center-pin"><i class="fa-solid fa-gift"></i></div>
+        </div>
+
+        <button id="btn-spin-wheel" class="btn btn-gradient-purple" onclick="spinWheel()">
+          <i class="fa-solid fa-dharmachakra"></i> Spin Wheel (Watch Ad)
+        </button>
+      </div>
+    </section>
+
+    <!-- TAB 5: WALLET & WITHDRAW -->
+    <section id="tab-wallet" class="view-tab">
+      <div class="glass-card">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 19px; margin-bottom: 4px;">Request Cashout</h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Min cashout: 1,000 Coins = ৳50.00 BDT</p>
+
+        <div class="field-group">
+          <label class="field-label">Payment Method</label>
+          <select id="w-method" class="field-select">
+            <option value="bKash">bKash Personal</option>
+            <option value="Nagad">Nagad Personal</option>
+            <option value="Rocket">Rocket Personal</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Mobile Account Number</label>
+          <input type="number" id="w-account" class="field-input" placeholder="017xxxxxxxx">
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Coins to Redeem</label>
+          <input type="number" id="w-coins" class="field-input" placeholder="Min 1000" min="1000">
+        </div>
+
+        <button class="btn btn-gradient-cyan" onclick="submitCashout()">
+          <i class="fa-solid fa-paper-plane"></i> Submit Cashout Request
+        </button>
+      </div>
+
+      <div class="glass-card">
+        <h4 style="font-size: 15px; margin-bottom: 12px;">Withdrawal Request History</h4>
+        <div id="w-history-list">
+          <p style="font-size: 12px; color: var(--text-muted); text-align: center;">No cashout history yet.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: LEADERBOARD & ADMIN -->
+    <section id="tab-leaderboard" class="view-tab">
+      <div class="glass-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="font-family: 'Outfit', sans-serif; font-size: 19px;">🏆 Top Earners</h3>
+          <button class="btn btn-gradient-cyan btn-sm" onclick="openAdminPanel()"><i class="fa-solid fa-user-shield"></i> Admin</button>
+        </div>
+        <div id="leaderboard-container">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Admin Panel Modal -->
+  <div class="modal-overlay" id="admin-modal">
+    <div class="modal-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 18px;">⚙️ Admin Control Panel</h3>
+        <button onclick="closeAdminPanel()" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">&times;</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+        <div class="stat-tile">
+          <div class="stat-lbl">Total Users</div>
+          <div class="stat-num" id="admin-stat-users">1</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-lbl">Pending Cashouts</div>
+          <div class="stat-num" id="admin-stat-pending">0</div>
+        </div>
+      </div>
+
+      <h4 style="font-size: 14px; margin-bottom: 8px;">Pending Cashout Requests</h4>
+      <div id="admin-withdrawals-list" style="margin-bottom: 16px;">
+        <p style="font-size: 12px; color: var(--text-muted);">No pending cashout requests.</p>
+      </div>
+
+      <h4 style="font-size: 14px; margin-bottom: 8px;">Create Custom Task</h4>
+      <div class="field-group">
+        <input type="text" id="new-task-title" class="field-input" placeholder="Task Title">
+      </div>
+      <div class="field-group">
+        <input type="number" id="new-task-reward" class="field-input" placeholder="Reward Coins (e.g. 200)">
+      </div>
+      <button class="btn btn-gradient-purple btn-sm" onclick="adminAddTask()" style="width: 100%;">Add Task</button>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <div class="nav-btn active" onclick="switchNav('home', this)">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </div>
+    <div class="nav-btn" onclick="switchNav('tasks', this)">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </div>
+    <div class="nav-btn" onclick="switchNav('referral', this)">
+      <i class="fa-solid fa-user-plus"></i>
+      <span>Invite</span>
+    </div>
+    <div class="nav-btn" onclick="switchNav('spin', this)">
+      <i class="fa-solid fa-dharmachakra"></i>
+      <span>Spin</span>
+    </div>
+    <div class="nav-btn" onclick="switchNav('wallet', this)">
+      <i class="fa-solid fa-wallet"></i>
+      <span>Wallet</span>
+    </div>
+    <div class="nav-btn" onclick="switchNav('leaderboard', this)">
+      <i class="fa-solid fa-trophy"></i>
+      <span>Ranks</span>
+    </div>
+  </nav>
+
+  <!-- Complete Application JavaScript Engine -->
+  <script>
+    const ADSGRAM_BLOCK_ID = "int-38036";
+    const COIN_RATE = 0.05; // 1 Coin = 0.05 BDT (1000 Coins = 50 BDT)
+
+    // LocalStorage Persistent Application State
+    let appState = {
+      telegram_id: 100200300,
+      first_name: "Telegram User",
+      username: "user_earn",
+      balance: 1250,
+      total_earned: 1500,
+      today_earned: 75,
+      today_ads: 2,
+      streak_count: 3,
+      last_streak_date: "",
+      referrals: [],
+      withdrawals: [],
+      completed_tasks: []
+    };
+
+    let tasks = [
+      { id: 1, title: "Join Official Telegram Channel", reward: 150, icon: "📢", link: "https://t.me/Telegram" },
+      { id: 2, title: "Watch 5 Rewarded Ads Today", reward: 100, icon: "📺", link: "" },
+      { id: 3, title: "Invite 3 Friends", reward: 500, icon: "👥", link: "" },
+      { id: 4, title: "Subscribe to YouTube Channel", reward: 200, icon: "▶️", link: "https://youtube.com" }
+    ];
+
+    let AdsgramController = null;
+
+    // Load App State
+    document.addEventListener("DOMContentLoaded", () => {
+      loadState();
+
+      // Check Telegram WebApp context
+      if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+        if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+          const u = window.Telegram.WebApp.initDataUnsafe.user;
+          appState.telegram_id = u.id;
+          appState.first_name = u.first_name || "User";
+          appState.username = u.username || "";
+        }
+      }
+
+      // Initialize Adsgram SDK
+      if (window.Adsgram) {
+        try {
+          AdsgramController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
+        } catch (e) {
+          console.log("Adsgram init notice:", e);
+        }
+      }
+
+      renderUI();
+      renderTasks();
+      renderWithdrawals();
+      renderLeaderboard();
+    });
+
+    function loadState() {
+      const saved = localStorage.getItem("adsgram_income_app_v2");
+      if (saved) {
+        try {
+          appState = Object.assign(appState, JSON.parse(saved));
+        } catch(e) {}
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem("adsgram_income_app_v2", JSON.stringify(appState));
+    }
+
+    function renderUI() {
+      const taka = (appState.balance * COIN_RATE).toFixed(2);
+      document.getElementById("u-name").innerText = appState.first_name;
+      document.getElementById("u-avatar").innerText = appState.first_name.charAt(0).toUpperCase();
+      document.getElementById("u-coins-top").innerText = appState.balance.toLocaleString();
+      document.getElementById("u-taka-top").innerText = `৳ ${taka} BDT`;
+      
+      document.getElementById("hero-coins").innerText = appState.balance.toLocaleString();
+      document.getElementById("hero-taka").innerText = `৳ ${taka}`;
+      
+      document.getElementById("ad-limit-badge").innerText = `${appState.today_ads} / 30 Today`;
+      document.getElementById("stat-today-earned").innerText = `+${appState.today_earned}`;
+      document.getElementById("stat-streak").innerText = `🔥 ${appState.streak_count} Days`;
+      
+      document.getElementById("ref-link-val").value = `https://t.me/IncomeTaskBot?start=ref_${appState.telegram_id}`;
+      document.getElementById("ref-total-count").innerText = `${appState.referrals.length} Users`;
+      document.getElementById("ref-total-coins").innerText = `${appState.referrals.length * 200} Coins`;
+      
+      saveState();
+    }
+
+    function switchNav(tabId, el) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+      
+      document.getElementById(`tab-${tabId}`).classList.add("active");
+      el.classList.add("active");
+    }
+
+    // Play Adsgram Rewarded Ad
+    function playAdsgramAd() {
+      const btn = document.getElementById("btn-watch-ad");
+      if (appState.today_ads >= 30) {
+        alert("Daily limit reached! You have watched 30 ads today. Please return tomorrow.");
+        return;
+      }
+
+      btn.disabled = true;
+
+      if (AdsgramController) {
+        AdsgramController.show()
+          .then(() => {
+            creditAdReward();
+          })
+          .catch((err) => {
+            alert("Ad skipped or failed to load. Please try again.");
+            btn.disabled = false;
+          });
+      } else {
+        // Fallback / Interactive Demo Simulation
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Playing Adsgram Video Ad...`;
+        setTimeout(() => {
+          creditAdReward();
+          btn.innerHTML = `<i class="fa-solid fa-circle-play"></i> Watch Video Ad (+25 Coins)`;
+        }, 2500);
+      }
+    }
+
+    function creditAdReward() {
+      const btn = document.getElementById("btn-watch-ad");
+      appState.balance += 25;
+      appState.total_earned += 25;
+      appState.today_earned += 25;
+      appState.today_ads += 1;
+      
+      renderUI();
+      alert("🎉 Reward Claimed! You earned +25 Coins (৳1.25 BDT)");
+
+      // Cooldown timer 30s
+      let cool = 30;
+      const lbl = document.getElementById("ad-cooldown-lbl");
+      lbl.style.display = "block";
+      
+      const timer = setInterval(() => {
+        cool--;
+        lbl.innerText = `Next ad available in ${cool}s`;
+        if (cool <= 0) {
+          clearInterval(timer);
+          btn.disabled = false;
+          lbl.style.display = "none";
+        }
+      }, 1000);
+    }
+
+    // Claim Streak Bonus
+    function claimStreakBonus() {
+      const today = new Date().toDateString();
+      if (appState.last_streak_date === today) {
+        alert("Daily streak bonus already claimed today!");
+        return;
+      }
+
+      appState.streak_count += 1;
+      appState.last_streak_date = today;
+      const bonus = 50 + (appState.streak_count * 10);
+      appState.balance += bonus;
+      appState.total_earned += bonus;
+      
+      renderUI();
+      alert(`🔥 Day ${appState.streak_count} Streak Claimed! +${bonus} Coins added.`);
+    }
+
+    // Spin & Win Wheel
+    let spinDeg = 0;
+    function spinWheel() {
+      const btn = document.getElementById("btn-spin-wheel");
+      const disc = document.getElementById("spin-wheel-disc");
+      btn.disabled = true;
+
+      const prizes = [20, 50, 100, 150, 250, 500];
+      const prize = prizes[Math.floor(Math.random() * prizes.length)];
+      
+      spinDeg += 1440 + Math.floor(Math.random() * 360);
+      disc.style.transform = `rotate(${spinDeg}deg)`;
+
+      setTimeout(() => {
+        appState.balance += prize;
+        appState.total_earned += prize;
+        renderUI();
+        alert(`🎡 Spin Winner! You won +${prize} Coins!`);
+        btn.disabled = false;
+      }, 3600);
+    }
+
+    // Task Module
+    function renderTasks() {
+      const container = document.getElementById("tasks-list-container");
+      container.innerHTML = tasks.map(t => {
+        const isDone = appState.completed_tasks.includes(t.id);
+        return `
+          <div class="task-card">
+            <div class="task-meta">
+              <div class="task-icon">${t.icon}</div>
+              <div>
+                <div class="task-name">${t.title}</div>
+                <div class="task-prize">+${t.reward} Coins</div>
+              </div>
+            </div>
+            <button class="btn btn-gradient-cyan btn-sm" ${isDone ? 'disabled' : ''} onclick="claimTask(${t.id}, '${t.link}')">
+              ${isDone ? 'Completed' : 'Claim'}
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function claimTask(id, link) {
+      if (link) window.open(link, "_blank");
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      appState.completed_tasks.push(id);
+      appState.balance += task.reward;
+      appState.total_earned += task.reward;
+      
+      renderUI();
+      renderTasks();
+      alert(`✅ Task Completed! +${task.reward} Coins added.`);
+    }
+
+    // Cashout Module
+    function submitCashout() {
+      const method = document.getElementById("w-method").value;
+      const account = document.getElementById("w-account").value;
+      const coins = parseInt(document.getElementById("w-coins").value);
+
+      if (!account || account.length < 10) {
+        alert("Please enter a valid mobile account number.");
+        return;
+      }
+      if (!coins || coins < 1000) {
+        alert("Minimum cashout is 1,000 Coins.");
+        return;
+      }
+      if (coins > appState.balance) {
+        alert("Insufficient coin balance!");
+        return;
+      }
+
+      appState.balance -= coins;
+      const record = {
+        id: Date.now(),
+        method: method,
+        account: account,
+        coins: coins,
+        taka: (coins * COIN_RATE).toFixed(2),
+        status: "pending",
+        date: new Date().toLocaleDateString()
+      };
+
+      appState.withdrawals.unshift(record);
+      renderUI();
+      renderWithdrawals();
+      alert(`✅ Cashout submitted! ৳${record.taka} BDT via ${method} (${account}).`);
+    }
+
+    function renderWithdrawals() {
+      const container = document.getElementById("w-history-list");
+      if (appState.withdrawals.length === 0) {
+        container.innerHTML = `<p style="font-size: 12px; color: var(--text-muted); text-align: center;">No cashout history yet.</p>`;
+        return;
+      }
+
+      container.innerHTML = appState.withdrawals.map(w => `
+        <div class="task-card">
+          <div>
+            <div class="task-name">৳${w.taka} BDT (${w.method})</div>
+            <div style="font-size: 11px; color: var(--text-muted);">${w.account} • ${w.date}</div>
+          </div>
+          <span class="badge-${w.status}">${w.status.toUpperCase()}</span>
+        </div>
+      `).join('');
+    }
+
+    // Referral Copy
+    function copyRefLink() {
+      const input = document.getElementById("ref-link-val");
+      input.select();
+      document.execCommand("copy");
+      alert("Referral link copied to clipboard!");
+    }
+
+    // Leaderboard
+    function renderLeaderboard() {
+      const container = document.getElementById("leaderboard-container");
+      const leaders = [
+        { name: "Rahim K.", coins: 14500 },
+        { name: "Tanvir A.", coins: 11200 },
+        { name: "Nusrat J.", coins: 9800 },
+        { name: "Karim H.", coins: 8400 },
+        { name: "Shakib M.", coins: 6900 }
+      ];
+
+      container.innerHTML = leaders.map((l, i) => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--card-border);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <b style="color: var(--cyan); font-size: 15px; width: 24px;">#${i + 1}</b>
+            <span style="font-weight: 600;">${l.name}</span>
+          </div>
+          <b style="color: var(--gold);">${l.coins.toLocaleString()} Coins</b>
+        </div>
+      `).join('');
+    }
+
+    // Admin Panel Modal
+    function openAdminPanel() {
+      document.getElementById("admin-modal").classList.add("active");
+      document.getElementById("admin-stat-pending").innerText = appState.withdrawals.filter(w => w.status === 'pending').length;
+      renderAdminWithdrawals();
+    }
+
+    function closeAdminPanel() {
+      document.getElementById("admin-modal").classList.remove("active");
+    }
+
+    function renderAdminWithdrawals() {
+      const container = document.getElementById("admin-withdrawals-list");
+      const pending = appState.withdrawals.filter(w => w.status === 'pending');
+
+      if (pending.length === 0) {
+        container.innerHTML = `<p style="font-size: 12px; color: var(--text-muted);">No pending cashout requests.</p>`;
+        return;
+      }
+
+      container.innerHTML = pending.map(w => `
+        <div style="background: rgba(255,255,255,0.04); padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 12px;">
+          <div><b>৳${w.taka} BDT (${w.method})</b> - ${w.account}</div>
+          <div style="margin-top: 6px; display: flex; gap: 8px;">
+            <button class="btn btn-gradient-cyan btn-sm" onclick="approveWithdrawal(${w.id})">Approve</button>
+            <button class="btn btn-gradient-purple btn-sm" onclick="rejectWithdrawal(${w.id})">Reject</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function approveWithdrawal(id) {
+      const item = appState.withdrawals.find(w => w.id === id);
+      if (item) item.status = "approved";
+      renderUI();
+      renderWithdrawals();
+      renderAdminWithdrawals();
+    }
+
+    function rejectWithdrawal(id) {
+      const item = appState.withdrawals.find(w => w.id === id);
+      if (item) {
+        item.status = "rejected";
+        appState.balance += item.coins; // Refund
+      }
+      renderUI();
+      renderWithdrawals();
+      renderAdminWithdrawals();
+    }
+
+    function adminAddTask() {
+      const title = document.getElementById("new-task-title").value;
+      const reward = parseInt(document.getElementById("new-task-reward").value);
+
+      if (!title || !reward) {
+        alert("Please enter title and reward.");
+        return;
+      }
+
+      tasks.push({
+        id: Date.now(),
+        title: title,
+        reward: reward,
+        icon: "🎁",
+        link: ""
+      });
+
+      renderTasks();
+      alert("New Task added successfully!");
+      document.getElementById("new-task-title").value = "";
+      document.getElementById("new-task-reward").value = "";
+    }
+  </script>
+</body>
+</html>
