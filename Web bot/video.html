@@ -1139,7 +1139,23 @@
     let tgUserName = "Anonymous User";
     let tgUserId = null;
     let idleTimeout = null, idleAdInterval = 0, idleAdsgramId = "", idleAdsgramController = null;
-    let dlAdsgramId = "", dlAdsgramController = null;
+    let dlAdsgramId = "", dlAdsgramController = null, directAdUrl = "";
+
+    function safeInitAdsgram(blockId) {
+        if (!blockId || typeof blockId !== 'string') return null;
+        const cleanId = blockId.trim();
+        if (!/^\d+$/.test(cleanId) && !/^int-\d+$/.test(cleanId)) {
+            console.warn("⚠️ Adsgram Block ID format invalid, skipping:", cleanId);
+            return null;
+        }
+        if (!window.Adsgram) return null;
+        try {
+            return window.Adsgram.init({ blockId: cleanId });
+        } catch (e) {
+            console.error("⚠️ Failed to initialize Adsgram:", cleanId, e);
+            return null;
+        }
+    }
 
     let repeatAdDelay = 0;
     let adInterval = 15; // default to 15s to prevent rate limit
@@ -1319,9 +1335,11 @@
         repeatAdDelay = parseInt(data.repeatAdDelay) || 0;
         adInterval = (data.adInterval !== undefined && data.adInterval !== "") ? parseInt(data.adInterval) : 15;
 
+        directAdUrl = data.directAdUrl || "";
+
         if (data.adsgramId && data.adsgramId !== adsgramId) {
             adsgramId = data.adsgramId;
-            if (window.Adsgram) adsgramController = window.Adsgram.init({ blockId: adsgramId });
+            adsgramController = safeInitAdsgram(adsgramId);
         }
         if (data.monetagZone && data.monetagZone !== monetagZone) {
             monetagZone = data.monetagZone;
@@ -1336,11 +1354,11 @@
         idleAdInterval = parseInt(data.idleAdInterval) || 0;
         if(data.idleAdsgramId && data.idleAdsgramId !== idleAdsgramId) {
             idleAdsgramId = data.idleAdsgramId;
-            if(window.Adsgram) idleAdsgramController = window.Adsgram.init({ blockId: idleAdsgramId });
+            idleAdsgramController = safeInitAdsgram(idleAdsgramId);
         }
         if(data.dlAdsgramId && data.dlAdsgramId !== dlAdsgramId) {
             dlAdsgramId = data.dlAdsgramId;
-            if(window.Adsgram) dlAdsgramController = window.Adsgram.init({ blockId: dlAdsgramId });
+            dlAdsgramController = safeInitAdsgram(dlAdsgramId);
         }
         resetIdleTimer();
     });
@@ -1687,16 +1705,45 @@
         }
     }
 
-    function showAdNetwork(callback) {
-        let mFunc = window[`show_${monetagZone}`];
-        if(adsgramController) {
-            adsgramController.show().then(callback).catch(() => {
-                if(typeof mFunc==='function') mFunc().then(callback).catch(callback);
-                else callback();
-            });
-        } else if(typeof mFunc==='function') {
-            mFunc().then(callback).catch(callback);
-        } else callback();
+    function showAdNetwork(callback, customController = null) {
+        const controller = customController || adsgramController;
+        const mFunc = window[`show_${monetagZone}`];
+        
+        function tryDirectOrCallback() {
+            if (directAdUrl) {
+                try {
+                    if (window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(directAdUrl);
+                    else window.open(directAdUrl, '_blank');
+                } catch(e) {}
+            }
+            callback();
+        }
+
+        function tryMonetag() {
+            if (typeof mFunc === 'function') {
+                try {
+                    mFunc().then(callback).catch(tryDirectOrCallback);
+                } catch(e) {
+                    tryDirectOrCallback();
+                }
+            } else {
+                tryDirectOrCallback();
+            }
+        }
+
+        if (controller) {
+            try {
+                controller.show().then(callback).catch((err) => {
+                    console.warn("Adsgram show error or no fill, trying fallback ad:", err);
+                    tryMonetag();
+                });
+            } catch(e) {
+                console.error("Adsgram show exception:", e);
+                tryMonetag();
+            }
+        } else {
+            tryMonetag();
+        }
     }
 
     function startButtonCooldown(id, duration, unlockAds, prog) {
@@ -1958,18 +2005,10 @@
         }
 
         let activeAdsgramController = dlAdsgramController || adsgramController;
-        if (activeAdsgramController) {
-            activeAdsgramController.show().then((result) => {
-                showToast("✅ অ্যাড সম্পন্ন হয়েছে! টেলিগ্রামে রিডাইরেক্ট হচ্ছে...", "success");
-                setTimeout(triggerUnlockRedirect, 1000);
-            }).catch((result) => {
-                showToast("⚠️ অ্যাড পুরো দেখা হয়নি, আবার চেষ্টা করুন!", "warn");
-                if (btn) { btn.disabled = false; btn.innerText = "🎬 Adsgram Ad দেখুন ও আনলক করুন"; }
-            });
-        } else {
-            showToast("✅ আনলক সম্পন্ন হয়েছে! টেলিগ্রামে রিডাইরেক্ট হচ্ছে...", "success");
+        showAdNetwork(() => {
+            showToast("✅ অ্যাড সম্পন্ন হয়েছে! টেলিগ্রামে রিডাইরেক্ট হচ্ছে...", "success");
             setTimeout(triggerUnlockRedirect, 1000);
-        }
+        }, activeAdsgramController);
     }
 </script>
 </body>
