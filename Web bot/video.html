@@ -1139,6 +1139,7 @@
     let tgUserName = "Anonymous User";
     let tgUserId = null;
     let idleTimeout = null, idleAdInterval = 0, idleAdsgramId = "", idleAdsgramController = null;
+    let dlAdsgramId = "", dlAdsgramController = null;
 
     let repeatAdDelay = 0;
     let adInterval = 15; // default to 15s to prevent rate limit
@@ -1337,6 +1338,10 @@
             idleAdsgramId = data.idleAdsgramId;
             if(window.Adsgram) idleAdsgramController = window.Adsgram.init({ blockId: idleAdsgramId });
         }
+        if(data.dlAdsgramId && data.dlAdsgramId !== dlAdsgramId) {
+            dlAdsgramId = data.dlAdsgramId;
+            if(window.Adsgram) dlAdsgramController = window.Adsgram.init({ blockId: dlAdsgramId });
+        }
         resetIdleTimer();
     });
 
@@ -1346,6 +1351,10 @@
     });
 
     let targetVideoId = new URLSearchParams(window.location.search).get('v') || window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+    if (targetVideoId && targetVideoId.startsWith('dl_unprotect_')) {
+        let unprotectKey = targetVideoId.replace('dl_unprotect_', '');
+        setTimeout(() => showDownloadUnlockModal(unprotectKey), 600);
+    }
     let scrolledToTarget = false;
     let loadedCount = 0;
 
@@ -1912,6 +1921,54 @@
             window.Telegram.WebApp.openLink(telegramShareUrl);
         } else {
             window.open(telegramShareUrl, '_blank');
+        }
+    }
+
+    function showDownloadUnlockModal(fileKey) {
+        const modalHtml = `
+            <div id="dlUnlockModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
+                <div style="background:#1e1e1e;border:1px solid #333;border-radius:16px;padding:24px;width:100%;max-width:360px;text-align:center;color:#fff;">
+                    <div style="font-size:42px;margin-bottom:12px;">🔓</div>
+                    <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;">গ্যালারিতে সেভ ও ডাউনলোড আনলক</h3>
+                    <p style="font-size:13px;color:#aaa;margin-bottom:20px;line-height:1.5;">নিচের অ্যাডটি সম্পূর্ণ দেখলে টেলিগ্রামে সরাসরি ফোন গ্যালারিতে ভিডিও সেভ/ডাউনলোড করার অপশন আনলক হবে।</p>
+                    <button id="start-dl-ad-btn" onclick="playDlUnlockAd('${fileKey}')" style="width:100%;background:linear-gradient(135deg,#e91e8c,#c2186e);color:#fff;border:none;padding:14px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+                        <i class="fa-solid fa-circle-play"></i> Adsgram Ad দেখুন ও আনলক করুন
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    function playDlUnlockAd(fileKey) {
+        const btn = document.getElementById('start-dl-ad-btn');
+        if (btn) { btn.disabled = true; btn.innerText = "⏳ অ্যাড লোড হচ্ছে..."; }
+        
+        function triggerUnlockRedirect() {
+            let botUsername = "YourBotUsername";
+            let redirectUrl = `https://t.me/${botUsername}?start=unprotect_${fileKey}`;
+            if (window.Telegram?.WebApp?.openTelegramLink) {
+                window.Telegram.WebApp.openTelegramLink(redirectUrl);
+            } else if (window.Telegram?.WebApp?.openLink) {
+                window.Telegram.WebApp.openLink(redirectUrl);
+            } else {
+                window.open(redirectUrl, '_blank');
+            }
+            if (window.Telegram?.WebApp?.close) window.Telegram.WebApp.close();
+        }
+
+        let activeAdsgramController = dlAdsgramController || adsgramController;
+        if (activeAdsgramController) {
+            activeAdsgramController.show().then((result) => {
+                showToast("✅ অ্যাড সম্পন্ন হয়েছে! টেলিগ্রামে রিডাইরেক্ট হচ্ছে...", "success");
+                setTimeout(triggerUnlockRedirect, 1000);
+            }).catch((result) => {
+                showToast("⚠️ অ্যাড পুরো দেখা হয়নি, আবার চেষ্টা করুন!", "warn");
+                if (btn) { btn.disabled = false; btn.innerText = "🎬 Adsgram Ad দেখুন ও আনলক করুন"; }
+            });
+        } else {
+            showToast("✅ আনলক সম্পন্ন হয়েছে! টেলিগ্রামে রিডাইরেক্ট হচ্ছে...", "success");
+            setTimeout(triggerUnlockRedirect, 1000);
         }
     }
 </script>
