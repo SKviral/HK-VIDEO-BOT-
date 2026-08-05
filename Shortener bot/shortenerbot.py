@@ -658,7 +658,11 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
 # ══════════════════════════════════════════════════
 #  ফাইল ডেলিভারি
 # ══════════════════════════════════════════════════
-def _deliver_files(chat_id, file_key, user):
+def _deliver_files(chat_id, file_key, user, is_unlocked=False):
+    if file_key.startswith("unprotect_"):
+        file_key = file_key[10:]
+        is_unlocked = True
+
     files = list(files_col.find({"$or": [{"file_key": file_key}, {"batch_id": file_key}]}))
     if not files:
         bot.send_message(chat_id, "❌ <b>ফাইল পাওয়া যায়নি!</b>\nলিংকটি মেয়াদোত্তীর্ণ হতে পারে।")
@@ -678,6 +682,14 @@ def _deliver_files(chat_id, file_key, user):
         mk.add(InlineKeyboardButton(f"📢 {ch['name']}", url=ch['url']))
 
     protect  = bool(get_setting("protect_content", 0))
+
+    if protect and not is_unlocked:
+        web_app_url = f"https://t.me/{WEBBOT_USERNAME}/app?startapp=dl_unprotect_{file_key}"
+        mk.add(InlineKeyboardButton("🔓 গ্যালারিতে সেভ/ডাউনলোড (অ্যাড দেখুন)", url=web_app_url))
+    elif is_unlocked:
+        protect = False
+        caption = "✅ <b>ডাউনলোড ও সেভ আনলক সম্পন্ন!</b>\n\nফাইলটি নিচে দেওয়া হলো। এখন আপনি এটি সরাসরি ডাউনলোড বা গ্যালারিতে সেভ করতে পারবেন।\n\n" + caption
+
     delivered = 0
 
     for f in files:
