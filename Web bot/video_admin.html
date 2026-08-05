@@ -544,6 +544,12 @@
                 </div>
                 <div class="grid-2">
                     <div class="input-group">
+                        <label>Direct Ad Link / Fallback Link (ঐচ্ছিক)</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-link"></i><input type="text" id="set-direct-ad-url" placeholder="https://monetag.com/direct-link-url"></div>
+                        <p class="field-hint">Adsgram বা Monetag ফলব্যাক হলে এই লিংক ওপেন হবে (সব ধরনের অডিয়েন্স ও প্ল্যাটফর্মের জন্য)।</p>
+                    </div>
+                <div class="grid-2">
+                    <div class="input-group">
                         <label>Repeat Ad Delay (মিনিট)</label>
                         <div class="input-wrapper"><i class="fa-solid fa-hourglass-half"></i><input type="number" id="set-repeat-ad-delay" placeholder="যেমন: 60 (১ ঘণ্টা)"></div>
                         <p class="field-hint">আনলক করার পর কত মিনিট পর্যন্ত সরাসরি ভিডিও দেখা যাবে (অ্যাড ছাড়া)।</p>
@@ -783,6 +789,7 @@
             document.getElementById('set-ad-interval').value = data.adInterval || "";
             document.getElementById('set-adsgram-id').value = data.adsgramId || "";
             document.getElementById('set-monetag-zone').value = data.monetagZone || "";
+            document.getElementById('set-direct-ad-url').value = data.directAdUrl || "";
             document.getElementById('set-idle-time').value = data.idleAdInterval || "";
             document.getElementById('set-idle-adsgram-id').value = data.idleAdsgramId || "";
             document.getElementById('set-repeat-adsgram-id').value = data.repeatAdsgramId || "";
@@ -800,6 +807,7 @@
             adInterval: document.getElementById('set-ad-interval').value,
             adsgramId: document.getElementById('set-adsgram-id').value,
             monetagZone: document.getElementById('set-monetag-zone').value,
+            directAdUrl: document.getElementById('set-direct-ad-url').value,
             idleAdInterval: document.getElementById('set-idle-time').value,
             idleAdsgramId: document.getElementById('set-idle-adsgram-id').value,
             repeatAdsgramId: document.getElementById('set-repeat-adsgram-id').value,
