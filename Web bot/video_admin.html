@@ -526,6 +526,13 @@
                 </div>
                 <div class="grid-2">
                     <div class="input-group">
+                        <label>Download Unlock Ad — Adsgram Block ID <span style="color:#22c55e;">🔓</span></label>
+                        <div class="input-wrapper"><i class="fa-solid fa-download"></i><input type="text" id="set-dl-adsgram-id" placeholder="গ্যালারিতে ডাউনলোড/সেভ আনলক Ad ID"></div>
+                        <p class="field-hint">গ্যালারিতে সেভ ও ডাউনলোড আনলকের জন্য এই আইডি ব্যবহার হবে (খালি রাখলে মেইন Ad ID কাজ করবে)।</p>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="input-group">
                         <label>অ্যাড টাইম (সেকেন্ড - ঐচ্ছিক)</label>
                         <div class="input-wrapper"><i class="fa-solid fa-stopwatch"></i><input type="text" id="set-ad-interval" placeholder="যেমন: 10, 45, 120"></div>
                         <p class="field-hint">খালি রাখলে মিড-রোল অ্যাড বন্ধ থাকবে।</p>
@@ -779,6 +786,7 @@
             document.getElementById('set-idle-time').value = data.idleAdInterval || "";
             document.getElementById('set-idle-adsgram-id').value = data.idleAdsgramId || "";
             document.getElementById('set-repeat-adsgram-id').value = data.repeatAdsgramId || "";
+            document.getElementById('set-dl-adsgram-id').value = data.dlAdsgramId || "";
             document.getElementById('set-repeat-ad-delay').value = data.repeatAdDelay || "";
             document.getElementById('dash-site-name').innerText = data.siteName || "StreamX";
         }
@@ -795,6 +803,7 @@
             idleAdInterval: document.getElementById('set-idle-time').value,
             idleAdsgramId: document.getElementById('set-idle-adsgram-id').value,
             repeatAdsgramId: document.getElementById('set-repeat-adsgram-id').value,
+            dlAdsgramId: document.getElementById('set-dl-adsgram-id').value,
             repeatAdDelay: parseInt(document.getElementById('set-repeat-ad-delay').value) || 0
         }).then(() => showToast("সেটিংস সফলভাবে সেভ হয়েছে!", "success"));
     }
