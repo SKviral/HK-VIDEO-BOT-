@@ -651,14 +651,14 @@ def execute_channel_post(chat_id, user, mtype, mid, scheduled_at=None):
             "sched_id": sched_id, "admin_id": chat_id, "media_type": mtype, "media_id": mid,
             "d_link": d_link, "s_link": s_link, "category_id": user.get("pending_category",""),
             "web_title": user.get("pending_web_title", ""), "thumb_url": user.get("pending_thumb_url", ""),
-            "web_video_id": user.get("pending_web_video_id", ""), "web_post_link": user.get("pending_web_post_link", ""),
+            "web_video_id": "", "web_post_link": "",
             "web_ads": user.get("pending_web_ads", 1),
             "scheduled_at": scheduled_at, "status": "pending", "created_at": datetime.now().isoformat()
         })
         cat = get_category(user.get("pending_category","")) if user.get("pending_category") else None
         cat_name = f"📂 {cat['name']}" if cat else "🌐 সব চ্যানেল"
         time_txt = "অনির্ধারিত (প্যানেল থেকে সেট করুন)" if "203" in scheduled_at else scheduled_at[:16].replace('T',' ')
-        bot.send_message(chat_id, f"⏰ <b>সিডিউল পোস্ট সেভ হয়েছে!</b>\n📅 সময়: <b>{time_txt}</b>\n📌 ক্যাটাগরি: {cat_name}\n🆔 ID: <code>{sched_id}</code>")
+        bot.send_message(chat_id, f"⏰ <b>সিডিউল পোস্ট সেভ হয়েছে!</b>\n📅 সময়: <b>{time_txt}</b>\n📌 ক্যাটাগরি: {cat_name}\n🆔 ID: <code>{sched_id}</code>\n\n💡 <i>নির্ধারিত সময়ে পোস্ট হওয়ার সময় স্বয়ংক্রিয়ভাবে ওয়েবসাইট ও ওয়েব বটে ভিডিওটি যোগ হবে।</i>")
         update_user(chat_id, {"step":"none","pending_link":"","pending_short_link":"","pending_category":"","pending_schedule":"","temp_media_id":"","temp_media_type":"","pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
         return
 
@@ -1220,7 +1220,6 @@ def cb(call):
     elif data.startswith("schedcat_"):
         try: bot.delete_message(cid, mid)
         except: pass
-        user = get_user(cid)
         cat_target = data[9:]
         if cat_target == "all":
             cat_target = ""
@@ -1234,14 +1233,7 @@ def cb(call):
         mtype_s = user2.get("temp_media_type","")
         mmid_s  = user2.get("temp_media_id","")
         
-        if not user2.get("pending_web_post_link"):
-            if cat_target:
-                cat = get_category(cat_target)
-                cat_name = cat.get("name", "Others") if cat else "Others"
-            else:
-                cat_name = "Others"
-            user2["pending_web_post_link"] = create_web_video_entry(user2, cat_name)
-            
+        # Video is NOT created on Firebase now; it will be created dynamically when the scheduled post fires!
         execute_channel_post(cid, user2, mtype_s, mmid_s, scheduled_at=future_iso)
         return
 
