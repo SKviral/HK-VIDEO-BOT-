@@ -326,21 +326,36 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
 
     file_count = _get_file_count_from_link(d_link)
 
+    # Category-level language & tutorial URLs (priority: category > channel)
+    cat_lang = cat.get("lang") or "en"
+    if cat_lang not in LANG_TEXTS: cat_lang = "en"
+    L = LANG_TEXTS[cat_lang]
+    fc_txt = L["file_count"].format(count=file_count) if file_count > 0 else ""
+
+    cat_ctx = {
+        "lang": cat_lang,
+        "tutorial_url_1": cat.get("tutorial_url_1") or "",
+        "tutorial_url_2": cat.get("tutorial_url_2") or ""
+    }
+
     count = 0
     for ch in cat.get("channels", []):
         if ch.get("status") != "on": continue
         ch_type = ch.get("type", "ad")
-        lang = ch.get("lang", "en")
-        if lang not in LANG_TEXTS: lang = "en"
-        L = LANG_TEXTS[lang]
-        fc_txt = L["file_count"].format(count=file_count) if file_count > 0 else ""
+        
+        # Merge channel specific override if present
+        merged_ctx = dict(cat_ctx)
+        if ch.get("tutorial_url_1") and not merged_ctx["tutorial_url_1"]:
+            merged_ctx["tutorial_url_1"] = ch["tutorial_url_1"]
+        if ch.get("tutorial_url_2") and not merged_ctx["tutorial_url_2"]:
+            merged_ctx["tutorial_url_2"] = ch["tutorial_url_2"]
 
         if ch_type == "premium":
             link = d_link
             links_str = "\n".join([link]*rpt)
             caption = f"{ph_t}{fc_txt}{L['prem_caption_title']}\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
             clean_cap = clean_html(caption)
-            markup = _build_post_markup(user, d_link, clean_cap, is_premium=True, ch=ch)
+            markup = _build_post_markup(user, d_link, clean_cap, is_premium=True, ch=merged_ctx)
         elif ch_type == "log":
             caption = f"💾 <b>Backup</b> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
             markup = None
@@ -348,7 +363,7 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
             caption = f"{ph_t}{fc_txt}{L['ad_caption_cta']}\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
             dl_share_link = user.get("pending_web_post_link") or s_link
             clean_cap = clean_html(caption) + f"\n\n{L['dl_share_prefix']}\n{dl_share_link}"
-            markup = _build_post_markup(user, s_link, clean_cap, is_premium=False, ch=ch)
+            markup = _build_post_markup(user, s_link, clean_cap, is_premium=False, ch=merged_ctx)
 
         try:
             _send_media(ch['channel_id'], mtype, mid, caption, markup, protect if ch_type!="log" else False)
@@ -1260,14 +1275,16 @@ def cb(call):
         cats = get_categories()
         m = _mk()
         for c in cats:
-            m.row(_btn(f"📂 {c['name']}", f"view_cat_{c['cat_id']}"), _btn("🗑️", f"del_cat_{c['cat_id']}"))
+            l_code = c.get("lang") or "en"
+            badge = LANG_TEXTS.get(l_code, {}).get("badge", "🇬🇧 EN")
+            m.row(_btn(f"📂 {c['name']} [{badge}]", f"view_cat_{c['cat_id']}"), _btn("🗑️", f"del_cat_{c['cat_id']}"))
         m.add(_btn("➕ নতুন ক্যাটাগরি যোগ করুন","add_category"))
         m.add(_back("settings"))
-        bot.edit_message_text(f"📂 <b>ক্যাটাগরি ম্যানেজমেন্ট</b>\n{'─'*26}\nমোট: <b>{len(cats)}</b>টি ক্যাটাগরি", cid, mid, reply_markup=m)
+        bot.edit_message_text(f"📂 <b>ক্যাটাগরি ম্যানেজমেন্ট</b>\n{'─'*26}\nমোট: <b>{len(cats)}</b>টি ক্যাটাগরি\n\n⚙️ <i>ক্যাটাগরির ভাষা ও দেখার নিয়ম সেট করতে নামের ওপর ক্লিক করুন।</i>", cid, mid, reply_markup=m)
 
     elif data == "add_category":
         update_step(cid, "wait_add_category")
-        bot.send_message(cid,"📂 নতুন ক্যাটাগরির নাম লিখুন:\n\nউদাহরণ: <code>হিন্দি</code> বা <code>বাংলা</code>")
+        bot.send_message(cid,"📂 <b>নতুন ক্যাটাগরির নাম লিখুন:</b>\n\nউদাহরণ: <code>বাংলাদেশ</code>, <code>ইন্ডিয়া</code> বা <code>English</code>")
 
     elif data.startswith("del_cat_"):
         cid2 = data[8:]
@@ -1287,13 +1304,64 @@ def cb(call):
         ad_chs  = [c for c in channels if c.get("type")=="ad"]
         pr_chs  = [c for c in channels if c.get("type")=="premium"]
         log_chs = [c for c in channels if c.get("type")=="log"]
-        txt = (f"📂 <b>ক্যাটাগরি: {cat['name']}</b>\n{'─'*26}\n📺 Ad চ্যানেল: <b>{len(ad_chs)}</b>টি\n💎 Premium: <b>{len(pr_chs)}</b>টি\n💾 Log: <b>{len(log_chs)}</b>টি")
+        
+        lang_code = cat.get("lang") or "en"
+        lang_name = LANG_TEXTS.get(lang_code, {}).get("name", "English 🇬🇧")
+        tut1 = cat.get("tutorial_url_1") or "সেট করা নেই ❌"
+        tut2 = cat.get("tutorial_url_2") or "সেট করা নেই ❌"
+        
+        txt = (
+            f"📂 <b>ক্যাটাগরি সেটিংস: {cat['name']}</b>\n"
+            f"{'─'*26}\n"
+            f"🌐 <b>ভাষা (Language):</b> <b>{lang_name}</b>\n"
+            f"🎬 <b>দেখার নিয়ম ১ লিংক:</b>\n<code>{tut1}</code>\n"
+            f"🎬 <b>দেখার নিয়ম ২ লিংক:</b>\n<code>{tut2}</code>\n"
+            f"{'─'*26}\n"
+            f"📺 Ad চ্যানেল: <b>{len(ad_chs)}</b>টি | 💎 Premium: <b>{len(pr_chs)}</b>টি | 💾 Log: <b>{len(log_chs)}</b>টি\n\n"
+            f"💡 <i>এই ক্যাটাগরিতে পোস্ট করলে সমস্ত চ্যানেল ওপরের ভাষা ও টিউটোরিয়াল ব্যবহার করবে।</i>"
+        )
         m = _mk()
+        m.add(_btn(f"🌐 ভাষা পরিবর্তন ({lang_name})", f"catlang_{cat_id2}"))
+        m.row(_btn("🎬 দেখার নিয়ম ১ লিংক", f"cattut1_{cat_id2}"), _btn("🎬 দেখার নিয়ম ২ লিংক", f"cattut2_{cat_id2}"))
         m.add(_btn(f"📺 Ad চ্যানেল ({len(ad_chs)}টি)", f"catlist_ad_{cat_id2}"))
-        m.add(_btn(f"💎 Premium চ্যানেল ({len(pr_chs)}টি)", f"catlist_premium_{cat_id2}"))
-        m.add(_btn(f"💾 Log চ্যানেল ({len(log_chs)}টি)", f"catlist_log_{cat_id2}"))
+        m.row(_btn(f"💎 Premium ({len(pr_chs)}টি)", f"catlist_premium_{cat_id2}"), _btn(f"💾 Log ({len(log_chs)}টি)", f"catlist_log_{cat_id2}"))
         m.add(_back("menu_categories"))
         bot.edit_message_text(txt, cid, mid, reply_markup=m)
+
+    elif data.startswith("catlang_"):
+        cat_id2 = data[8:]
+        cat = get_category(cat_id2)
+        if not cat:
+            bot.answer_callback_query(call.id, "⚠️ ক্যাটাগরি পাওয়া যায়নি!", show_alert=True); return
+        m = _mk()
+        m.add(_btn("🇬🇧 English (Default)", f"setcatlang_{cat_id2}_en"))
+        m.add(_btn("🇧🇩 বাংলা (Bengali)", f"setcatlang_{cat_id2}_bn"))
+        m.add(_btn("🇮🇳 हिंदी (Hindi)", f"setcatlang_{cat_id2}_hi"))
+        m.add(_back(f"view_cat_{cat_id2}"))
+        bot.edit_message_text(f"🌐 <b>ক্যাটাগরির ভাষা সিলেক্ট করুন</b>\n\n📂 ক্যাটাগরি: <b>{cat.get('name')}</b>\n\nযে ভাষা সিলেক্ট করবেন, এই ক্যাটাগরির সমস্ত চ্যানেলে পোস্ট ও বাটন সেই ভাষায় তৈরি হবে।", cid, mid, reply_markup=m)
+
+    elif data.startswith("setcatlang_"):
+        parts = data[11:].rsplit("_", 1)
+        if len(parts) == 2:
+            cat_id2, selected_lang = parts
+            if selected_lang in LANG_TEXTS:
+                categories_col.update_one({"cat_id": cat_id2}, {"$set": {"lang": selected_lang}})
+                bot.answer_callback_query(call.id, f"✅ ক্যাটাগরির ভাষা সেট হয়েছে: {LANG_TEXTS[selected_lang]['name']}", show_alert=True)
+                call.data = f"view_cat_{cat_id2}"; cb(call)
+
+    elif data.startswith("cattut1_"):
+        cat_id2 = data[8:]
+        cat = get_category(cat_id2)
+        if not cat: return
+        update_step(cid, f"wait_cattut1_{cat_id2}")
+        bot.send_message(cid, f"🎬 <b>'{cat.get('name')}' ক্যাটাগরির জন্য দেখার নিয়ম ১ (Tutorial 1) লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/123</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
+
+    elif data.startswith("cattut2_"):
+        cat_id2 = data[8:]
+        cat = get_category(cat_id2)
+        if not cat: return
+        update_step(cid, f"wait_cattut2_{cat_id2}")
+        bot.send_message(cid, f"🎬 <b>'{cat.get('name')}' ক্যাটাগরির জন্য দেখার নিয়ম ২ (Tutorial 2) লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/456</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
 
     elif data.startswith("catlist_"):
         parts = data.split("_", 2)
@@ -1934,6 +2002,25 @@ def handle_message(message):
                     categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
         update_step(cid, "none")
         bot.send_message(cid, f"✅ <b>দেখার নিয়ম ২ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        return
+
+    # ── Category Tutorial Steps ──
+    if step.startswith("wait_cattut1_"):
+        cat_id = step[12:]
+        url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
+        categories_col.update_one({"cat_id": cat_id}, {"$set": {"tutorial_url_1": url_val}})
+        cat = get_category(cat_id)
+        update_step(cid, "none")
+        bot.send_message(cid, f"✅ <b>'{cat.get('name')}' ক্যাটাগরির দেখার নিয়ম ১ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        return
+
+    if step.startswith("wait_cattut2_"):
+        cat_id = step[12:]
+        url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
+        categories_col.update_one({"cat_id": cat_id}, {"$set": {"tutorial_url_2": url_val}})
+        cat = get_category(cat_id)
+        update_step(cid, "none")
+        bot.send_message(cid, f"✅ <b>'{cat.get('name')}' ক্যাটাগরির দেখার নিয়ম ২ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
         return
         
     # ── Custom Ads Count Step ──
@@ -2616,21 +2703,50 @@ def api_update_channel(ch_id):
 def api_add_category():
     data = request.json or {}
     name = data.get("name", "").strip()
+    lang = data.get("lang", "en").strip()
+    tutorial_url_1 = data.get("tutorial_url_1", "").strip()
+    tutorial_url_2 = data.get("tutorial_url_2", "").strip()
     if not name:
         return jsonify({"ok": False, "error": "নাম দিন"}), 400
     cat_id = str(uuid.uuid4().hex)[:8]
     categories_col.insert_one({
         "cat_id": cat_id,
         "name": name,
+        "lang": lang if lang in LANG_TEXTS else "en",
+        "tutorial_url_1": tutorial_url_1,
+        "tutorial_url_2": tutorial_url_2,
         "channels": [],
         "created_at": datetime.now().isoformat()
     })
+    sync_categories_to_firebase()
+    return jsonify({"ok": True})
+
+@shortener_bp.route('/api/categories/update/<cat_id>', methods=['POST','OPTIONS'])
+@require_auth
+def api_update_category(cat_id):
+    data = request.json or {}
+    cat = categories_col.find_one({"cat_id": cat_id})
+    if not cat:
+        return jsonify({"ok": False, "error": "ক্যাটাগরি পাওয়া যায়নি"}), 404
+    
+    update_fields = {}
+    if "name" in data: update_fields["name"] = data["name"].strip()
+    if "lang" in data:
+        l_val = data["lang"].strip()
+        update_fields["lang"] = l_val if l_val in LANG_TEXTS else "en"
+    if "tutorial_url_1" in data: update_fields["tutorial_url_1"] = data["tutorial_url_1"].strip()
+    if "tutorial_url_2" in data: update_fields["tutorial_url_2"] = data["tutorial_url_2"].strip()
+
+    if update_fields:
+        categories_col.update_one({"cat_id": cat_id}, {"$set": update_fields})
+        sync_categories_to_firebase()
     return jsonify({"ok": True})
 
 @shortener_bp.route('/api/categories/delete/<cat_id>', methods=['DELETE','OPTIONS'])
 @require_auth
 def api_delete_category(cat_id):
     categories_col.delete_one({"cat_id": cat_id})
+    sync_categories_to_firebase()
     return jsonify({"ok": True})
 
 @shortener_bp.route('/api/categories/update_channels/<cat_id>', methods=['POST','OPTIONS'])

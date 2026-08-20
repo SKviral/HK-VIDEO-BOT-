@@ -664,11 +664,47 @@ select.fc{cursor:pointer}
   <div class="modal">
     <div class="mhd"><span class="mtitle">📂 নতুন ক্যাটাগরি তৈরি</span><button class="mclose" onclick="closeM('m-cat')">✕</button></div>
     <div class="mbody">
-      <div class="fg"><label class="fl">📝 ক্যাটাগরি নাম</label><input class="fc" id="cat-nm" placeholder="যেমন: Action, Drama"></div>
+      <div class="fg"><label class="fl">📝 ক্যাটাগরি নাম</label><input class="fc" id="cat-nm" placeholder="যেমন: বাংলাদেশ, ইন্ডিয়া, English"></div>
+      <div class="fg">
+        <label class="fl">🌐 ভাষা (Language)</label>
+        <select class="fc" id="cat-lang">
+          <option value="en" selected>🇬🇧 English (ডিফল্ট)</option>
+          <option value="bn">🇧🇩 বাংলা (Bengali)</option>
+          <option value="hi">🇮🇳 हिंदी (Hindi)</option>
+        </select>
+        <div class="fhint">এই ক্যাটাগরির সমস্ত চ্যানেলে যে ভাষায় পোস্ট ও বাটন তৈরি হবে।</div>
+      </div>
+      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ১ লিংক (Tutorial 1 - ঐচ্ছিক)</label><input class="fc" id="cat-tut1" placeholder="https://t.me/tutorial/123"></div>
+      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ২ লিংক (Tutorial 2 - ঐচ্ছিক)</label><input class="fc" id="cat-tut2" placeholder="https://t.me/tutorial/456"></div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-cat')">বাতিল</button>
       <button class="btn btn-p" onclick="addCat()">✅ তৈরি করুন</button>
+    </div>
+  </div>
+</div>
+
+<div class="mbg" id="m-edit-cat">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">⚙️ ক্যাটাগরি সেটিংস</span><button class="mclose" onclick="closeM('m-edit-cat')">✕</button></div>
+    <div class="mbody">
+      <input type="hidden" id="ecat-id">
+      <div class="fg"><label class="fl">📝 ক্যাটাগরি নাম</label><input class="fc" id="ecat-nm"></div>
+      <div class="fg">
+        <label class="fl">🌐 ভাষা (Language)</label>
+        <select class="fc" id="ecat-lang">
+          <option value="en">🇬🇧 English (ডিফল্ট)</option>
+          <option value="bn">🇧🇩 বাংলা (Bengali)</option>
+          <option value="hi">🇮🇳 हिंदी (Hindi)</option>
+        </select>
+        <div class="fhint">এই ক্যাটাগরির সমস্ত চ্যানেলে যে ভাষায় পোস্ট ও বাটন তৈরি হবে।</div>
+      </div>
+      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ১ লিংক (Tutorial URL 1)</label><input class="fc" id="ecat-tut1" placeholder="https://t.me/tutorial/123"><div class="fhint">এই ক্যাটাগরির সব চ্যানেলে ডাউনলোড ১ এর দেখার নিয়ম হিসেবে কাজ করবে।</div></div>
+      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ২ লিংক (Tutorial URL 2)</label><input class="fc" id="ecat-tut2" placeholder="https://t.me/tutorial/456"><div class="fhint">এই ক্যাটাগরির সব চ্যানেলে ডাউনলোড ২ এর দেখার নিয়ম হিসেবে কাজ করবে।</div></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-g" onclick="closeM('m-edit-cat')">বাতিল</button>
+      <button class="btn btn-p" onclick="saveEditCat()">💾 সেভ করুন</button>
     </div>
   </div>
 </div>
@@ -1154,12 +1190,18 @@ async function loadCats(){
         <div class="list-card-ico">📂</div>
         <div class="list-card-info">
           <div class="list-card-title">${c.name}</div>
-          <div class="list-card-sub">${(c.channels||[]).length}টি চ্যানেল</div>
+          <div class="list-card-sub">${(c.channels||[]).length}টি চ্যানেল যুক্ত</div>
         </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;">
+        <span class="badge b-p">${c.lang==='bn'?'🇧🇩 বাংলা':c.lang==='hi'?'🇮🇳 हिंदी':'🇬🇧 English'}</span>
+        ${c.tutorial_url_1?'<span class="badge b-c" title="'+c.tutorial_url_1+'">🎬 Tut 1 ✓</span>':''}
+        ${c.tutorial_url_2?'<span class="badge b-c" title="'+c.tutorial_url_2+'">🎬 Tut 2 ✓</span>':''}
       </div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">${(c.channels||[]).map(ch=>`<span class="tag">${ch.name||ch.channel_id}</span>`).join('')}</div>
       <div class="list-card-actions">
-        <button class="btn btn-g btn-sm" onclick="manageCatChannels('${c.cat_id}')">🔗 চ্যানেল লিংক করুন</button>
+        <button class="btn btn-g btn-sm" onclick="openEditCat('${c.cat_id}')">⚙️ ক্যাটাগরি সেটিংস</button>
+        <button class="btn btn-g btn-sm" onclick="manageCatChannels('${c.cat_id}')">🔗 চ্যানেল লিংক</button>
         <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="delCat('${c.cat_id}')">🗑️ মুছুন</button>
       </div>
     </div>`).join('');
@@ -1386,11 +1428,38 @@ async function saveEditCh(){
 // Add Category
 async function addCat(){
   const name = $('cat-nm').value.trim();
+  const lang = $('cat-lang').value;
+  const tutorial_url_1 = $('cat-tut1').value.trim();
+  const tutorial_url_2 = $('cat-tut2').value.trim();
   if(!name){toast('⚠️ নাম দিন','warn');return}
-  const r = await api('/api/categories/add','POST',{name});
+  const r = await api('/api/categories/add','POST',{name,lang,tutorial_url_1,tutorial_url_2});
   if(r?.ok){
-    $('cat-nm').value='';
+    $('cat-nm').value=''; $('cat-tut1').value=''; $('cat-tut2').value='';
     closeM('m-cat'); loadCats(); toast('✅ ক্যাটাগরি তৈরি হয়েছে','success');
+  } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+}
+
+function openEditCat(id){
+  const cat = D.categories.find(x => x.cat_id === id);
+  if(!cat) return;
+  $('ecat-id').value = cat.cat_id;
+  $('ecat-nm').value = cat.name || '';
+  $('ecat-lang').value = cat.lang || 'en';
+  $('ecat-tut1').value = cat.tutorial_url_1 || '';
+  $('ecat-tut2').value = cat.tutorial_url_2 || '';
+  openM('m-edit-cat');
+}
+
+async function saveEditCat(){
+  const id = $('ecat-id').value;
+  const name = $('ecat-nm').value.trim();
+  const lang = $('ecat-lang').value;
+  const tutorial_url_1 = $('ecat-tut1').value.trim();
+  const tutorial_url_2 = $('ecat-tut2').value.trim();
+  if(!name){toast('⚠️ ক্যাটাগরির নাম দিন','warn');return}
+  const r = await api('/api/categories/update/'+id,'POST',{name,lang,tutorial_url_1,tutorial_url_2});
+  if(r?.ok){
+    closeM('m-edit-cat'); loadCats(); toast('✅ ক্যাটাগরি সেটিংস সেভ হয়েছে','success');
   } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
 }
 
