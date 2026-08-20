@@ -52,8 +52,8 @@ from telegram.ext import (
 )
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
-# টোকেন প্রাইভেসি: প্রথমে এনভায়রনমেন্ট ভেরিয়েবল চেক করবে
-BOT_TOKEN = os.getenv("APPROVE_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or os.getenv("BOT_TOKEN")
+# টোকেন প্রাইভেসি: শুধুমাত্র APPROVE_BOT_TOKEN চেক করবে যাতে শর্টনার বটের সাথে কনফ্লিক্ট না হয়
+BOT_TOKEN = os.getenv("APPROVE_BOT_TOKEN")
 
 ADMIN_IDS = [7756038841]  # ← প্রথম super-admin
 # মেইন অ্যাডমিন আইডি এনভায়রনমেন্ট ভেরিয়েবল থেকে রিড করে ডাইনামিকালি অ্যাড করা হচ্ছে যাতে /start কাজ করে
@@ -190,6 +190,8 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_requests_channel ON join_requests(channel_id);
             CREATE INDEX IF NOT EXISTS idx_requests_status  ON join_requests(status);
+            CREATE INDEX IF NOT EXISTS idx_requests_user    ON join_requests(user_id);
+            CREATE INDEX IF NOT EXISTS idx_requests_req_at  ON join_requests(requested_at);
             CREATE INDEX IF NOT EXISTS idx_queue_accept     ON pending_queue(accept_after);
             """)
 
@@ -578,7 +580,48 @@ def get_pending_queue(channel_id: int = None) -> list[dict]:
         return []
 
 
+def get_all_users() -> list[int]:
+    if USING_MONGO:
+        try:
+            return requests_col.distinct("user_id")
+        except Exception as e:
+            logger.error(f"get_all_users mongo error: {e}")
+            return []
+    try:
+        with get_db() as conn:
+            rows = conn.execute("SELECT DISTINCT user_id FROM join_requests").fetchall()
+            return [r["user_id"] for r in rows]
+    except Exception as e:
+        logger.error(f"get_all_users sqlite error: {e}")
+        return []
+
+
 def get_stats(channel_id: int = None) -> dict:
+    # Timezone offset: UTC+6 (Bangladesh standard time)
+    tz_offset = timedelta(hours=6)
+    now_utc = datetime.utcnow()
+    now_local = now_utc + tz_offset
+    
+    # Start of local today in local time, then convert to UTC
+    today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start_utc = today_start_local - tz_offset
+    
+    yesterday_start_utc = today_start_utc - timedelta(days=1)
+    seven_days_start_utc = today_start_utc - timedelta(days=6)  # 7 days including today
+    six_months_start_utc = today_start_utc - timedelta(days=180)  # ~6 months
+    
+    def format_dt(dt: datetime) -> str:
+        if USING_MONGO:
+            return dt.isoformat()
+        else:
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+            
+    today_start_str = format_dt(today_start_utc)
+    yesterday_start_str = format_dt(yesterday_start_utc)
+    seven_days_start_str = format_dt(seven_days_start_utc)
+    six_months_start_str = format_dt(six_months_start_utc)
+    now_str = format_dt(now_utc)
+
     if USING_MONGO:
         try:
             q = {"channel_id": channel_id} if channel_id else {}
@@ -592,22 +635,60 @@ def get_stats(channel_id: int = None) -> dict:
             q_pend["status"] = "pending"
             pending = requests_col.count_documents(q_pend)
             
-            def period_count_mongo(days):
-                since = (datetime.utcnow() - timedelta(days=days)).isoformat()
-                q_per = q.copy()
-                q_per["requested_at"] = {"$gte": since}
-                return requests_col.count_documents(q_per)
+            def count_mongo(start_str, end_str=None, accepted_only=False):
+                query = q.copy()
+                cond = {"$gte": start_str}
+                if end_str:
+                    cond["$lt"] = end_str
+                query["requested_at"] = cond
+                if accepted_only:
+                    query["status"] = "accepted"
+                return requests_col.count_documents(query)
+                
+            def count_new_users_mongo(start_str, end_str=None):
+                pipeline = [
+                    {"$sort": {"requested_at": 1}},
+                    {"$group": {
+                        "_id": "$user_id",
+                        "first_request": {"$first": "$requested_at"},
+                        "first_channel": {"$first": "$channel_id"}
+                    }}
+                ]
+                match_cond = {"first_request": {"$gte": start_str}}
+                if end_str:
+                    match_cond["first_request"]["$lt"] = end_str
+                if channel_id:
+                    match_cond["first_channel"] = channel_id
+                    
+                pipeline.append({"$match": match_cond})
+                pipeline.append({"$count": "count"})
+                
+                result = list(requests_col.aggregate(pipeline))
+                return result[0]["count"] if result else 0
                 
             return {
                 "total": total,
                 "accepted": accepted,
                 "pending": pending,
-                "today": period_count_mongo(1),
-                "weekly": period_count_mongo(7),
-                "monthly": period_count_mongo(30),
+                "today_acc": count_mongo(today_start_str, accepted_only=True),
+                "today_tot": count_mongo(today_start_str, accepted_only=False),
+                "today_uni": count_new_users_mongo(today_start_str),
+                
+                "yesterday_acc": count_mongo(yesterday_start_str, today_start_str, accepted_only=True),
+                "yesterday_tot": count_mongo(yesterday_start_str, today_start_str, accepted_only=False),
+                "yesterday_uni": count_new_users_mongo(yesterday_start_str, today_start_str),
+                
+                "weekly_acc": count_mongo(seven_days_start_str, accepted_only=True),
+                "weekly_tot": count_mongo(seven_days_start_str, accepted_only=False),
+                "weekly_uni": count_new_users_mongo(seven_days_start_str),
+                
+                "six_months_acc": count_mongo(six_months_start_str, accepted_only=True),
+                "six_months_tot": count_mongo(six_months_start_str, accepted_only=False),
+                "six_months_uni": count_new_users_mongo(six_months_start_str),
             }
         except Exception as e:
             logger.error(f"get_stats mongo error: {e}")
+            
     try:
         with get_db() as conn:
             base = "WHERE channel_id=?" if channel_id else ""
@@ -616,31 +697,87 @@ def get_stats(channel_id: int = None) -> dict:
             total = conn.execute(
                 f"SELECT COUNT(*) FROM join_requests {base}", params
             ).fetchone()[0]
+            
+            acc_where = f"{base} {'AND' if base else 'WHERE'} status='accepted'"
             accepted = conn.execute(
-                f"SELECT COUNT(*) FROM join_requests {base} {'AND' if base else 'WHERE'} status='accepted'",
-                params,
+                f"SELECT COUNT(*) FROM join_requests {acc_where}", params
             ).fetchone()[0]
+            
+            pend_where = f"{base} {'AND' if base else 'WHERE'} status='pending'"
             pending = conn.execute(
-                f"SELECT COUNT(*) FROM join_requests {base} {'AND' if base else 'WHERE'} status='pending'",
-                params,
+                f"SELECT COUNT(*) FROM join_requests {pend_where}", params
             ).fetchone()[0]
 
-            def period_count(days):
-                since = (datetime.utcnow() - timedelta(days=days)).isoformat()
-                q = f"SELECT COUNT(*) FROM join_requests {base} {'AND' if base else 'WHERE'} requested_at >= ?"
-                return conn.execute(q, (*params, since)).fetchone()[0]
+            def count_sqlite(start_str, end_str=None, accepted_only=False):
+                q_parts = []
+                if base:
+                    q_parts.append("channel_id=?")
+                if accepted_only:
+                    q_parts.append("status='accepted'")
+                q_parts.append("requested_at >= ?")
+                if end_str:
+                    q_parts.append("requested_at < ?")
+                    
+                where_clause = "WHERE " + " AND ".join(q_parts)
+                sql = f"SELECT COUNT(*) FROM join_requests {where_clause}"
+                
+                query_params = list(params)
+                query_params.append(start_str)
+                if end_str:
+                    query_params.append(end_str)
+                    
+                return conn.execute(sql, query_params).fetchone()[0]
+
+            def count_new_users_sqlite(start_str, end_str=None):
+                q_parts = []
+                if channel_id:
+                    q_parts.append("j1.channel_id = ?")
+                q_parts.append("j1.requested_at >= ?")
+                if end_str:
+                    q_parts.append("j1.requested_at < ?")
+                q_parts.append("NOT EXISTS (SELECT 1 FROM join_requests j2 WHERE j2.user_id = j1.user_id AND j2.requested_at < j1.requested_at)")
+                
+                where_clause = "WHERE " + " AND ".join(q_parts)
+                sql = f"SELECT COUNT(DISTINCT j1.user_id) FROM join_requests j1 {where_clause}"
+                
+                query_params = []
+                if channel_id:
+                    query_params.append(channel_id)
+                query_params.append(start_str)
+                if end_str:
+                    query_params.append(end_str)
+                    
+                return conn.execute(sql, query_params).fetchone()[0]
 
             return {
                 "total": total,
                 "accepted": accepted,
                 "pending": pending,
-                "today": period_count(1),
-                "weekly": period_count(7),
-                "monthly": period_count(30),
+                "today_acc": count_sqlite(today_start_str, accepted_only=True),
+                "today_tot": count_sqlite(today_start_str, accepted_only=False),
+                "today_uni": count_new_users_sqlite(today_start_str),
+                
+                "yesterday_acc": count_sqlite(yesterday_start_str, today_start_str, accepted_only=True),
+                "yesterday_tot": count_sqlite(yesterday_start_str, today_start_str, accepted_only=False),
+                "yesterday_uni": count_new_users_sqlite(yesterday_start_str, today_start_str),
+                
+                "weekly_acc": count_sqlite(seven_days_start_str, accepted_only=True),
+                "weekly_tot": count_sqlite(seven_days_start_str, accepted_only=False),
+                "weekly_uni": count_new_users_sqlite(seven_days_start_str),
+                
+                "six_months_acc": count_sqlite(six_months_start_str, accepted_only=True),
+                "six_months_tot": count_sqlite(six_months_start_str, accepted_only=False),
+                "six_months_uni": count_new_users_sqlite(six_months_start_str),
             }
     except Exception as e:
         logger.error(f"get_stats sqlite error: {e}")
-        return {"total": 0, "accepted": 0, "pending": 0, "today": 0, "weekly": 0, "monthly": 0}
+        return {
+            "total": 0, "accepted": 0, "pending": 0,
+            "today_acc": 0, "today_tot": 0, "today_uni": 0,
+            "yesterday_acc": 0, "yesterday_tot": 0, "yesterday_uni": 0,
+            "weekly_acc": 0, "weekly_tot": 0, "weekly_uni": 0,
+            "six_months_acc": 0, "six_months_tot": 0, "six_months_uni": 0,
+        }
 
 
 def make_backup() -> str:
@@ -833,6 +970,7 @@ def kb_broadcast_targets(action_type: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 সব চ্যানেলে পাঠান", callback_data=f"bc:target_all:{action_type}")],
         [InlineKeyboardButton("📂 ক্যাটাগরি অনুযায়ী পাঠান", callback_data=f"bc:target_cat:{action_type}")],
+        [InlineKeyboardButton("👤 সব ইউজারদের পাঠান", callback_data=f"bc:target_users:{action_type}")],
         [InlineKeyboardButton("🔙 ব্যাক", callback_data="menu:broadcast")],
     ])
 
@@ -1117,8 +1255,8 @@ async def cmd_health(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"⏳ পেন্ডিং কিউ: <b>{len(queue)}</b>\n"
         f"📊 মোট রিকুয়েস্ট: <b>{stats['total']}</b>\n"
         f"✅ একসেপ্টেড: <b>{stats['accepted']}</b>\n"
-        f"🗓️ আজ: <b>{stats['today']}</b>\n"
-        f"📅 এই সপ্তাহ: <b>{stats['weekly']}</b>\n"
+        f"🗓️ আজ: <b>{stats['today_acc']}</b>\n"
+        f"📅 এই সপ্তাহ: <b>{stats['weekly_acc']}</b>\n"
         f"🗃️ DB আকার: <b>{Path(DB_PATH).stat().st_size // 1024} KB</b>"
     )
     await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_back_main())
@@ -1128,6 +1266,126 @@ async def cmd_health(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # State management for multi-step input (in-memory, per-user)
 USER_STATES: dict[int, dict] = {}
+
+
+def format_stats_text(title: str, s: dict) -> str:
+    return (
+        f"📊 <b>{title}</b>\n\n"
+        f"📩 মোট রিকুয়েস্ট: <b>{s['total']}</b>\n"
+        f"✅ একসেপ্টেড: <b>{s['accepted']}</b>\n"
+        f"⏳ পেন্ডিং: <b>{s['pending']}</b>\n"
+        f"─────────────────\n"
+        f"🗓️ আজ নতুন মেম্বার: <b>{s['today_acc']}</b> (মোট রিকুয়েস্ট: {s['today_tot']}) [ইউনিক ট্রাফিক: {s['today_uni']}]\n"
+        f"📅 গতকাল: <b>{s['yesterday_acc']}</b> (মোট রিকুয়েস্ট: {s['yesterday_tot']}) [ইউনিক ট্রাফিক: {s['yesterday_uni']}]\n"
+        f"📅 গত ৭ দিন: <b>{s['weekly_acc']}</b> (মোট রিকুয়েস্ট: {s['weekly_tot']}) [ইউনিক ট্রাফিক: {s['weekly_uni']}]\n"
+        f"📆 গত ৬ মাস: <b>{s['six_months_acc']}</b> (মোট রিকুয়েস্ট: {s['six_months_tot']}) [ইউনিক ট্রাফিক: {s['six_months_uni']}]"
+    )
+
+
+async def send_broadcast_message(bot: Bot, chat_id: int, state: dict, action_type: str, kb) -> bool:
+    try:
+        if action_type == "post":
+            if state.get("media_type") == "photo":
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=state["media_id"],
+                    caption=state["text"],
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=kb
+                )
+            else:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=state["text"],
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=kb
+                )
+        elif action_type == "poll":
+            await bot.send_poll(
+                chat_id=chat_id,
+                question=state.get("question"),
+                options=state.get("options") or [],
+                is_anonymous=True
+            )
+        return True
+    except Forbidden:
+        logger.warning(f"Broadcast blocked/forbidden by user/channel {chat_id}")
+        return False
+    except BadRequest as e:
+        logger.error(f"Broadcast BadRequest for {chat_id}: {e}")
+        return False
+    except TelegramError as e:
+        if "retry after" in str(e).lower():
+            import re
+            seconds = 5
+            match = re.search(r"retry after (\d+)", str(e).lower())
+            if match:
+                seconds = int(match.group(1))
+            logger.warning(f"Rate limited. Sleeping for {seconds} seconds...")
+            await asyncio.sleep(seconds)
+            return await send_broadcast_message(bot, chat_id, state, action_type, kb)
+        logger.error(f"Broadcast TelegramError for {chat_id}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Broadcast unexpected error for {chat_id}: {e}")
+        return False
+
+
+async def broadcast_to_users_task(bot: Bot, admin_id: int, users: list[int], state: dict, action_type: str):
+    success = 0
+    failed = 0
+    total = len(users)
+    
+    # Build keyboard markup
+    btns = state.get("buttons") or []
+    kb_list = []
+    for btn in btns:
+        kb_list.append([InlineKeyboardButton(btn["text"], url=btn["url"])])
+    kb = InlineKeyboardMarkup(kb_list) if kb_list else None
+    
+    # Send progress update helper
+    status_msg = await bot.send_message(
+        chat_id=admin_id,
+        text=f"⏳ **ইউজার ব্রডকাস্ট প্রোগ্রেস:**\n\n"
+             f"📊 পাঠানো হচ্ছে: 0/{total}\n"
+             f"✅ সফল: 0\n"
+             f"❌ ব্যর্থ: 0"
+    )
+    
+    last_update_time = asyncio.get_event_loop().time()
+    
+    for idx, user_id in enumerate(users):
+        res = await send_broadcast_message(bot, user_id, state, action_type, kb)
+        if res:
+            success += 1
+        else:
+            failed += 1
+        
+        # Sleep briefly to respect rate limits (30 msgs/sec for users)
+        await asyncio.sleep(0.05)
+        
+        now_time = asyncio.get_event_loop().time()
+        if now_time - last_update_time >= 5.0 or idx == total - 1:
+            try:
+                await status_msg.edit_text(
+                    f"⏳ **ইউজার ব্রডকাস্ট প্রোগ্রেস:**\n\n"
+                    f"📊 পাঠানো হচ্ছে: {idx + 1}/{total}\n"
+                    f"✅ সফল: {success}\n"
+                    f"❌ ব্যর্থ: {failed}"
+                )
+                last_update_time = now_time
+            except Exception:
+                pass
+                
+    # Final completion message
+    await bot.send_message(
+        chat_id=admin_id,
+        text=f"📢 **ইউজার ব্রডকাস্ট সম্পন্ন হয়েছে!**\n\n"
+             f"📊 মোট ইউজার: {total}\n"
+             f"✅ সফল: {success}\n"
+             f"❌ ব্যর্থ: {failed}",
+        reply_markup=kb_back_main()
+    )
 
 
 @admin_only
@@ -1173,11 +1431,11 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("bc:target_"):
         parts = data.split(":")
-        target_mode = parts[1].split("_")[-1]  # "all" or "cat"
+        target_mode = parts[1].split("_")[-1]  # "all", "cat", or "users"
         action_type = parts[2]  # "post" or "poll"
         
-        if target_mode == "all":
-            USER_STATES[uid] = {"action": f"{action_type}_wait_content" if action_type == "post" else "poll_wait_question", "target_type": "all"}
+        if target_mode == "all" or target_mode == "users":
+            USER_STATES[uid] = {"action": f"{action_type}_wait_content" if action_type == "post" else "poll_wait_question", "target_type": target_mode}
             prompt = (
                 "📝 **পোস্টের কনটেন্ট পাঠান**\n\nআপনি একটি টেক্সট মেসেজ বা ছবি (ক্যাপশন সহ) পাঠাতে পারেন।"
                 if action_type == "post" else
@@ -1226,6 +1484,17 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         target_type = state.get("target_type")
         target_cat = state.get("target_cat")
         
+        if target_type == "users":
+            users = get_all_users()
+            if not users:
+                await q.edit_message_text("❌ কোনো ইউজার খুঁজে পাওয়া যায়নি।", reply_markup=kb_back_main())
+                USER_STATES.pop(uid, None)
+                return
+            await q.edit_message_text("⏳ ইউজার ব্রডকাস্ট শুরু হচ্ছে...", reply_markup=None)
+            asyncio.create_task(broadcast_to_users_task(ctx.bot, uid, users, state, action_type))
+            USER_STATES.pop(uid, None)
+            return
+            
         # Get target channels
         all_ch = get_channels()
         targets = []
@@ -1697,17 +1966,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # ── STATS ──
     if data == "menu:stats":
         s = get_stats()
-        text = (
-            "📊 <b>সামগ্রিক স্ট্যাটিস্টিক্স</b>\n\n"
-            f"📩 মোট রিকুয়েস্ট: <b>{s['total']}</b>\n"
-            f"✅ একসেপ্টেড: <b>{s['accepted']}</b>\n"
-            f"⏳ পেন্ডিং: <b>{s['pending']}</b>\n"
-            f"─────────────────\n"
-            f"🗓️ আজ: <b>{s['today']}</b>\n"
-            f"📅 এই সপ্তাহ: <b>{s['weekly']}</b>\n"
-            f"📆 এই মাস: <b>{s['monthly']}</b>\n\n"
-            "নিচে নির্দিষ্ট চ্যানেলের স্ট্যাটস দেখুন:"
-        )
+        text = format_stats_text("সামগ্রিক স্ট্যাটিস্টিক্স", s) + "\n\nনিচে নির্দিষ্ট চ্যানেলের স্ট্যাটস দেখুন:"
         await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_stats())
         return
 
@@ -1715,17 +1974,8 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         cid = int(data.split(":")[-1])
         ch = get_channel(cid)
         s = get_stats(cid)
-        title = ch["title"] if ch else str(cid)
-        text = (
-            f"📊 <b>{title}</b> — স্ট্যাটস\n\n"
-            f"📩 মোট রিকুয়েস্ট: <b>{s['total']}</b>\n"
-            f"✅ একসেপ্টেড: <b>{s['accepted']}</b>\n"
-            f"⏳ পেন্ডিং: <b>{s['pending']}</b>\n"
-            f"─────────────────\n"
-            f"🗓️ আজ: <b>{s['today']}</b>\n"
-            f"📅 এই সপ্তাহ: <b>{s['weekly']}</b>\n"
-            f"📆 এই মাস: <b>{s['monthly']}</b>"
-        )
+        title = (ch["title"] if ch else str(cid)) + " — স্ট্যাটস"
+        text = format_stats_text(title, s)
         await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_stats(cid))
         return
 
@@ -2004,7 +2254,14 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 reply_markup=kb
             )
             
-        target_info = "সব চ্যানেল" if state.get("target_type") == "all" else f"ক্যাটাগরি: {state.get('target_cat')}"
+        t_type = state.get("target_type")
+        if t_type == "all":
+            target_info = "সব চ্যানেল"
+        elif t_type == "users":
+            target_info = "সব ইউজার"
+        else:
+            target_info = f"ক্যাটাগরি: {state.get('target_cat')}"
+            
         await msg.reply_text(
             f"⚠️ **টার্গেট: {target_info}**\n\nআপনি কি নিশ্চিতভাবে এই ব্রডকাস্ট পোস্টটি পাঠাতে চান?",
             reply_markup=kb_broadcast_confirm("post")
@@ -2047,8 +2304,14 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         state["action"] = "poll_confirm"
         
         opt_text = "\n".join([f"🔹 {opt}" for opt in options])
-        target_info = "সব চ্যানেল" if state.get("target_type") == "all" else f"ক্যাটাগরি: {state.get('target_cat')}"
-        
+        t_type = state.get("target_type")
+        if t_type == "all":
+            target_info = "সব চ্যানেল"
+        elif t_type == "users":
+            target_info = "সব ইউজার"
+        else:
+            target_info = f"ক্যাটাগরি: {state.get('target_cat')}"
+            
         await msg.reply_text(
             f"📊 **পোলের প্রিভিউ:**\n\n"
             f"❓ প্রশ্ন: <b>{state['question']}</b>\n\n"
