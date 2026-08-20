@@ -1902,6 +1902,7 @@ def handle_message(message):
     cid   = str(message.chat.id)
     text  = message.text or message.caption or ""
     user  = get_user(cid)
+    step  = user.get("step", "none")
     adm   = is_admin(cid)
 
     if is_banned(cid) and not adm:
