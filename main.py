@@ -137,20 +137,33 @@ def keep_alive_worker():
 if __name__ == "__main__":
     logger.info("🤖 Starting Telegram Bot polling threads...")
     
+    shortener_token = os.environ.get("SHORTENER_BOT_TOKEN") or os.environ.get("BOT_TOKEN")
+    web_token = os.environ.get("WEBBOT_TOKEN")
+    approve_token = os.environ.get("APPROVE_BOT_TOKEN")
+
     # ১. শর্টনার বটের পোলিং থ্রেড চালু করা
-    shortener_thread = threading.Thread(target=shortenerbot.run_bot, daemon=True)
-    shortener_thread.start()
-    logger.info("👉 Shortener Bot thread started.")
+    if shortener_token:
+        shortener_thread = threading.Thread(target=shortenerbot.run_bot, daemon=True)
+        shortener_thread.start()
+        logger.info("👉 Shortener Bot thread started.")
+    else:
+        logger.warning("⚠️ SHORTENER_BOT_TOKEN / BOT_TOKEN is not set!")
     
-    # ২. ওয়েব বটের পোলিং এবং অটো-পোস্টার থ্রেড চালু করা
-    web_thread = threading.Thread(target=webbot.run_bot, daemon=True)
-    web_thread.start()
-    logger.info("👉 Web Bot thread started.")
+    # ২. ওয়েব বটের পোলিং থ্রেড চালু করা (টোকেন থাকলে এবং তা ভিন্ন হলে)
+    if web_token and web_token != shortener_token:
+        web_thread = threading.Thread(target=webbot.run_bot, daemon=True)
+        web_thread.start()
+        logger.info("👉 Web Bot thread started.")
+    else:
+        logger.info("ℹ️ Web Bot token is not configured or same as Shortener Bot. Separate polling skipped.")
     
-    # ৩. অ্যাপ্রুভ বটের পোলিং থ্রেড চালু করা
-    approve_thread = threading.Thread(target=approvebot.run_bot, daemon=True)
-    approve_thread.start()
-    logger.info("👉 Approve Bot thread started.")
+    # ৩. অ্যাপ্রুভ বটের পোলিং থ্রেড চালু করা (টোকেন থাকলে এবং তা ভিন্ন হলে)
+    if approve_token and approve_token != shortener_token and approve_token != web_token:
+        approve_thread = threading.Thread(target=approvebot.run_bot, daemon=True)
+        approve_thread.start()
+        logger.info("👉 Approve Bot thread started.")
+    else:
+        logger.info("ℹ️ Approve Bot token is not configured or same as Shortener Bot. Separate polling skipped.")
     
     # ৪. সেলফ কিপ-অ্যালাইভ থ্রেড চালু করা
     threading.Thread(target=keep_alive_worker, daemon=True).start()
