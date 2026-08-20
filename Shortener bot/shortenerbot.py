@@ -157,7 +157,13 @@ def update_user(chat_id, updates):
 def update_step(chat_id, step):
     update_user(chat_id, {"step": step})
 
-def is_admin(chat_id):  return bool(admins_col.find_one({"chat_id": str(chat_id)}))
+def is_admin(chat_id):
+    if not chat_id: return False
+    cid_str = str(chat_id).strip()
+    if cid_str == str(MAIN_ADMIN_ID).strip():
+        return True
+    return bool(admins_col.find_one({"chat_id": cid_str}))
+
 def is_banned(chat_id): return bool(banned_col.find_one({"chat_id": str(chat_id)}))
 
 # ══════════════════════════════════════════════════
@@ -252,10 +258,37 @@ def _broadcast_worker(admin_id, from_chat, msg_id, target="all"):
 #  ক্যাটাগরি হেল্পার ও Firebase সিঙ্ক
 # ══════════════════════════════════════════════════
 def get_categories():
-    return list(categories_col.find())
+    cats = list(categories_col.find())
+    for c in cats:
+        if not c.get("cat_id"):
+            c_id = str(c["_id"])
+            categories_col.update_one({"_id": c["_id"]}, {"$set": {"cat_id": c_id}})
+            c["cat_id"] = c_id
+    return cats
 
 def get_category(cat_id):
-    return categories_col.find_one({"cat_id": cat_id})
+    if not cat_id: return None
+    cat_str = str(cat_id).strip()
+    cat = categories_col.find_one({"cat_id": cat_str})
+    if not cat:
+        try:
+            from bson import ObjectId
+            cat = categories_col.find_one({"_id": ObjectId(cat_str)})
+        except:
+            cat = categories_col.find_one({"_id": cat_str})
+    return cat
+
+def get_auto_channel(ch_id):
+    if not ch_id: return None
+    chid_str = str(ch_id).strip()
+    ch = auto_channels_col.find_one({"ch_id": chid_str})
+    if not ch:
+        try:
+            from bson import ObjectId
+            ch = auto_channels_col.find_one({"_id": ObjectId(chid_str)})
+        except:
+            ch = auto_channels_col.find_one({"_id": chid_str})
+    return ch
 
 def sync_categories_to_firebase():
     """ওয়েবসাইটের জন্য ক্যাটাগরি লিস্ট Firebase-এ সিঙ্ক করে"""
@@ -2019,24 +2052,44 @@ def handle_message(message):
     # ── Category Tutorial Steps ──
     if step.startswith("wait_cattut1_"):
         cat_id = step.replace("wait_cattut1_", "").strip()
-        url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
-        categories_col.update_one({"cat_id": cat_id}, {"$set": {"tutorial_url_1": url_val}})
+        url_val = "" if text.strip().lower() in ["/none", "/clear", "none", "clear", "0"] else text.strip()
+        categories_col.update_one({"$or": [{"cat_id": cat_id}, {"_id": cat_id}]}, {"$set": {"tutorial_url_1": url_val}})
+        try:
+            from bson import ObjectId
+            categories_col.update_one({"_id": ObjectId(cat_id)}, {"$set": {"tutorial_url_1": url_val}})
+        except: pass
         sync_categories_to_firebase()
         cat = get_category(cat_id)
         update_step(cid, "none")
         cat_name = cat.get("name") if cat else cat_id
-        bot.send_message(cid, f"✅ <b>'{cat_name}' ক্যাটাগরির দেখার নিয়ম ১ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>\n🔗 লিংক: <code>{url_val if url_val else 'মুছে ফেলা হয়েছে'}</code>")
+        target_id = cat.get("cat_id", cat_id) if cat else cat_id
+        m = InlineKeyboardMarkup()
+        m.add(InlineKeyboardButton(f"📂 '{cat_name}' ক্যাটাগরি সেটিংসে যান", callback_data=f"view_cat_{target_id}"))
+        if url_val:
+            bot.send_message(cid, f"✅ <b>'{cat_name}' ক্যাটাগরির দেখার নিয়ম ১ লিংক সেভ হয়েছে!</b>\n\n🔗 <b>লিংক:</b> <code>{url_val}</code>\n\n💡 <i>এই ক্যাটাগরিতে পোস্ট করার সময় ডাউনলোড ১ এর পাশে এই টিউটোরিয়াল বাটনটি কাজ করবে।</i>", reply_markup=m, disable_web_page_preview=True)
+        else:
+            bot.send_message(cid, f"🗑️ <b>'{cat_name}' ক্যাটাগরির দেখার নিয়ম ১ লিংক মুছে ফেলা হয়েছে!</b>", reply_markup=m)
         return
 
     if step.startswith("wait_cattut2_"):
         cat_id = step.replace("wait_cattut2_", "").strip()
-        url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
-        categories_col.update_one({"cat_id": cat_id}, {"$set": {"tutorial_url_2": url_val}})
+        url_val = "" if text.strip().lower() in ["/none", "/clear", "none", "clear", "0"] else text.strip()
+        categories_col.update_one({"$or": [{"cat_id": cat_id}, {"_id": cat_id}]}, {"$set": {"tutorial_url_2": url_val}})
+        try:
+            from bson import ObjectId
+            categories_col.update_one({"_id": ObjectId(cat_id)}, {"$set": {"tutorial_url_2": url_val}})
+        except: pass
         sync_categories_to_firebase()
         cat = get_category(cat_id)
         update_step(cid, "none")
         cat_name = cat.get("name") if cat else cat_id
-        bot.send_message(cid, f"✅ <b>'{cat_name}' ক্যাটাগরির দেখার নিয়ম ২ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>\n🔗 লিংক: <code>{url_val if url_val else 'মুছে ফেলা হয়েছে'}</code>")
+        target_id = cat.get("cat_id", cat_id) if cat else cat_id
+        m = InlineKeyboardMarkup()
+        m.add(InlineKeyboardButton(f"📂 '{cat_name}' ক্যাটাগরি সেটিংসে যান", callback_data=f"view_cat_{target_id}"))
+        if url_val:
+            bot.send_message(cid, f"✅ <b>'{cat_name}' ক্যাটাগরির দেখার নিয়ম ২ লিংক সেভ হয়েছে!</b>\n\n🔗 <b>লিংক:</b> <code>{url_val}</code>\n\n💡 <i>এই ক্যাটাগরিতে পোস্ট করার সময় ডাউনলোড ২ এর পাশে এই টিউটোরিয়াল বাটনটি কাজ করবে।</i>", reply_markup=m, disable_web_page_preview=True)
+        else:
+            bot.send_message(cid, f"🗑️ <b>'{cat_name}' ক্যাটাগরির দেখার নিয়ম ২ লিংক মুছে ফেলা হয়েছে!</b>", reply_markup=m)
         return
         
     # ── Custom Ads Count Step ──
@@ -2160,13 +2213,23 @@ def handle_message(message):
         v=max(1,min(int(text),5)); update_user(cid,{"link_repeat_count":v,"step":"none"})
         bot.send_message(cid,f"✅ লিংক রিপিট <b>{v}x</b>!"); return
 
-    if step=="wait_add_channel" and "|" in text:
-        n,l=[p.strip() for p in text.split("|",1)]; channels_col.insert_one({"name":n,"url":l})
-        update_step(cid,"none"); bot.send_message(cid,f"✅ চ্যানেল যোগ: <b>{n}</b>"); return
+    if step=="wait_add_channel":
+        if "|" in text:
+            n,l=[p.strip() for p in text.split("|",1)]
+        else:
+            n = "📢 চ্যানেল"
+            l = text.strip()
+        channels_col.insert_one({"name":n,"url":l})
+        update_step(cid,"none"); bot.send_message(cid,f"✅ <b>চ্যানেল যোগ হয়েছে:</b> <b>{n}</b>\n🔗 <code>{l}</code>", disable_web_page_preview=True); return
 
-    if step=="wait_add_tutorial" and "|" in text:
-        n,l=[p.strip() for p in text.split("|",1)]; tutorials_col.insert_one({"name":n,"url":l})
-        update_step(cid,"none"); bot.send_message(cid,f"✅ টিউটোরিয়াল যোগ: <b>{n}</b>"); return
+    if step=="wait_add_tutorial":
+        if "|" in text:
+            n,l=[p.strip() for p in text.split("|",1)]
+        else:
+            n = "🎥 দেখার নিয়ম"
+            l = text.strip()
+        tutorials_col.insert_one({"name":n,"url":l})
+        update_step(cid,"none"); bot.send_message(cid,f"✅ <b>টিউটোরিয়াল যোগ হয়েছে:</b> <b>{n}</b>\n🔗 <code>{l}</code>", disable_web_page_preview=True); return
 
     if step=="wait_restore" and message.document:
         try:
