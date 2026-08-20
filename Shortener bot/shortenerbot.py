@@ -2747,7 +2747,7 @@ def api_add_channel():
 @require_auth
 def api_update_channel(ch_id):
     data = request.json or {}
-    ch = auto_channels_col.find_one({"ch_id": ch_id})
+    ch = get_auto_channel(ch_id)
     if not ch:
         return jsonify({"ok": False, "error": "চ্যানেল পাওয়া যায়নি"}), 404
     
@@ -2763,7 +2763,7 @@ def api_update_channel(ch_id):
     if "status" in data: update_fields["status"] = data["status"].strip()
 
     if update_fields:
-        auto_channels_col.update_one({"ch_id": ch_id}, {"$set": update_fields})
+        auto_channels_col.update_one({"_id": ch["_id"]}, {"$set": update_fields})
         # Sync updates to any category channel lists
         for cat in categories_col.find():
             chs = cat.get("channels", [])
@@ -2804,7 +2804,7 @@ def api_add_category():
 @require_auth
 def api_update_category(cat_id):
     data = request.json or {}
-    cat = categories_col.find_one({"cat_id": cat_id})
+    cat = get_category(cat_id)
     if not cat:
         return jsonify({"ok": False, "error": "ক্যাটাগরি পাওয়া যায়নি"}), 404
     
@@ -2817,7 +2817,7 @@ def api_update_category(cat_id):
     if "tutorial_url_2" in data: update_fields["tutorial_url_2"] = data["tutorial_url_2"].strip()
 
     if update_fields:
-        categories_col.update_one({"cat_id": cat_id}, {"$set": update_fields})
+        categories_col.update_one({"_id": cat["_id"]}, {"$set": update_fields})
         sync_categories_to_firebase()
     return jsonify({"ok": True})
 
