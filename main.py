@@ -6,10 +6,12 @@ import logging
 import requests
 import importlib.util
 from flask import Flask, jsonify
-from dotenv import load_dotenv
-
-# Load environment variables from .env file for local development
-load_dotenv()
+# Load environment variables from .env file for local development if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # Thread placeholders for dynamic status tracking in health check
 shortener_thread = None
