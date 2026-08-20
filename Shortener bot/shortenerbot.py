@@ -1955,11 +1955,29 @@ def handle_message(message):
         except: pass
         return
 
-    step = user.get("step","none")
+    # ── Custom DL Text/Link Steps (Button Settings) ──
+    if step == "wait_set_ct1" and text:
+        update_user(cid, {"custom_text_1": text.strip(), "step": "none"})
+        bot.send_message(cid, "✅ <b>বাটন ১ টেক্সট সেট হয়েছে!</b>")
+        return
+    if step == "wait_set_cl1" and text:
+        url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
+        update_user(cid, {"custom_link_1": url_val, "step": "none"})
+        bot.send_message(cid, f"✅ <b>বাটন ১ লিংক {'সেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        return
+    if step == "wait_set_ct2" and text:
+        update_user(cid, {"custom_text_2": text.strip(), "step": "none"})
+        bot.send_message(cid, "✅ <b>বাটন ২ টেক্সট সেট হয়েছে!</b>")
+        return
+    if step == "wait_set_cl2" and text:
+        url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
+        update_user(cid, {"custom_link_2": url_val, "step": "none"})
+        bot.send_message(cid, f"✅ <b>বাটন ২ লিংক {'সেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        return
 
     # ── Channel Tutorial Steps ──
     if step.startswith("wait_chtut1_"):
-        chid = step[12:]
+        chid = step.replace("wait_chtut1_", "").strip()
         url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
         auto_channels_col.update_one({"ch_id": chid}, {"$set": {"tutorial_url_1": url_val}})
         ch = auto_channels_col.find_one({"ch_id": chid})
@@ -1974,11 +1992,12 @@ def handle_message(message):
                 if changed:
                     categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
         update_step(cid, "none")
-        bot.send_message(cid, f"✅ <b>দেখার নিয়ম ১ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        ch_name = ch.get("name") if ch else chid
+        bot.send_message(cid, f"✅ <b>'{ch_name}' চ্যানেলের দেখার নিয়ম ১ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
         return
 
     if step.startswith("wait_chtut2_"):
-        chid = step[12:]
+        chid = step.replace("wait_chtut2_", "").strip()
         url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
         auto_channels_col.update_one({"ch_id": chid}, {"$set": {"tutorial_url_2": url_val}})
         ch = auto_channels_col.find_one({"ch_id": chid})
@@ -1993,26 +2012,31 @@ def handle_message(message):
                 if changed:
                     categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
         update_step(cid, "none")
-        bot.send_message(cid, f"✅ <b>দেখার নিয়ম ২ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        ch_name = ch.get("name") if ch else chid
+        bot.send_message(cid, f"✅ <b>'{ch_name}' চ্যানেলের দেখার নিয়ম ২ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
         return
 
     # ── Category Tutorial Steps ──
     if step.startswith("wait_cattut1_"):
-        cat_id = step[12:]
+        cat_id = step.replace("wait_cattut1_", "").strip()
         url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
         categories_col.update_one({"cat_id": cat_id}, {"$set": {"tutorial_url_1": url_val}})
+        sync_categories_to_firebase()
         cat = get_category(cat_id)
         update_step(cid, "none")
-        bot.send_message(cid, f"✅ <b>'{cat.get('name')}' ক্যাটাগরির দেখার নিয়ম ১ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        cat_name = cat.get("name") if cat else cat_id
+        bot.send_message(cid, f"✅ <b>'{cat_name}' ক্যাটাগরির দেখার নিয়ম ১ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>\n🔗 লিংক: <code>{url_val if url_val else 'মুছে ফেলা হয়েছে'}</code>")
         return
 
     if step.startswith("wait_cattut2_"):
-        cat_id = step[12:]
+        cat_id = step.replace("wait_cattut2_", "").strip()
         url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
         categories_col.update_one({"cat_id": cat_id}, {"$set": {"tutorial_url_2": url_val}})
+        sync_categories_to_firebase()
         cat = get_category(cat_id)
         update_step(cid, "none")
-        bot.send_message(cid, f"✅ <b>'{cat.get('name')}' ক্যাটাগরির দেখার নিয়ম ২ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        cat_name = cat.get("name") if cat else cat_id
+        bot.send_message(cid, f"✅ <b>'{cat_name}' ক্যাটাগরির দেখার নিয়ম ২ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>\n🔗 লিংক: <code>{url_val if url_val else 'মুছে ফেলা হয়েছে'}</code>")
         return
         
     # ── Custom Ads Count Step ──
