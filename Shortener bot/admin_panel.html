@@ -607,10 +607,55 @@ select.fc{cursor:pointer}
           <option value="log">📋 Log/Backup Channel</option>
         </select>
       </div>
+      <div class="fg">
+        <label class="fl">🌐 ভাষা (Language)</label>
+        <select class="fc" id="ch-lang">
+          <option value="en" selected>🇬🇧 English (ডিফল্ট)</option>
+          <option value="bn">🇧🇩 বাংলা (Bengali)</option>
+          <option value="hi">🇮🇳 हिंदी (Hindi)</option>
+        </select>
+        <div class="fhint">এই চ্যানেলে যে ভাষায় পোস্ট ও বাটন তৈরি হবে।</div>
+      </div>
+      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ১ লিংক (Tutorial 1 - ঐচ্ছিক)</label><input class="fc" id="ch-tut1" placeholder="https://t.me/tutorial/123"></div>
+      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ২ লিংক (Tutorial 2 - ঐচ্ছিক)</label><input class="fc" id="ch-tut2" placeholder="https://t.me/tutorial/456"></div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-ch')">বাতিল</button>
       <button class="btn btn-p" onclick="addCh()">✅ যোগ করুন</button>
+    </div>
+  </div>
+</div>
+
+<div class="mbg" id="m-edit-ch">
+  <div class="modal">
+    <div class="mhd"><span class="mtitle">⚙️ চ্যানেল সেটিংস</span><button class="mclose" onclick="closeM('m-edit-ch')">✕</button></div>
+    <div class="mbody">
+      <input type="hidden" id="ech-id">
+      <div class="fg"><label class="fl">📝 চ্যানেল নাম</label><input class="fc" id="ech-nm"></div>
+      <div class="fg"><label class="fl">🆔 চ্যানেল ID</label><input class="fc" id="ech-channel-id"></div>
+      <div class="fg">
+        <label class="fl">📡 চ্যানেল টাইপ</label>
+        <select class="fc" id="ech-type">
+          <option value="ad">📢 Ad Channel</option>
+          <option value="premium">💎 Premium Channel</option>
+          <option value="log">📋 Log/Backup Channel</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">🌐 ভাষা (Language)</label>
+        <select class="fc" id="ech-lang">
+          <option value="en">🇬🇧 English (ডিফল্ট)</option>
+          <option value="bn">🇧🇩 বাংলা (Bengali)</option>
+          <option value="hi">🇮🇳 हिंदी (Hindi)</option>
+        </select>
+        <div class="fhint">এই চ্যানেলে যে ভাষায় পোস্ট ও বাটন তৈরি হবে।</div>
+      </div>
+      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ১ লিংক (Tutorial URL 1)</label><input class="fc" id="ech-tut1" placeholder="https://t.me/tutorial/123"><div class="fhint">ডাউনলোড ১ এর পাশে যে দেখার নিয়ম বাটন থাকে।</div></div>
+      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ২ লিংক (Tutorial URL 2)</label><input class="fc" id="ech-tut2" placeholder="https://t.me/tutorial/456"><div class="fhint">ডাউনলোড ২ এর পাশে যে দেখার নিয়ম বাটন থাকে।</div></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-g" onclick="closeM('m-edit-ch')">বাতিল</button>
+      <button class="btn btn-p" onclick="saveEditCh()">💾 সেভ করুন</button>
     </div>
   </div>
 </div>
@@ -1136,9 +1181,17 @@ async function loadChs(){
         </div>
         <span class="badge ${c.status==='on'?'b-g':'b-r'}">${c.status==='on'?'চালু':'বন্ধ'}</span>
       </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;">
+        <span class="badge b-p">${c.lang==='bn'?'🇧🇩 বাংলা':c.lang==='hi'?'🇮🇳 हिंदी':'🇬🇧 English'}</span>
+        ${c.tutorial_url_1?'<span class="badge b-c" title="'+c.tutorial_url_1+'">🎬 Tut 1 ✓</span>':''}
+        ${c.tutorial_url_2?'<span class="badge b-c" title="'+c.tutorial_url_2+'">🎬 Tut 2 ✓</span>':''}
+      </div>
       <div class="list-card-actions">
         <span class="badge ${c.type==='premium'?'b-c':c.type==='log'?'b-p':'b-y'}">${c.type==='premium'?'💎 Premium':c.type==='log'?'📋 Log':'📢 Ad'}</span>
-        <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="delCh('${c.ch_id}')">🗑️ সরান</button>
+        <div style="margin-left:auto;display:flex;gap:6px;">
+          <button class="btn btn-g btn-sm" onclick="openEditCh('${c.ch_id}')">⚙️ সেটিংস</button>
+          <button class="btn btn-d btn-sm" onclick="delCh('${c.ch_id}')">🗑️ সরান</button>
+        </div>
       </div>
     </div>`).join('');
 }
@@ -1291,11 +1344,42 @@ async function addCh(){
   const name = $('ch-nm').value.trim();
   const channel_id = $('ch-id-input').value.trim();
   const type = $('ch-type').value;
+  const lang = $('ch-lang').value;
+  const tutorial_url_1 = $('ch-tut1').value.trim();
+  const tutorial_url_2 = $('ch-tut2').value.trim();
   if(!name || !channel_id){toast('⚠️ সব তথ্য পূরণ করুন','warn');return}
-  const r = await api('/api/channels/add','POST',{name,channel_id,type});
+  const r = await api('/api/channels/add','POST',{name,channel_id,type,lang,tutorial_url_1,tutorial_url_2});
   if(r?.ok){
-    $('ch-nm').value=''; $('ch-id-input').value='';
+    $('ch-nm').value=''; $('ch-id-input').value=''; $('ch-tut1').value=''; $('ch-tut2').value='';
     closeM('m-ch'); loadChs(); toast('✅ চ্যানেল যোগ হয়েছে','success');
+  } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+}
+
+function openEditCh(id){
+  const ch = D.channels.find(x => x.ch_id === id);
+  if(!ch) return;
+  $('ech-id').value = ch.ch_id;
+  $('ech-nm').value = ch.name || '';
+  $('ech-channel-id').value = ch.channel_id || '';
+  $('ech-type').value = ch.type || 'ad';
+  $('ech-lang').value = ch.lang || 'en';
+  $('ech-tut1').value = ch.tutorial_url_1 || '';
+  $('ech-tut2').value = ch.tutorial_url_2 || '';
+  openM('m-edit-ch');
+}
+
+async function saveEditCh(){
+  const id = $('ech-id').value;
+  const name = $('ech-nm').value.trim();
+  const channel_id = $('ech-channel-id').value.trim();
+  const type = $('ech-type').value;
+  const lang = $('ech-lang').value;
+  const tutorial_url_1 = $('ech-tut1').value.trim();
+  const tutorial_url_2 = $('ech-tut2').value.trim();
+  if(!name || !channel_id){toast('⚠️ নাম ও আইডি দিন','warn');return}
+  const r = await api('/api/channels/update/'+id,'POST',{name,channel_id,type,lang,tutorial_url_1,tutorial_url_2});
+  if(r?.ok){
+    closeM('m-edit-ch'); loadChs(); toast('✅ চ্যানেল সেটিংস সেভ হয়েছে','success');
   } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
 }
 
