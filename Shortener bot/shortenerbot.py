@@ -267,6 +267,51 @@ def sync_categories_to_firebase():
     except Exception as e:
         logger.warning(f"Firebase category sync error: {e}")
 
+# ══════════════════════════════════════════════════
+#  মাল্টি-ল্যাংগুয়েজ ডিকশনারি (চ্যানেল ভিত্তিক ভাষা)
+# ══════════════════════════════════════════════════
+LANG_TEXTS = {
+    "en": {
+        "name": "English 🇬🇧",
+        "badge": "🇬🇧 EN",
+        "ad_caption_cta": "⬇️ Click the button below to download the video",
+        "prem_caption_title": "🔗 <b>Direct Download:</b>",
+        "file_count": "📁 <b>Total Files: {count}</b>\n",
+        "dl_share_prefix": "⬇️ Download:",
+        "btn_dl_1": "Download 1",
+        "btn_dl_2": "Download 2",
+        "btn_tut_1": "🎬 How to Watch 1",
+        "btn_tut_2": "🎬 How to Watch 2",
+        "btn_share": "🔗 Share"
+    },
+    "bn": {
+        "name": "বাংলা 🇧🇩",
+        "badge": "🇧🇩 BN",
+        "ad_caption_cta": "⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন",
+        "prem_caption_title": "🔗 <b>সরাসরি ডাউনলোড:</b>",
+        "file_count": "📁 <b>মোট ফাইল: {count}টি</b>\n",
+        "dl_share_prefix": "⬇️ ডাউনলোড করুন:",
+        "btn_dl_1": "ডাউনলোড ১",
+        "btn_dl_2": "ডাউনলোড ২",
+        "btn_tut_1": "🎬 দেখার নিয়ম ১",
+        "btn_tut_2": "🎬 দেখার নিয়ম ২",
+        "btn_share": "🔗 শেয়ার করুন"
+    },
+    "hi": {
+        "name": "हिंदी 🇮🇳",
+        "badge": "🇮🇳 HI",
+        "ad_caption_cta": "⬇️ वीडियो डाउनलोड करने के लिए नीचे दिए गए बटन पर क्लिक करें",
+        "prem_caption_title": "🔗 <b>सीधा डाउनलोड:</b>",
+        "file_count": "📁 <b>कुल फाइलें: {count}</b>\n",
+        "dl_share_prefix": "⬇️ डाउनलोड करें:",
+        "btn_dl_1": "डाउनलोड १",
+        "btn_dl_2": "डाउनलोड २",
+        "btn_tut_1": "🎬 कैसे देखें १",
+        "btn_tut_2": "🎬 कैसे देखें २",
+        "btn_share": "🔗 शेयर करें"
+    }
+}
+
 def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
     cat = get_category(cat_id)
     if not cat: return 0
@@ -280,26 +325,30 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
     rpt = max(1, min(user.get("link_repeat_count", 1), 5))
 
     file_count = _get_file_count_from_link(d_link)
-    fc_txt = f"📁 <b>মোট ফাইল: {file_count}টি</b>\n" if file_count > 0 else ""
 
     count = 0
     for ch in cat.get("channels", []):
         if ch.get("status") != "on": continue
         ch_type = ch.get("type", "ad")
+        lang = ch.get("lang", "en")
+        if lang not in LANG_TEXTS: lang = "en"
+        L = LANG_TEXTS[lang]
+        fc_txt = L["file_count"].format(count=file_count) if file_count > 0 else ""
+
         if ch_type == "premium":
             link = d_link
             links_str = "\n".join([link]*rpt)
-            caption = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
+            caption = f"{ph_t}{fc_txt}{L['prem_caption_title']}\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
             clean_cap = clean_html(caption)
-            markup = _build_post_markup(user, d_link, clean_cap, is_premium=True)
+            markup = _build_post_markup(user, d_link, clean_cap, is_premium=True, ch=ch)
         elif ch_type == "log":
             caption = f"💾 <b>Backup</b> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
             markup = None
         else:  # ad
-            caption = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
+            caption = f"{ph_t}{fc_txt}{L['ad_caption_cta']}\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
             dl_share_link = user.get("pending_web_post_link") or s_link
-            clean_cap = clean_html(caption) + f"\n\n⬇️ ডাউনলোড করুন:\n{dl_share_link}"
-            markup = _build_post_markup(user, s_link, clean_cap)
+            clean_cap = clean_html(caption) + f"\n\n{L['dl_share_prefix']}\n{dl_share_link}"
+            markup = _build_post_markup(user, s_link, clean_cap, is_premium=False, ch=ch)
 
         try:
             _send_media(ch['channel_id'], mtype, mid, caption, markup, protect if ch_type!="log" else False)
@@ -466,8 +515,12 @@ def create_web_video_entry(user, category_name="Others"):
 # ══════════════════════════════════════════════════
 #  পোস্ট মার্কআপ বিল্ডার
 # ══════════════════════════════════════════════════
-def _build_post_markup(user, dl_link, share_text, is_premium=False):
+def _build_post_markup(user, dl_link, share_text, is_premium=False, ch=None):
     mk = InlineKeyboardMarkup()
+    ch = ch or {}
+    lang = ch.get("lang", "en")
+    if lang not in LANG_TEXTS: lang = "en"
+    L = LANG_TEXTS[lang]
 
     if user.get("btn_tutorial", 1):
         for tut in tutorials_col.find():
@@ -487,13 +540,14 @@ def _build_post_markup(user, dl_link, share_text, is_premium=False):
         
         if user.get("btn_download_1", 1):
             row1 = []
+            btn_dl1_label = L["btn_dl_1"]
             if web_post_link:
-                row1.append(InlineKeyboardButton("ডাউনলোড ১", url=web_post_link))
+                row1.append(InlineKeyboardButton(btn_dl1_label, url=web_post_link))
             else:
-                row1.append(InlineKeyboardButton("ডাউনলোড ১", callback_data="noop"))
+                row1.append(InlineKeyboardButton(btn_dl1_label, callback_data="noop"))
                 
-            ct1_text = user.get("custom_text_1") or "কাস্টম টেক্সট ১"
-            ct1_url = user.get("custom_link_1")
+            ct1_url = ch.get("tutorial_url_1") or user.get("custom_link_1")
+            ct1_text = user.get("custom_text_1") if (not ch.get("tutorial_url_1") and user.get("custom_text_1")) else L["btn_tut_1"]
             if ct1_url:
                 row1.append(InlineKeyboardButton(ct1_text, url=ct1_url))
             else:
@@ -502,13 +556,14 @@ def _build_post_markup(user, dl_link, share_text, is_premium=False):
 
         if user.get("btn_download_2", 1):
             row2 = []
+            btn_dl2_label = L["btn_dl_2"]
             if second_link:
-                row2.append(InlineKeyboardButton("ডাউনলোড ২", url=second_link))
+                row2.append(InlineKeyboardButton(btn_dl2_label, url=second_link))
             else:
-                row2.append(InlineKeyboardButton("ডাউনলোড ২", callback_data="noop"))
+                row2.append(InlineKeyboardButton(btn_dl2_label, callback_data="noop"))
                 
-            ct2_text = user.get("custom_text_2") or "কাস্টম টেক্সট ২"
-            ct2_url = user.get("custom_link_2")
+            ct2_url = ch.get("tutorial_url_2") or user.get("custom_link_2")
+            ct2_text = user.get("custom_text_2") if (not ch.get("tutorial_url_2") and user.get("custom_text_2")) else L["btn_tut_2"]
             if ct2_url:
                 row2.append(InlineKeyboardButton(ct2_text, url=ct2_url))
             else:
@@ -518,7 +573,7 @@ def _build_post_markup(user, dl_link, share_text, is_premium=False):
     if user.get("btn_share", 1):
         encoded = quote(share_text, safe='')
         share_url = f"https://t.me/share/url?url=&text={encoded}"
-        mk.row(InlineKeyboardButton("🔗 শেয়ার করুন", url=share_url))
+        mk.row(InlineKeyboardButton(L["btn_share"], url=share_url))
 
     return mk
 
@@ -621,35 +676,44 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
     pf_t = f"\n\n{pf}" if pf else ""
     now_str = datetime.now().strftime("%d %b %Y, %I:%M %p")
     protect = bool(get_setting("protect_content", 0))
+    rpt = max(1, min(user.get("link_repeat_count", 1), 5))
 
     file_count = _get_file_count_from_link(d_link)
-    fc_txt = f"📁 <b>মোট ফাইল: {file_count}টি</b>\n" if file_count > 0 else ""
-
-    ad_caption = f"{ph_t}{fc_txt}⬇️ ভিডিও ডাউনলোড করতে নিচের বাটনে ক্লিক করুন\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
-    dl_share_link = user.get("pending_web_post_link") or s_link
-    ad_share = clean_html(ad_caption) + f"\n\n⬇️ ডাউনলোড করুন:\n{dl_share_link}"
-    ad_markup = _build_post_markup(user, s_link, ad_share)
-
-    rpt = max(1, min(user.get("link_repeat_count", 1), 5))
-    pr_links    = "\n".join([d_link]*rpt)
-    prem_caption= f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
-    pr_share = clean_html(prem_caption)
-    prem_markup = _build_post_markup(user, d_link, pr_share, is_premium=True)
 
     post_count = 0
-    for ch in auto_channels_col.find({"type": "ad", "status": "on"}):
-        try:  _send_media(ch['channel_id'], mtype, mid, ad_caption, ad_markup, protect); post_count += 1
-        except Exception as e: logger.warning(f"Ad post {ch.get('name')}: {e}")
+    for ch in auto_channels_col.find({"status": "on"}):
+        ch_type = ch.get("type", "ad")
+        lang = ch.get("lang", "en")
+        if lang not in LANG_TEXTS: lang = "en"
+        L = LANG_TEXTS[lang]
+        fc_txt = L["file_count"].format(count=file_count) if file_count > 0 else ""
 
-    for ch in auto_channels_col.find({"type": "premium", "status": "on"}):
-        try:  _send_media(ch['channel_id'], mtype, mid, prem_caption, prem_markup, protect); post_count += 1
-        except Exception as e: logger.warning(f"Premium post {ch.get('name')}: {e}")
-
-    for ch in auto_channels_col.find({"type": "log", "status": "on"}):
-        try:
-            log_cap = f"💾 <b>Backup</b> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-            _send_media(ch['channel_id'], mtype, mid, log_cap, None, False)
-        except Exception as e: logger.warning(f"Log post: {e}")
+        if ch_type == "premium":
+            pr_links = "\n".join([d_link]*rpt)
+            prem_caption = f"{ph_t}{fc_txt}{L['prem_caption_title']}\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
+            pr_share = clean_html(prem_caption)
+            prem_markup = _build_post_markup(user, d_link, pr_share, is_premium=True, ch=ch)
+            try:
+                _send_media(ch['channel_id'], mtype, mid, prem_caption, prem_markup, protect)
+                post_count += 1
+            except Exception as e:
+                logger.warning(f"Premium post {ch.get('name')}: {e}")
+        elif ch_type == "log":
+            try:
+                log_cap = f"💾 <b>Backup</b> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                _send_media(ch['channel_id'], mtype, mid, log_cap, None, False)
+            except Exception as e:
+                logger.warning(f"Log post: {e}")
+        else:  # ad
+            ad_caption = f"{ph_t}{fc_txt}{L['ad_caption_cta']}\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
+            dl_share_link = user.get("pending_web_post_link") or s_link
+            ad_share = clean_html(ad_caption) + f"\n\n{L['dl_share_prefix']}\n{dl_share_link}"
+            ad_markup = _build_post_markup(user, s_link, ad_share, is_premium=False, ch=ch)
+            try:
+                _send_media(ch['channel_id'], mtype, mid, ad_caption, ad_markup, protect)
+                post_count += 1
+            except Exception as e:
+                logger.warning(f"Ad post {ch.get('name')}: {e}")
 
     _inc_stat("uploads")
     bot.send_message(chat_id, f"✅ <b>পোস্ট সম্পন্ন!</b>\n📤 <b>{post_count}</b>টি চ্যানেলে পোস্ট হয়েছে।\n🔒 Protect: {_ico(protect)} | 🔗 LF: {_ico(user.get('link_filter'))} | 📝 TF: {_ico(user.get('text_filter'))}")
@@ -1491,28 +1555,120 @@ def cb(call):
                 cid2 = str(uuid.uuid4().hex)[:8]
                 auto_channels_col.update_one({"_id":ch["_id"]}, {"$set":{"ch_id":cid2,"status":"on"}})
                 ch["ch_id"]=cid2; ch["status"]="on"
-            m.row(_btn(f"{_ico(ch.get('status','on')=='on')} {ch.get('name','Unknown')}", f"togch_{ch['ch_id']}"), _btn("🗑️", f"delch_{ch['ch_id']}"))
+            lang_code = ch.get("lang", "en")
+            badge = LANG_TEXTS.get(lang_code, {}).get("badge", "🇬🇧 EN")
+            m.row(
+                _btn(f"{_ico(ch.get('status','on')=='on')} {ch.get('name','Unknown')} [{badge}]", f"chset_{ch['ch_id']}"),
+                _btn("⚙️", f"chset_{ch['ch_id']}"),
+                _btn("🗑️", f"delch_{ch['ch_id']}")
+            )
         m.add(_btn("➕ নতুন চ্যানেল যোগ করুন", f"add_ch_{ctype}"))
         m.add(_back("menu_auto_post"))
         names = {"ad":"📺 Ad","premium":"💎 Premium","log":"💾 Log"}
-        bot.edit_message_text(f"<b>{names.get(ctype)} Channels</b>", cid, mid, reply_markup=m)
+        bot.edit_message_text(f"<b>{names.get(ctype)} Channels</b>\n\n⚙️ <i>চ্যানেল সেটিংস ও ভাষা পরিবর্তন করতে নামের ওপর ক্লিক করুন।</i>", cid, mid, reply_markup=m)
+
+    elif data.startswith("chset_"):
+        chid = data[6:]
+        ch = auto_channels_col.find_one({"ch_id": chid})
+        if not ch:
+            bot.answer_callback_query(call.id, "⚠️ চ্যানেল পাওয়া যায়নি!", show_alert=True); return
+        lang_code = ch.get("lang", "en")
+        lang_name = LANG_TEXTS.get(lang_code, {}).get("name", "English 🇬🇧")
+        tut1 = ch.get("tutorial_url_1") or "সেট করা নেই ❌"
+        tut2 = ch.get("tutorial_url_2") or "সেট করা নেই ❌"
+        
+        txt = (
+            f"⚙️ <b>চ্যানেল সেটিংস: {ch.get('name')}</b>\n"
+            f"{'─'*26}\n"
+            f"🆔 <b>Channel ID:</b> <code>{ch.get('channel_id')}</code>\n"
+            f"🏷️ <b>টাইপ:</b> <b>{ch.get('type')}</b>\n"
+            f"🌐 <b>ভাষা (Language):</b> <b>{lang_name}</b>\n"
+            f"🎬 <b>দেখার নিয়ম ১ লিংক:</b>\n<code>{tut1}</code>\n"
+            f"🎬 <b>দেখার নিয়ম ২ লিংক:</b>\n<code>{tut2}</code>\n"
+            f"🔘 <b>স্ট্যাটাস:</b> <b>{_ico(ch.get('status','on')=='on')}</b>"
+        )
+        m = _mk()
+        m.add(_btn(f"🌐 ভাষা পরিবর্তন ({lang_name})", f"chlang_{chid}"))
+        m.row(_btn("🎬 দেখার নিয়ম ১ লিংক", f"chtut1_{chid}"), _btn("🎬 দেখার নিয়ম ২ লিংক", f"chtut2_{chid}"))
+        m.row(_btn(f"🔘 স্ট্যাটাস: {_ico(ch.get('status','on')=='on')}", f"togch_{chid}"), _btn("🗑️ চ্যানেল মুছুন", f"delch_{chid}"))
+        m.add(_back(f"list_ch_{ch.get('type','ad')}"))
+        bot.edit_message_text(txt, cid, mid, reply_markup=m)
+
+    elif data.startswith("chlang_"):
+        chid = data[7:]
+        ch = auto_channels_col.find_one({"ch_id": chid})
+        if not ch:
+            bot.answer_callback_query(call.id, "⚠️ চ্যানেল পাওয়া যায়নি!", show_alert=True); return
+        m = _mk()
+        m.add(_btn("🇬🇧 English (Default)", f"setlang_{chid}_en"))
+        m.add(_btn("🇧🇩 বাংলা (Bengali)", f"setlang_{chid}_bn"))
+        m.add(_btn("🇮🇳 हिंदी (Hindi)", f"setlang_{chid}_hi"))
+        m.add(_back(f"chset_{chid}"))
+        bot.edit_message_text(f"🌐 <b>চ্যানেলের ভাষা সিলেক্ট করুন</b>\n\n📌 চ্যানেল: <b>{ch.get('name')}</b>\n\nযে ভাষা সিলেক্ট করবেন, ওই চ্যানেলে পোস্ট এবং বাটন সেই ভাষায় তৈরি হবে।", cid, mid, reply_markup=m)
+
+    elif data.startswith("setlang_"):
+        parts = data[8:].rsplit("_", 1)
+        if len(parts) == 2:
+            chid, selected_lang = parts
+            if selected_lang in LANG_TEXTS:
+                auto_channels_col.update_one({"ch_id": chid}, {"$set": {"lang": selected_lang}})
+                ch = auto_channels_col.find_one({"ch_id": chid})
+                if ch:
+                    for cat in categories_col.find():
+                        chs = cat.get("channels", [])
+                        changed = False
+                        for c in chs:
+                            if c.get("channel_id") == ch.get("channel_id"):
+                                c["lang"] = selected_lang
+                                changed = True
+                        if changed:
+                            categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
+                bot.answer_callback_query(call.id, f"✅ ভাষা সেট হয়েছে: {LANG_TEXTS[selected_lang]['name']}", show_alert=True)
+                call.data = f"chset_{chid}"; cb(call)
+
+    elif data.startswith("chtut1_"):
+        chid = data[7:]
+        ch = auto_channels_col.find_one({"ch_id": chid})
+        if not ch: return
+        update_step(cid, f"wait_chtut1_{chid}")
+        bot.send_message(cid, f"🎬 <b>'{ch.get('name')}' এর জন্য দেখার নিয়ম ১ (Tutorial 1) লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/123</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
+
+    elif data.startswith("chtut2_"):
+        chid = data[7:]
+        ch = auto_channels_col.find_one({"ch_id": chid})
+        if not ch: return
+        update_step(cid, f"wait_chtut2_{chid}")
+        bot.send_message(cid, f"🎬 <b>'{ch.get('name')}' এর জন্য দেখার নিয়ম ২ (Tutorial 2) লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/456</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
 
     elif data.startswith("togch_"):
         ch = auto_channels_col.find_one({"ch_id": data[6:]})
         if ch:
-            auto_channels_col.update_one({"ch_id":ch['ch_id']},{"$set":{"status":"off" if ch.get("status","on")=="on" else "on"}})
-            call.data=f"list_ch_{ch['type']}"; cb(call)
+            new_st = "off" if ch.get("status","on")=="on" else "on"
+            auto_channels_col.update_one({"ch_id":ch['ch_id']},{"$set":{"status":new_st}})
+            for cat in categories_col.find():
+                chs = cat.get("channels", [])
+                changed = False
+                for c in chs:
+                    if c.get("channel_id") == ch.get("channel_id"):
+                        c["status"] = new_st
+                        changed = True
+                if changed:
+                    categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
+            call.data=f"chset_{ch['ch_id']}"; cb(call)
 
     elif data.startswith("delch_"):
         ch = auto_channels_col.find_one({"ch_id": data[6:]})
         if ch:
             auto_channels_col.delete_one({"ch_id":ch['ch_id']})
+            for cat in categories_col.find():
+                chs = [c for c in cat.get("channels", []) if c.get("channel_id") != ch.get("channel_id")]
+                categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
             bot.answer_callback_query(call.id,"✅ মুছে ফেলা হয়েছে!", show_alert=True)
             call.data=f"list_ch_{ch['type']}"; cb(call)
 
     elif data.startswith("add_ch_"):
         update_step(cid, f"wait_add_{data[7:]}")
-        bot.send_message(cid, "📝 ফরম্যাট:\n<code>নাম | চ্যানেল_আইডি</code>")
+        bot.send_message(cid, "📝 ফরম্যাট:\n<code>নাম | চ্যানেল_আইডি</code>\n\n(ডিফল্ট ভাষা English সেট থাকবে, পরে সেটিংস থেকে পরিবর্তন করতে পারবেন)")
 
     elif data == "menu_channels":
         m = _mk()
@@ -1741,15 +1897,44 @@ def handle_message(message):
 
     step = user.get("step","none")
 
-    # ── Custom DL Text/Link Steps ──
-    if step == "wait_set_ct1" and text:
-        update_user(cid, {"custom_text_1": text, "step": "none"}); bot.send_message(cid, "✅ টেক্সট ১ সেট হয়েছে!"); return
-    if step == "wait_set_cl1" and text:
-        update_user(cid, {"custom_link_1": text, "step": "none"}); bot.send_message(cid, "✅ লিংক ১ সেট হয়েছে!"); return
-    if step == "wait_set_ct2" and text:
-        update_user(cid, {"custom_text_2": text, "step": "none"}); bot.send_message(cid, "✅ টেক্সট ২ সেট হয়েছে!"); return
-    if step == "wait_set_cl2" and text:
-        update_user(cid, {"custom_link_2": text, "step": "none"}); bot.send_message(cid, "✅ লিংক ২ সেট হয়েছে!"); return
+    # ── Channel Tutorial Steps ──
+    if step.startswith("wait_chtut1_"):
+        chid = step[12:]
+        url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
+        auto_channels_col.update_one({"ch_id": chid}, {"$set": {"tutorial_url_1": url_val}})
+        ch = auto_channels_col.find_one({"ch_id": chid})
+        if ch:
+            for cat in categories_col.find():
+                chs = cat.get("channels", [])
+                changed = False
+                for c in chs:
+                    if c.get("channel_id") == ch.get("channel_id"):
+                        c["tutorial_url_1"] = url_val
+                        changed = True
+                if changed:
+                    categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
+        update_step(cid, "none")
+        bot.send_message(cid, f"✅ <b>দেখার নিয়ম ১ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        return
+
+    if step.startswith("wait_chtut2_"):
+        chid = step[12:]
+        url_val = "" if text.strip() in ["/none", "/clear", "none"] else text.strip()
+        auto_channels_col.update_one({"ch_id": chid}, {"$set": {"tutorial_url_2": url_val}})
+        ch = auto_channels_col.find_one({"ch_id": chid})
+        if ch:
+            for cat in categories_col.find():
+                chs = cat.get("channels", [])
+                changed = False
+                for c in chs:
+                    if c.get("channel_id") == ch.get("channel_id"):
+                        c["tutorial_url_2"] = url_val
+                        changed = True
+                if changed:
+                    categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
+        update_step(cid, "none")
+        bot.send_message(cid, f"✅ <b>দেখার নিয়ম ২ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
+        return
         
     # ── Custom Ads Count Step ──
     if step == "wait_custom_ads":
@@ -2374,6 +2559,9 @@ def api_add_channel():
     name = data.get("name", "").strip()
     channel_id = str(data.get("channel_id", "")).strip()
     type_ = data.get("type", "ad").strip()
+    lang = data.get("lang", "en").strip()
+    tutorial_url_1 = data.get("tutorial_url_1", "").strip()
+    tutorial_url_2 = data.get("tutorial_url_2", "").strip()
     if not name or not channel_id:
         return jsonify({"ok": False, "error": "নাম এবং আইডি দিন"}), 400
     ch_id = str(uuid.uuid4().hex)[:8]
@@ -2382,8 +2570,45 @@ def api_add_channel():
         "type": type_,
         "name": name,
         "channel_id": channel_id,
+        "lang": lang if lang in LANG_TEXTS else "en",
+        "tutorial_url_1": tutorial_url_1,
+        "tutorial_url_2": tutorial_url_2,
         "status": "on"
     })
+    return jsonify({"ok": True})
+
+@shortener_bp.route('/api/channels/update/<ch_id>', methods=['POST','OPTIONS'])
+@require_auth
+def api_update_channel(ch_id):
+    data = request.json or {}
+    ch = auto_channels_col.find_one({"ch_id": ch_id})
+    if not ch:
+        return jsonify({"ok": False, "error": "চ্যানেল পাওয়া যায়নি"}), 404
+    
+    update_fields = {}
+    if "name" in data: update_fields["name"] = data["name"].strip()
+    if "channel_id" in data: update_fields["channel_id"] = str(data["channel_id"]).strip()
+    if "type" in data: update_fields["type"] = data["type"].strip()
+    if "lang" in data:
+        l_val = data["lang"].strip()
+        update_fields["lang"] = l_val if l_val in LANG_TEXTS else "en"
+    if "tutorial_url_1" in data: update_fields["tutorial_url_1"] = data["tutorial_url_1"].strip()
+    if "tutorial_url_2" in data: update_fields["tutorial_url_2"] = data["tutorial_url_2"].strip()
+    if "status" in data: update_fields["status"] = data["status"].strip()
+
+    if update_fields:
+        auto_channels_col.update_one({"ch_id": ch_id}, {"$set": update_fields})
+        # Sync updates to any category channel lists
+        for cat in categories_col.find():
+            chs = cat.get("channels", [])
+            changed = False
+            for c in chs:
+                if c.get("channel_id") == ch.get("channel_id"):
+                    for k, v in update_fields.items():
+                        c[k] = v
+                    changed = True
+            if changed:
+                categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
     return jsonify({"ok": True})
 
 @shortener_bp.route('/api/categories/add', methods=['POST','OPTIONS'])
