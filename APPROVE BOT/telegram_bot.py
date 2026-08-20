@@ -1168,11 +1168,13 @@ async def do_accept(bot: Bot, channel_id: int, user_id: int, full_name: str, use
         dequeue(channel_id, user_id)
         logger.info(f"Accepted: user={user_id} ({username}) → channel={channel_id}")
     except BadRequest as e:
-        if "USER_ALREADY_PARTICIPANT" in str(e) or "HIDE_REQUESTER_MISSING" in str(e):
+        err_msg = str(e).lower()
+        if "user_already_participant" in err_msg or "hide_requester_missing" in err_msg or "request has expired" in err_msg:
             mark_accepted(channel_id, user_id)
             dequeue(channel_id, user_id)
         else:
             logger.error(f"do_accept BadRequest: {e}")
+            dequeue(channel_id, user_id)
     except TelegramError as e:
         logger.error(f"do_accept TelegramError: {e}")
 
