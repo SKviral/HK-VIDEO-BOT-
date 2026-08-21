@@ -685,22 +685,29 @@ select.fc{cursor:pointer}
 </div>
 
 <div class="mbg" id="m-edit-cat">
-  <div class="modal">
+  <div class="modal" style="max-width:550px;">
     <div class="mhd"><span class="mtitle">⚙️ ক্যাটাগরি সেটিংস</span><button class="mclose" onclick="closeM('m-edit-cat')">✕</button></div>
     <div class="mbody">
       <input type="hidden" id="ecat-id">
       <div class="fg"><label class="fl">📝 ক্যাটাগরি নাম</label><input class="fc" id="ecat-nm"></div>
-      <div class="fg">
-        <label class="fl">🌐 ভাষা (Language)</label>
-        <select class="fc" id="ecat-lang">
-          <option value="en">🇬🇧 English (ডিফল্ট)</option>
-          <option value="bn">🇧🇩 বাংলা (Bengali)</option>
-          <option value="hi">🇮🇳 हिंदी (Hindi)</option>
-        </select>
-        <div class="fhint">এই ক্যাটাগরির সমস্ত চ্যানেলে যে ভাষায় পোস্ট ও বাটন তৈরি হবে।</div>
+      
+      <div style="background:var(--bg3);border-radius:8px;padding:12px;margin:10px 0;">
+        <div style="font-weight:600;margin-bottom:8px;color:var(--p2);">🇧🇩 বাংলা দেখার নিয়ম লিংক</div>
+        <div class="fg"><label class="fl">🎬 বাংলা দেখার নিয়ম ১ লিংক</label><input class="fc" id="ecat-tut1-bn" placeholder="https://t.me/tutorial/bn1"></div>
+        <div class="fg"><label class="fl">🎬 বাংলা দেখার নিয়ম ২ লিংক</label><input class="fc" id="ecat-tut2-bn" placeholder="https://t.me/tutorial/bn2"></div>
       </div>
-      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ১ লিংক (Tutorial URL 1)</label><input class="fc" id="ecat-tut1" placeholder="https://t.me/tutorial/123"><div class="fhint">এই ক্যাটাগরির সব চ্যানেলে ডাউনলোড ১ এর দেখার নিয়ম হিসেবে কাজ করবে।</div></div>
-      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ২ লিংক (Tutorial URL 2)</label><input class="fc" id="ecat-tut2" placeholder="https://t.me/tutorial/456"><div class="fhint">এই ক্যাটাগরির সব চ্যানেলে ডাউনলোড ২ এর দেখার নিয়ম হিসেবে কাজ করবে।</div></div>
+
+      <div style="background:var(--bg3);border-radius:8px;padding:12px;margin:10px 0;">
+        <div style="font-weight:600;margin-bottom:8px;color:var(--p2);">🇮🇳 हिंदी দেখার নিয়ম লিংক</div>
+        <div class="fg"><label class="fl">🎬 হিন্দি দেখার নিয়ম ১ লিংক</label><input class="fc" id="ecat-tut1-hi" placeholder="https://t.me/tutorial/hi1"></div>
+        <div class="fg"><label class="fl">🎬 হিন্দি দেখার নিয়ম ২ লিংক</label><input class="fc" id="ecat-tut2-hi" placeholder="https://t.me/tutorial/hi2"></div>
+      </div>
+
+      <div style="background:var(--bg3);border-radius:8px;padding:12px;margin:10px 0;">
+        <div style="font-weight:600;margin-bottom:8px;color:var(--p2);">🇬🇧 English দেখার নিয়ম লিংক</div>
+        <div class="fg"><label class="fl">🎬 ইংলিশ দেখার নিয়ম ১ লিংক</label><input class="fc" id="ecat-tut1-en" placeholder="https://t.me/tutorial/en1"></div>
+        <div class="fg"><label class="fl">🎬 ইংলিশ দেখার নিয়ম ২ লিংক</label><input class="fc" id="ecat-tut2-en" placeholder="https://t.me/tutorial/en2"></div>
+      </div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-edit-cat')">বাতিল</button>
@@ -1184,27 +1191,38 @@ async function loadCats(){
   if(res) D.categories=res;
   const el=$('cat-list');
   if(!D.categories.length){el.innerHTML='<div class="empty"><span class="eico">📂</span><p>কোনো ক্যাটাগরি নেই<br>বটে /addcat দিয়ে তৈরি করুন</p></div>';return}
-  el.innerHTML=D.categories.map(c=>`
+  el.innerHTML=D.categories.map(c=>{
+    const chs = c.channels || [];
+    const bnCount = chs.filter(x => (x.lang||'en')==='bn').length;
+    const hiCount = chs.filter(x => (x.lang||'en')==='hi').length;
+    const enCount = chs.filter(x => (x.lang||'en')==='en').length;
+    return `
     <div class="list-card">
       <div class="list-card-row">
         <div class="list-card-ico">📂</div>
         <div class="list-card-info">
           <div class="list-card-title">${c.name}</div>
-          <div class="list-card-sub">${(c.channels||[]).length}টি চ্যানেল যুক্ত</div>
+          <div class="list-card-sub">মোট ${chs.length}টি চ্যানেল যুক্ত</div>
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;">
-        <span class="badge b-p">${c.lang==='bn'?'🇧🇩 বাংলা':c.lang==='hi'?'🇮🇳 हिंदी':'🇬🇧 English'}</span>
-        ${c.tutorial_url_1?'<span class="badge b-c" title="'+c.tutorial_url_1+'">🎬 Tut 1 ✓</span>':''}
-        ${c.tutorial_url_2?'<span class="badge b-c" title="'+c.tutorial_url_2+'">🎬 Tut 2 ✓</span>':''}
+        <span class="badge b-p">🇧🇩 বাংলা: ${bnCount}</span>
+        <span class="badge b-p">🇮🇳 हिंदी: ${hiCount}</span>
+        <span class="badge b-p">🇬🇧 English: ${enCount}</span>
       </div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">${(c.channels||[]).map(ch=>`<span class="tag">${ch.name||ch.channel_id}</span>`).join('')}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">
+        ${chs.map(ch=>{
+          const lIco = ch.lang==='bn'?'🇧🇩':(ch.lang==='hi'?'🇮🇳':'🇬🇧');
+          return `<span class="tag">${lIco} ${ch.name||ch.channel_id} (${ch.type||'ad'})</span>`;
+        }).join('')}
+      </div>
       <div class="list-card-actions">
-        <button class="btn btn-g btn-sm" onclick="openEditCat('${c.cat_id}')">⚙️ ক্যাটাগরি সেটিংস</button>
-        <button class="btn btn-g btn-sm" onclick="manageCatChannels('${c.cat_id}')">🔗 চ্যানেল লিংক</button>
+        <button class="btn btn-g btn-sm" onclick="openEditCat('${c.cat_id}')">⚙️ দেখার নিয়ম টিউটোরিয়াল</button>
+        <button class="btn btn-g btn-sm" onclick="manageCatChannels('${c.cat_id}')">🔗 চ্যানেল লিংক ও ভাষা</button>
         <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="delCat('${c.cat_id}')">🗑️ মুছুন</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ══════════ CHANNELS ══════════
@@ -1444,20 +1462,31 @@ function openEditCat(id){
   if(!cat) return;
   $('ecat-id').value = cat.cat_id;
   $('ecat-nm').value = cat.name || '';
-  $('ecat-lang').value = cat.lang || 'en';
-  $('ecat-tut1').value = cat.tutorial_url_1 || '';
-  $('ecat-tut2').value = cat.tutorial_url_2 || '';
+  $('ecat-tut1-bn').value = cat.tutorial_url_1_bn || '';
+  $('ecat-tut2-bn').value = cat.tutorial_url_2_bn || '';
+  $('ecat-tut1-hi').value = cat.tutorial_url_1_hi || '';
+  $('ecat-tut2-hi').value = cat.tutorial_url_2_hi || '';
+  $('ecat-tut1-en').value = cat.tutorial_url_1_en || '';
+  $('ecat-tut2-en').value = cat.tutorial_url_2_en || '';
   openM('m-edit-cat');
 }
 
 async function saveEditCat(){
   const id = $('ecat-id').value;
   const name = $('ecat-nm').value.trim();
-  const lang = $('ecat-lang').value;
-  const tutorial_url_1 = $('ecat-tut1').value.trim();
-  const tutorial_url_2 = $('ecat-tut2').value.trim();
+  const tutorial_url_1_bn = $('ecat-tut1-bn').value.trim();
+  const tutorial_url_2_bn = $('ecat-tut2-bn').value.trim();
+  const tutorial_url_1_hi = $('ecat-tut1-hi').value.trim();
+  const tutorial_url_2_hi = $('ecat-tut2-hi').value.trim();
+  const tutorial_url_1_en = $('ecat-tut1-en').value.trim();
+  const tutorial_url_2_en = $('ecat-tut2-en').value.trim();
   if(!name){toast('⚠️ ক্যাটাগরির নাম দিন','warn');return}
-  const r = await api('/api/categories/update/'+id,'POST',{name,lang,tutorial_url_1,tutorial_url_2});
+  const r = await api('/api/categories/update/'+id,'POST',{
+    name,
+    tutorial_url_1_bn, tutorial_url_2_bn,
+    tutorial_url_1_hi, tutorial_url_2_hi,
+    tutorial_url_1_en, tutorial_url_2_en
+  });
   if(r?.ok){
     closeM('m-edit-cat'); loadCats(); toast('✅ ক্যাটাগরি সেটিংস সেভ হয়েছে','success');
   } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
@@ -1481,13 +1510,31 @@ function manageCatChannels(cat_id){
   if(!D.channels.length){
     container.innerHTML = '<p style="color:var(--text3);text-align:center;">কোনো চ্যানেল নেই। প্রথমে চ্যানেল যোগ করুন।</p>';
   } else {
-    const linkedIds = new Set((cat.channels || []).map(ch => String(ch.channel_id)));
-    container.innerHTML = D.channels.map(ch => `
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px;background:var(--bg4);border-radius:6px;margin-bottom:5px;">
-        <input type="checkbox" name="cat-channel" value="${ch.channel_id}" data-name="${ch.name}" ${linkedIds.has(String(ch.channel_id))?'checked':''}>
-        <span style="font-size:14px;color:var(--text);">${ch.name} (${ch.type})</span>
-      </label>
-    `).join('');
+    const existingMap = {};
+    (cat.channels || []).forEach(ch => {
+      existingMap[String(ch.channel_id)] = ch;
+    });
+    
+    container.innerHTML = D.channels.map(ch => {
+      const isLinked = !!existingMap[String(ch.channel_id)];
+      const curLang = (isLinked ? existingMap[String(ch.channel_id)].lang : ch.lang) || 'en';
+      const curType = (isLinked ? existingMap[String(ch.channel_id)].type : ch.type) || 'ad';
+      return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg4);border-radius:6px;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;min-width:200px;">
+          <input type="checkbox" name="cat-channel" value="${ch.channel_id}" data-name="${ch.name}" ${isLinked?'checked':''}>
+          <span style="font-size:14px;color:var(--text);">${ch.name} (${curType})</span>
+        </label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label style="font-size:12px;color:var(--text3);">ভাষা:</label>
+          <select class="fc" id="catch-lang-${ch.channel_id}" style="width:110px;padding:3px 6px;font-size:12px;">
+            <option value="bn" ${curLang==='bn'?'selected':''}>🇧🇩 বাংলা</option>
+            <option value="hi" ${curLang==='hi'?'selected':''}>🇮🇳 हिंदी</option>
+            <option value="en" ${curLang==='en'?'selected':''}>🇬🇧 English</option>
+          </select>
+        </div>
+      </div>
+    `}).join('');
   }
   openM('m-cat-channels');
 }
@@ -1496,15 +1543,25 @@ function manageCatChannels(cat_id){
 async function saveCatChannels(){
   const cat_id = $('active-cat-id').value;
   const checkboxes = document.querySelectorAll('input[name="cat-channel"]:checked');
-  const channels = Array.from(checkboxes).map(cb => ({
-    name: cb.getAttribute('data-name'),
-    channel_id: cb.value
-  }));
+  const channels = Array.from(checkboxes).map(cb => {
+    const chId = cb.value;
+    const langSelect = document.getElementById('catch-lang-' + chId);
+    const originalCh = D.channels.find(x => String(x.channel_id) === String(chId)) || {};
+    return {
+      name: cb.getAttribute('data-name'),
+      channel_id: chId,
+      type: originalCh.type || 'ad',
+      lang: langSelect ? langSelect.value : (originalCh.lang || 'en'),
+      tutorial_url_1: originalCh.tutorial_url_1 || '',
+      tutorial_url_2: originalCh.tutorial_url_2 || '',
+      status: originalCh.status || 'on'
+    };
+  });
   
-  const r = await api('/api/categories/update_channels/'+cat_id,'POST',{channels});
+  const r = await api('/api/categories/update/'+cat_id,'POST',{channels});
   if(r?.ok){
-    closeM('m-cat-channels'); loadCats(); toast('✅ চ্যানেল লিংক আপডেট হয়েছে','success');
-  } else toast('❌ ব্যর্থ','danger');
+    closeM('m-cat-channels'); loadCats(); toast('✅ চ্যানেল ও ভাষা লিংক আপডেট হয়েছে','success');
+  } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
 }
 
 // Delete File

@@ -301,7 +301,7 @@ def sync_categories_to_firebase():
         logger.warning(f"Firebase category sync error: {e}")
 
 # ══════════════════════════════════════════════════
-#  মাল্টি-ল্যাংগুয়েজ ডিকশনারি (চ্যানেল ভিত্তিক ভাষা)
+#  মাল্টি-ল্যাংগুয়েজ ডিকশনারি ও টিউটোরিয়াল হেল্পার
 # ══════════════════════════════════════════════════
 LANG_TEXTS = {
     "en": {
@@ -345,6 +345,49 @@ LANG_TEXTS = {
     }
 }
 
+def get_lang_tutorial(lang, num=1):
+    """ভাষা ভিত্তিক গ্লোবাল টিউটোরিয়াল লিংক নিয়ে আসে"""
+    key = f"lang_tut_{lang}_{num}"
+    doc = settings_col.find_one({"key": key})
+    return doc.get("value", "") if doc else ""
+
+def set_lang_tutorial(lang, num, url):
+    """ভাষা ভিত্তিক গ্লোবাল টিউটোরিয়াল লিংক সেট করে"""
+    key = f"lang_tut_{lang}_{num}"
+    settings_col.update_one({"key": key}, {"$set": {"key": key, "value": url.strip()}}, upsert=True)
+
+def resolve_channel_tutorial(ch, cat, num, user=None):
+    """চ্যানেল, ক্যাটাগরি এবং গ্লোবাল ল্যাংগুয়েজ প্রিসেট মিলিয়ে সঠিক টিউটোরিয়াল লিংক নির্ধারণ করে"""
+    num_str = str(num)
+    ch = ch or {}
+    cat = cat or {}
+    ch_lang = ch.get("lang") or cat.get("lang") or "en"
+    if ch_lang not in LANG_TEXTS: ch_lang = "en"
+    
+    # ১. চ্যানেল স্পেসিফিক লিংক
+    ch_tut = ch.get(f"tutorial_url_{num_str}")
+    if ch_tut and str(ch_tut).strip(): return str(ch_tut).strip()
+    
+    # ২. ক্যাটাগরি ল্যাংগুয়েজ স্পেসিফিক লিংক (যেমন tutorial_url_1_bn)
+    cat_lang_tut = cat.get(f"tutorial_url_{num_str}_{ch_lang}")
+    if cat_lang_tut and str(cat_lang_tut).strip(): return str(cat_lang_tut).strip()
+    
+    # ৩. ক্যাটাগরি জেনারেল লিংক (যদি ভাষার সাথে মিলে বা ক্যাটাগরিতে সরাসরি সেট থাকে)
+    cat_tut = cat.get(f"tutorial_url_{num_str}")
+    if cat_tut and str(cat_tut).strip() and (not cat.get("lang") or cat.get("lang") == ch_lang):
+        return str(cat_tut).strip()
+        
+    # ৪. গ্লোবাল ল্যাংগুয়েজ প্রিসেট (বাংলা, হিন্দি, ইংরেজি)
+    global_tut = get_lang_tutorial(ch_lang, num)
+    if global_tut and str(global_tut).strip(): return str(global_tut).strip()
+    
+    # ৫. ইউজার কাস্টম লিংক ফলব্যাক
+    if user:
+        u_link = user.get(f"custom_link_{num_str}")
+        if u_link and str(u_link).strip(): return str(u_link).strip()
+        
+    return ""
+
 def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
     cat = get_category(cat_id)
     if not cat: return 0
@@ -359,29 +402,25 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
 
     file_count = _get_file_count_from_link(d_link)
 
-    # Category-level language & tutorial URLs (priority: category > channel)
-    cat_lang = cat.get("lang") or "en"
-    if cat_lang not in LANG_TEXTS: cat_lang = "en"
-    L = LANG_TEXTS[cat_lang]
-    fc_txt = L["file_count"].format(count=file_count) if file_count > 0 else ""
-
-    cat_ctx = {
-        "lang": cat_lang,
-        "tutorial_url_1": cat.get("tutorial_url_1") or "",
-        "tutorial_url_2": cat.get("tutorial_url_2") or ""
-    }
-
     count = 0
     for ch in cat.get("channels", []):
         if ch.get("status") != "on": continue
         ch_type = ch.get("type", "ad")
         
-        # Merge channel specific override if present
-        merged_ctx = dict(cat_ctx)
-        if ch.get("tutorial_url_1") and not merged_ctx["tutorial_url_1"]:
-            merged_ctx["tutorial_url_1"] = ch["tutorial_url_1"]
-        if ch.get("tutorial_url_2") and not merged_ctx["tutorial_url_2"]:
-            merged_ctx["tutorial_url_2"] = ch["tutorial_url_2"]
+        # প্রতি চ্যানেলের নিজস্ব ভাষা নির্ধারণ
+        ch_lang = ch.get("lang") or cat.get("lang") or "en"
+        if ch_lang not in LANG_TEXTS: ch_lang = "en"
+        L = LANG_TEXTS[ch_lang]
+        fc_txt = L["file_count"].format(count=file_count) if file_count > 0 else ""
+
+        tut1 = resolve_channel_tutorial(ch, cat, 1, user)
+        tut2 = resolve_channel_tutorial(ch, cat, 2, user)
+
+        merged_ctx = {
+            "lang": ch_lang,
+            "tutorial_url_1": tut1,
+            "tutorial_url_2": tut2
+        }
 
         if ch_type == "premium":
             link = d_link
@@ -736,11 +775,19 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
         L = LANG_TEXTS[lang]
         fc_txt = L["file_count"].format(count=file_count) if file_count > 0 else ""
 
+        tut1 = resolve_channel_tutorial(ch, None, 1, user)
+        tut2 = resolve_channel_tutorial(ch, None, 2, user)
+        ch_ctx = {
+            "lang": lang,
+            "tutorial_url_1": tut1,
+            "tutorial_url_2": tut2
+        }
+
         if ch_type == "premium":
             pr_links = "\n".join([d_link]*rpt)
-            prem_caption = f"{ph_t}{fc_txt}{L['prem_caption_title']}\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
+            prem_caption = f"{ph_t}{fc_txt}{L['prem_caption_title']}\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
             pr_share = clean_html(prem_caption)
-            prem_markup = _build_post_markup(user, d_link, pr_share, is_premium=True, ch=ch)
+            prem_markup = _build_post_markup(user, d_link, pr_share, is_premium=True, ch=ch_ctx)
             try:
                 _send_media(ch['channel_id'], mtype, mid, prem_caption, prem_markup, protect)
                 post_count += 1
@@ -756,7 +803,7 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
             ad_caption = f"{ph_t}{fc_txt}{L['ad_caption_cta']}\n\n<i>🕐 {now_str}</i>{pf_t}".strip()
             dl_share_link = user.get("pending_web_post_link") or s_link
             ad_share = clean_html(ad_caption) + f"\n\n{L['dl_share_prefix']}\n{dl_share_link}"
-            ad_markup = _build_post_markup(user, s_link, ad_share, is_premium=False, ch=ch)
+            ad_markup = _build_post_markup(user, s_link, ad_share, is_premium=False, ch=ch_ctx)
             try:
                 _send_media(ch['channel_id'], mtype, mid, ad_caption, ad_markup, protect)
                 post_count += 1
@@ -1300,23 +1347,25 @@ def cb(call):
         cats = get_categories()
         m = _mk()
         for c in cats:
-            l_code = c.get("lang") or "en"
-            badge = LANG_TEXTS.get(l_code, {}).get("badge", "🇬🇧 EN")
-            m.row(_btn(f"📂 {c['name']} [{badge}]", f"view_cat_{c['cat_id']}"), _btn("🗑️", f"del_cat_{c['cat_id']}"))
+            chs = c.get("channels", [])
+            bn_c = len([x for x in chs if (x.get('lang') or 'en') == 'bn'])
+            hi_c = len([x for x in chs if (x.get('lang') or 'en') == 'hi'])
+            en_c = len([x for x in chs if (x.get('lang') or 'en') == 'en'])
+            m.row(_btn(f"📂 {c['name']} (🇧🇩{bn_c} 🇮🇳{hi_c} 🇬🇧{en_c})", f"view_cat_{c['cat_id']}"), _btn("🗑️", f"del_cat_{c['cat_id']}"))
         m.add(_btn("➕ নতুন ক্যাটাগরি যোগ করুন","add_category"))
         m.add(_back("settings"))
-        bot.edit_message_text(f"📂 <b>ক্যাটাগরি ম্যানেজমেন্ট</b>\n{'─'*26}\nমোট: <b>{len(cats)}</b>টি ক্যাটাগরি\n\n⚙️ <i>ক্যাটাগরির ভাষা ও দেখার নিয়ম সেট করতে নামের ওপর ক্লিক করুন।</i>", cid, mid, reply_markup=m)
+        bot.edit_message_text(f"📂 <b>ক্যাটাগরি ম্যানেজমেন্ট</b>\n{'─'*26}\nমোট: <b>{len(cats)}</b>টি ক্যাটাগরি\n\n⚙️ <i>ক্যাটাগরির ভাষা ভিত্তিক চ্যানেল ও দেখার নিয়ম সেট করতে নামের ওপর ক্লিক করুন।</i>", cid, mid, reply_markup=m)
 
     elif data == "add_category":
         update_step(cid, "wait_add_category")
-        bot.send_message(cid,"📂 <b>নতুন ক্যাটাগরির নাম লিখুন:</b>\n\nউদাহরণ: <code>বাংলাদেশ</code>, <code>ইন্ডিয়া</code> বা <code>English</code>")
+        bot.send_message(cid,"📂 <b>নতুন ক্যাটাগরির নাম লিখুন:</b>\n\nউদাহরণ: <code>Love</code>, <code>Sad</code> বা <code>Funny</code>")
 
     elif data.startswith("del_cat_"):
         cid2 = data[8:]
         cat = get_category(cid2)
         if cat:
-            categories_col.delete_one({"cat_id": cid2})
-            sync_categories_to_firebase() # ওয়েবসাইটে সিঙ্ক
+            categories_col.delete_one({"_id": cat["_id"]})
+            sync_categories_to_firebase()
             bot.answer_callback_query(call.id, f"✅ '{cat['name']}' মুছে ফেলা হয়েছে!", show_alert=True)
         call.data="menu_categories"; cb(call)
 
@@ -1326,67 +1375,330 @@ def cb(call):
         if not cat:
             bot.answer_callback_query(call.id,"⚠️ পাওয়া যায়নি!", show_alert=True); return
         channels = cat.get("channels",[])
+        bn_chs  = [c for c in channels if (c.get("lang") or "en") == "bn"]
+        hi_chs  = [c for c in channels if (c.get("lang") or "en") == "hi"]
+        en_chs  = [c for c in channels if (c.get("lang") or "en") == "en"]
+        
         ad_chs  = [c for c in channels if c.get("type")=="ad"]
         pr_chs  = [c for c in channels if c.get("type")=="premium"]
         log_chs = [c for c in channels if c.get("type")=="log"]
         
-        lang_code = cat.get("lang") or "en"
-        lang_name = LANG_TEXTS.get(lang_code, {}).get("name", "English 🇬🇧")
-        tut1 = cat.get("tutorial_url_1") or "সেট করা নেই ❌"
-        tut2 = cat.get("tutorial_url_2") or "সেট করা নেই ❌"
-        
         txt = (
-            f"📂 <b>ক্যাটাগরি সেটিংস: {cat['name']}</b>\n"
+            f"📂 <b>ক্যাটাগরি: {cat['name']}</b>\n"
             f"{'─'*26}\n"
-            f"🌐 <b>ভাষা (Language):</b> <b>{lang_name}</b>\n"
-            f"🎬 <b>দেখার নিয়ম ১ লিংক:</b>\n<code>{tut1}</code>\n"
-            f"🎬 <b>দেখার নিয়ম ২ লিংক:</b>\n<code>{tut2}</code>\n"
+            f"🇧🇩 <b>বাংলা চ্যানেল:</b> <b>{len(bn_chs)}</b>টি\n"
+            f"🇮🇳 <b>Hindi চ্যানেল:</b> <b>{len(hi_chs)}</b>টি\n"
+            f"🇬🇧 <b>English চ্যানেল:</b> <b>{len(en_chs)}</b>টি\n"
             f"{'─'*26}\n"
-            f"📺 Ad চ্যানেল: <b>{len(ad_chs)}</b>টি | 💎 Premium: <b>{len(pr_chs)}</b>টি | 💾 Log: <b>{len(log_chs)}</b>টি\n\n"
-            f"💡 <i>এই ক্যাটাগরিতে পোস্ট করলে সমস্ত চ্যানেল ওপরের ভাষা ও টিউটোরিয়াল ব্যবহার করবে।</i>"
+            f"📺 Ad: <b>{len(ad_chs)}</b> | 💎 Premium: <b>{len(pr_chs)}</b> | 💾 Log: <b>{len(log_chs)}</b>\n\n"
+            f"💡 <i>পোস্ট করার সময় বট প্রতিটি চ্যানেলে তার নির্ধারিত ভাষা ও টিউটোরিয়াল বাটন অনুযায়ী পোস্ট করবে।</i>"
         )
         m = _mk()
-        m.add(_btn(f"🌐 ভাষা পরিবর্তন ({lang_name})", f"catlang_{cat_id2}"))
-        m.row(_btn("🎬 দেখার নিয়ম ১ লিংক", f"cattut1_{cat_id2}"), _btn("🎬 দেখার নিয়ম ২ লিংক", f"cattut2_{cat_id2}"))
-        m.add(_btn(f"📺 Ad চ্যানেল ({len(ad_chs)}টি)", f"catlist_ad_{cat_id2}"))
-        m.row(_btn(f"💎 Premium ({len(pr_chs)}টি)", f"catlist_premium_{cat_id2}"), _btn(f"💾 Log ({len(log_chs)}টি)", f"catlist_log_{cat_id2}"))
+        m.add(_btn("➕ নতুন চ্যানেল যোগ করুন", f"catadd_sellang_{cat_id2}"))
+        m.row(_btn(f"🇧🇩 বাংলা ({len(bn_chs)}টি)", f"catchlist_{cat_id2}_bn"), _btn(f"🇮🇳 Hindi ({len(hi_chs)}টি)", f"catchlist_{cat_id2}_hi"))
+        m.add(_btn(f"🇬🇧 English ({len(en_chs)}টি)", f"catchlist_{cat_id2}_en"))
+        m.add(_btn("🎬 ভাষা অনুযায়ী দেখার নিয়ম লিংক", f"cat_langtuts_{cat_id2}"))
+        m.add(_btn(f"📺 সব চ্যানেল টাইপ তালিকা ({len(channels)}টি)", f"catlist_ad_{cat_id2}"))
         m.add(_back("menu_categories"))
         bot.edit_message_text(txt, cid, mid, reply_markup=m)
 
-    elif data.startswith("catlang_"):
-        cat_id2 = data[8:]
+    elif data.startswith("catadd_sellang_"):
+        cat_id2 = data[15:]
         cat = get_category(cat_id2)
-        if not cat:
-            bot.answer_callback_query(call.id, "⚠️ ক্যাটাগরি পাওয়া যায়নি!", show_alert=True); return
+        if not cat: return
         m = _mk()
-        m.add(_btn("🇬🇧 English (Default)", f"setcatlang_{cat_id2}_en"))
-        m.add(_btn("🇧🇩 বাংলা (Bengali)", f"setcatlang_{cat_id2}_bn"))
-        m.add(_btn("🇮🇳 हिंदी (Hindi)", f"setcatlang_{cat_id2}_hi"))
+        m.add(_btn("🇧🇩 বাংলা চ্যানেল হিসেবে যোগ করুন", f"cataddch_form_{cat_id2}_bn"))
+        m.add(_btn("🇮🇳 Hindi চ্যানেল হিসেবে যোগ করুন", f"cataddch_form_{cat_id2}_hi"))
+        m.add(_btn("🇬🇧 English চ্যানেল হিসেবে যোগ করুন", f"cataddch_form_{cat_id2}_en"))
         m.add(_back(f"view_cat_{cat_id2}"))
-        bot.edit_message_text(f"🌐 <b>ক্যাটাগরির ভাষা সিলেক্ট করুন</b>\n\n📂 ক্যাটাগরি: <b>{cat.get('name')}</b>\n\nযে ভাষা সিলেক্ট করবেন, এই ক্যাটাগরির সমস্ত চ্যানেলে পোস্ট ও বাটন সেই ভাষায় তৈরি হবে।", cid, mid, reply_markup=m)
+        bot.edit_message_text(f"🌐 <b>কোন ভাষার চ্যানেল যোগ করবেন?</b>\n\n📂 ক্যাটাগরি: <b>{cat.get('name')}</b>", cid, mid, reply_markup=m)
 
-    elif data.startswith("setcatlang_"):
-        parts = data[11:].rsplit("_", 1)
-        if len(parts) == 2:
-            cat_id2, selected_lang = parts
-            if selected_lang in LANG_TEXTS:
-                categories_col.update_one({"cat_id": cat_id2}, {"$set": {"lang": selected_lang}})
-                bot.answer_callback_query(call.id, f"✅ ক্যাটাগরির ভাষা সেট হয়েছে: {LANG_TEXTS[selected_lang]['name']}", show_alert=True)
+    elif data.startswith("cataddch_form_"):
+        parts = data[14:].split("_", 1)
+        if len(parts) < 2: return
+        cat_id2, lang = parts
+        cat = get_category(cat_id2)
+        if not cat: return
+        lang_name = LANG_TEXTS.get(lang, {}).get("name", lang)
+        m = _mk()
+        m.add(_btn("📺 Ad চ্যানেল", f"cataddch_type_{cat_id2}_{lang}_ad"))
+        m.add(_btn("💎 Premium চ্যানেল", f"cataddch_type_{cat_id2}_{lang}_premium"))
+        m.add(_btn("💾 Log চ্যানেল", f"cataddch_type_{cat_id2}_{lang}_log"))
+        m.add(_back(f"catadd_sellang_{cat_id2}"))
+        bot.edit_message_text(f"📡 <b>চ্যানেল টাইপ নির্বাচন করুন</b>\n\n📂 ক্যাটাগরি: <b>{cat.get('name')}</b>\n🌐 ভাষা: <b>{lang_name}</b>", cid, mid, reply_markup=m)
+
+    elif data.startswith("cataddch_type_"):
+        parts = data[14:].split("_", 2)
+        if len(parts) < 3: return
+        cat_id2, lang, ch_type = parts
+        cat = get_category(cat_id2)
+        if not cat: return
+        lang_name = LANG_TEXTS.get(lang, {}).get("name", lang)
+        type_names = {"ad":"📺 Ad","premium":"💎 Premium","log":"💾 Log"}
+        
+        # সেভ করা অটো চ্যানেলগুলোর মধ্য থেকে সহজে যোগ করার অপশন
+        existing = list(auto_channels_col.find({"type": ch_type, "status": "on"}))
+        already_ids = [c.get("channel_id") for c in cat.get("channels",[])]
+        available = [ch for ch in existing if ch.get("channel_id") not in already_ids]
+        
+        m = _mk()
+        if available:
+            for ch in available:
+                m.add(_btn(f"📡 {ch.get('name','?')} ({ch.get('channel_id','')})", f"catpickch_{cat_id2}_{lang}_{ch_type}_{ch.get('ch_id','')}"))
+        m.add(_btn("✏️ নতুন চ্যানেল (নাম ও আইডি লিখে)", f"cataddch_man_{cat_id2}_{lang}_{ch_type}"))
+        m.add(_back(f"cataddch_form_{cat_id2}_{lang}"))
+        bot.edit_message_text(f"📡 <b>{type_names.get(ch_type,'?')} চ্যানেল যোগ — {lang_name}</b>\n\n📂 ক্যাটাগরি: <b>{cat.get('name')}</b>", cid, mid, reply_markup=m)
+
+    elif data.startswith("catpickch_"):
+        parts = data[10:].split("_", 3)
+        if len(parts) < 4: return
+        cat_id2, lang, ch_type, ch_id = parts
+        cat = get_category(cat_id2)
+        ch = auto_channels_col.find_one({"ch_id": ch_id})
+        if not cat or not ch: return
+        channels = cat.get("channels", [])
+        channels.append({
+            "name": ch.get("name", "?"),
+            "channel_id": str(ch.get("channel_id", "")),
+            "type": ch_type,
+            "lang": lang,
+            "tutorial_url_1": ch.get("tutorial_url_1", ""),
+            "tutorial_url_2": ch.get("tutorial_url_2", ""),
+            "status": "on"
+        })
+        categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": channels}})
+        bot.answer_callback_query(call.id, f"✅ {ch.get('name','?')} যোগ হয়েছে!", show_alert=True)
+        call.data = f"catchlist_{cat_id2}_{lang}"; cb(call)
+
+    elif data.startswith("cataddch_man_"):
+        parts = data[13:].split("_", 2)
+        if len(parts) < 3: return
+        cat_id2, lang, ch_type = parts
+        update_user(cid, {"step": f"wait_cataddch_{cat_id2}_{lang}_{ch_type}"})
+        type_names = {"ad":"📺 Ad","premium":"💎 Premium","log":"💾 Log"}
+        bot.send_message(cid, f"📝 <b>{type_names.get(ch_type,'?')} চ্যানেল ম্যানুয়ালি যোগ করুন:</b>\n\nফরম্যাট: <code>নাম | চ্যানেল_আইডি</code>\n(যেমন: <code>বাংলা মুভি | -1001234567890</code>)")
+
+    elif data.startswith("catchlist_"):
+        parts = data[10:].split("_", 1)
+        if len(parts) < 2: return
+        cat_id2, lang = parts
+        cat = get_category(cat_id2)
+        if not cat: return
+        channels = cat.get("channels", [])
+        lang_name = LANG_TEXTS.get(lang, {}).get("name", lang)
+        
+        m = _mk()
+        for idx, ch in enumerate(channels):
+            if (ch.get("lang") or "en") != lang: continue
+            st_ico = _ico(ch.get("status","on") == "on")
+            t_badge = "📺" if ch.get("type")=="ad" else ("💎" if ch.get("type")=="premium" else "💾")
+            m.row(_btn(f"{st_ico} {t_badge} {ch.get('name','?')}", f"chdetail_{cat_id2}_{idx}"), _btn("🗑️", f"chdel_{cat_id2}_{idx}"))
+        
+        m.add(_btn(f"➕ নতুন {lang_name} চ্যানেল যোগ করুন", f"cataddch_form_{cat_id2}_{lang}"))
+        m.add(_back(f"view_cat_{cat_id2}"))
+        bot.edit_message_text(f"📂 <b>{cat.get('name')} — {lang_name} চ্যানেল তালিকা</b>\n{'─'*26}\nচ্যানেল সেটিংস ও দেখার নিয়ম লিংক এডিট করতে চ্যানেলের নামের ওপর ক্লিক করুন।", cid, mid, reply_markup=m)
+
+    elif data.startswith("chdetail_"):
+        parts = data[9:].split("_", 1)
+        if len(parts) < 2: return
+        cat_id2, idx_s = parts
+        idx = int(idx_s)
+        cat = get_category(cat_id2)
+        if not cat: return
+        channels = cat.get("channels", [])
+        if idx >= len(channels): return
+        ch = channels[idx]
+        ch_lang = ch.get("lang") or "en"
+        lang_name = LANG_TEXTS.get(ch_lang, {}).get("name", ch_lang)
+        type_names = {"ad":"📺 Ad","premium":"💎 Premium","log":"💾 Log"}
+        
+        tut1 = ch.get("tutorial_url_1") or cat.get(f"tutorial_url_1_{ch_lang}") or get_lang_tutorial(ch_lang, 1) or "সেট নেই ❌"
+        tut2 = ch.get("tutorial_url_2") or cat.get(f"tutorial_url_2_{ch_lang}") or get_lang_tutorial(ch_lang, 2) or "সেট নেই ❌"
+        
+        txt = (
+            f"📡 <b>চ্যানেল সেটিংস: {ch.get('name','?')}</b>\n"
+            f"{'─'*26}\n"
+            f"🆔 <b>আইডি:</b> <code>{ch.get('channel_id','')}</code>\n"
+            f"🌐 <b>ভাষা:</b> <b>{lang_name}</b>\n"
+            f"📺 <b>টাইপ:</b> <b>{type_names.get(ch.get('type','ad'),'?')}</b>\n"
+            f"🔛 <b>স্ট্যাটাস:</b> <b>{_ico(ch.get('status','on')=='on')}</b>\n\n"
+            f"🎬 <b>দেখার নিয়ম ১ লিংক:</b>\n<code>{tut1}</code>\n"
+            f"🎬 <b>দেখার নিয়ম ২ লিংক:</b>\n<code>{tut2}</code>\n"
+        )
+        m = _mk()
+        m.add(_btn(f"🌐 ভাষা পরিবর্তন ({lang_name})", f"ch_changelang_{cat_id2}_{idx}"))
+        m.row(_btn("🎬 দেখার নিয়ম ১ সেট", f"ch_settut1_{cat_id2}_{idx}"), _btn("🎬 দেখার নিয়ম ২ সেট", f"ch_settut2_{cat_id2}_{idx}"))
+        m.row(_btn(f"📺 টাইপ: {type_names.get(ch.get('type','ad'),'?')}", f"ch_changetype_{cat_id2}_{idx}"), _btn(f"🔛 {_ico(ch.get('status','on')=='on')}", f"ch_togstatus_{cat_id2}_{idx}"))
+        m.add(_btn("🗑️ এই চ্যানেল মুছুন", f"chdel_{cat_id2}_{idx}"))
+        m.add(_back(f"catchlist_{cat_id2}_{ch_lang}"))
+        bot.edit_message_text(txt, cid, mid, reply_markup=m)
+
+    elif data.startswith("ch_changelang_"):
+        parts = data[14:].split("_", 1)
+        if len(parts) < 2: return
+        cat_id2, idx_s = parts
+        m = _mk()
+        m.add(_btn("🇧🇩 বাংলা (Bengali)", f"ch_setlang_{cat_id2}_{idx_s}_bn"))
+        m.add(_btn("🇮🇳 हिंदी (Hindi)", f"ch_setlang_{cat_id2}_{idx_s}_hi"))
+        m.add(_btn("🇬🇧 English", f"ch_setlang_{cat_id2}_{idx_s}_en"))
+        m.add(_back(f"chdetail_{cat_id2}_{idx_s}"))
+        bot.edit_message_text("🌐 <b>চ্যানেলের ভাষা সিলেক্ট করুন:</b>", cid, mid, reply_markup=m)
+
+    elif data.startswith("ch_setlang_"):
+        parts = data[11:].split("_", 2)
+        if len(parts) < 3: return
+        cat_id2, idx_s, new_lang = parts
+        cat = get_category(cat_id2)
+        if cat:
+            channels = cat.get("channels", [])
+            idx = int(idx_s)
+            if idx < len(channels):
+                channels[idx]["lang"] = new_lang
+                categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": channels}})
+                bot.answer_callback_query(call.id, f"✅ ভাষা সেট হয়েছে: {LANG_TEXTS.get(new_lang,{}).get('name',new_lang)}", show_alert=True)
+                call.data = f"chdetail_{cat_id2}_{idx_s}"; cb(call)
+
+    elif data.startswith("ch_changetype_"):
+        parts = data[14:].split("_", 1)
+        if len(parts) < 2: return
+        cat_id2, idx_s = parts
+        m = _mk()
+        m.add(_btn("📺 Ad চ্যানেল", f"ch_settype_{cat_id2}_{idx_s}_ad"))
+        m.add(_btn("💎 Premium চ্যানেল", f"ch_settype_{cat_id2}_{idx_s}_premium"))
+        m.add(_btn("💾 Log চ্যানেল", f"ch_settype_{cat_id2}_{idx_s}_log"))
+        m.add(_back(f"chdetail_{cat_id2}_{idx_s}"))
+        bot.edit_message_text("📺 <b>চ্যানেল টাইপ নির্বাচন করুন:</b>", cid, mid, reply_markup=m)
+
+    elif data.startswith("ch_settype_"):
+        parts = data[11:].split("_", 2)
+        if len(parts) < 3: return
+        cat_id2, idx_s, new_type = parts
+        cat = get_category(cat_id2)
+        if cat:
+            channels = cat.get("channels", [])
+            idx = int(idx_s)
+            if idx < len(channels):
+                channels[idx]["type"] = new_type
+                categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": channels}})
+                bot.answer_callback_query(call.id, "✅ চ্যানেল টাইপ পরিবর্তন হয়েছে!", show_alert=True)
+                call.data = f"chdetail_{cat_id2}_{idx_s}"; cb(call)
+
+    elif data.startswith("ch_togstatus_"):
+        parts = data[13:].split("_", 1)
+        if len(parts) < 2: return
+        cat_id2, idx_s = parts
+        cat = get_category(cat_id2)
+        if cat:
+            channels = cat.get("channels", [])
+            idx = int(idx_s)
+            if idx < len(channels):
+                channels[idx]["status"] = "off" if channels[idx].get("status","on") == "on" else "on"
+                categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": channels}})
+                call.data = f"chdetail_{cat_id2}_{idx_s}"; cb(call)
+
+    elif data.startswith("chdel_"):
+        parts = data[6:].split("_", 1)
+        if len(parts) < 2: return
+        cat_id2, idx_s = parts
+        cat = get_category(cat_id2)
+        if cat:
+            channels = cat.get("channels", [])
+            idx = int(idx_s)
+            if idx < len(channels):
+                channels.pop(idx)
+                categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": channels}})
+                bot.answer_callback_query(call.id, "✅ চ্যানেল মুছে ফেলা হয়েছে!", show_alert=True)
                 call.data = f"view_cat_{cat_id2}"; cb(call)
 
-    elif data.startswith("cattut1_"):
-        cat_id2 = data[8:]
-        cat = get_category(cat_id2)
-        if not cat: return
-        update_step(cid, f"wait_cattut1_{cat_id2}")
-        bot.send_message(cid, f"🎬 <b>'{cat.get('name')}' ক্যাটাগরির জন্য দেখার নিয়ম ১ (Tutorial 1) লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/123</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
+    elif data.startswith("ch_settut1_"):
+        parts = data[11:].split("_", 1)
+        if len(parts) < 2: return
+        cat_id2, idx_s = parts
+        update_step(cid, f"wait_chtut_1_{cat_id2}_{idx_s}")
+        bot.send_message(cid, "🎬 <b>এই চ্যানেলের জন্য দেখার নিয়ম ১ (Tutorial 1) লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/123</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
 
-    elif data.startswith("cattut2_"):
-        cat_id2 = data[8:]
+    elif data.startswith("ch_settut2_"):
+        parts = data[11:].split("_", 1)
+        if len(parts) < 2: return
+        cat_id2, idx_s = parts
+        update_step(cid, f"wait_chtut_2_{cat_id2}_{idx_s}")
+        bot.send_message(cid, "🎬 <b>এই চ্যানেলের জন্য দেখার নিয়ম ২ (Tutorial 2) লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/456</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
+
+    elif data.startswith("cat_langtuts_"):
+        cat_id2 = data[13:]
         cat = get_category(cat_id2)
         if not cat: return
-        update_step(cid, f"wait_cattut2_{cat_id2}")
-        bot.send_message(cid, f"🎬 <b>'{cat.get('name')}' ক্যাটাগরির জন্য দেখার নিয়ম ২ (Tutorial 2) লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/456</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
+        
+        bn1 = cat.get("tutorial_url_1_bn") or get_lang_tutorial("bn", 1) or "সেট নেই ❌"
+        bn2 = cat.get("tutorial_url_2_bn") or get_lang_tutorial("bn", 2) or "সেট নেই ❌"
+        hi1 = cat.get("tutorial_url_1_hi") or get_lang_tutorial("hi", 1) or "সেট নেই ❌"
+        hi2 = cat.get("tutorial_url_2_hi") or get_lang_tutorial("hi", 2) or "সেট নেই ❌"
+        en1 = cat.get("tutorial_url_1_en") or get_lang_tutorial("en", 1) or "সেট নেই ❌"
+        en2 = cat.get("tutorial_url_2_en") or get_lang_tutorial("en", 2) or "সেট নেই ❌"
+        
+        txt = (
+            f"🎬 <b>ভাষা অনুযায়ী দেখার নিয়ম লিংক — {cat.get('name')}</b>\n"
+            f"{'─'*26}\n"
+            f"🇧🇩 <b>বাংলা ১:</b> <code>{bn1}</code>\n"
+            f"🇧🇩 <b>বাংলা ২:</b> <code>{bn2}</code>\n\n"
+            f"🇮🇳 <b>Hindi ১:</b> <code>{hi1}</code>\n"
+            f"🇮🇳 <b>Hindi ২:</b> <code>{hi2}</code>\n\n"
+            f"🇬🇧 <b>English ১:</b> <code>{en1}</code>\n"
+            f"🇬🇧 <b>English ২:</b> <code>{en2}</code>\n"
+            f"{'─'*26}\n"
+            f"💡 <i>যেকোনো ভাষার দেখার নিয়ম লিংক সেট করতে নিচের বাটনে চাপুন।</i>"
+        )
+        m = _mk()
+        m.row(_btn("🇧🇩 বাংলা ১ লিংক", f"set_cattut_{cat_id2}_bn_1"), _btn("🇧🇩 বাংলা ২ লিংক", f"set_cattut_{cat_id2}_bn_2"))
+        m.row(_btn("🇮🇳 Hindi ১ লিংক", f"set_cattut_{cat_id2}_hi_1"), _btn("🇮🇳 Hindi ২ লিংক", f"set_cattut_{cat_id2}_hi_2"))
+        m.row(_btn("🇬🇧 English ১ লিংক", f"set_cattut_{cat_id2}_en_1"), _btn("🇬🇧 English ২ লিংক", f"set_cattut_{cat_id2}_en_2"))
+        m.add(_back(f"view_cat_{cat_id2}"))
+        bot.edit_message_text(txt, cid, mid, reply_markup=m)
+
+    elif data.startswith("set_cattut_"):
+        parts = data[11:].split("_", 2)
+        if len(parts) < 3: return
+        cat_id2, lang, num = parts
+        cat = get_category(cat_id2)
+        if not cat: return
+        update_step(cid, f"wait_cattutlang_{cat_id2}_{lang}_{num}")
+        lang_name = LANG_TEXTS.get(lang, {}).get("name", lang)
+        bot.send_message(cid, f"🎬 <b>'{cat.get('name')}' ক্যাটাগরির {lang_name} দেখার নিয়ম {num} লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/123</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
+
+    elif data == "menu_global_langtuts":
+        bn1 = get_lang_tutorial("bn", 1) or "সেট নেই ❌"
+        bn2 = get_lang_tutorial("bn", 2) or "সেট নেই ❌"
+        hi1 = get_lang_tutorial("hi", 1) or "সেট নেই ❌"
+        hi2 = get_lang_tutorial("hi", 2) or "সেট নেই ❌"
+        en1 = get_lang_tutorial("en", 1) or "সেট নেই ❌"
+        en2 = get_lang_tutorial("en", 2) or "সেট নেই ❌"
+        
+        txt = (
+            f"🌐 <b>গ্লোবাল ভাষা ভিত্তিক দেখার নিয়ম লিংক</b>\n"
+            f"{'─'*26}\n"
+            f"🇧🇩 <b>বাংলা ১:</b> <code>{bn1}</code>\n"
+            f"🇧🇩 <b>বাংলা ২:</b> <code>{bn2}</code>\n\n"
+            f"🇮🇳 <b>Hindi ১:</b> <code>{hi1}</code>\n"
+            f"🇮🇳 <b>Hindi ২:</b> <code>{hi2}</code>\n\n"
+            f"🇬🇧 <b>English ১:</b> <code>{en1}</code>\n"
+            f"🇬🇧 <b>English ২:</b> <code>{en2}</code>\n"
+            f"{'─'*26}\n"
+            f"💡 <i>এখানে সেট করা লিংক সমস্ত ক্যাটাগরির বাংলা/হিন্দি/ইংরেজি চ্যানেলে ডিফল্ট হিসেবে কাজ করবে।</i>"
+        )
+        m = _mk()
+        m.row(_btn("🇧🇩 বাংলা ১ লিংক", "set_globtut_bn_1"), _btn("🇧🇩 বাংলা ২ লিংক", "set_globtut_bn_2"))
+        m.row(_btn("🇮🇳 Hindi ১ লিংক", "set_globtut_hi_1"), _btn("🇮🇳 Hindi ২ লিংক", "set_globtut_hi_2"))
+        m.row(_btn("🇬🇧 English ১ লিংক", "set_globtut_en_1"), _btn("🇬🇧 English ২ লিংক", "set_globtut_en_2"))
+        m.add(_back("menu_post_settings"))
+        bot.edit_message_text(txt, cid, mid, reply_markup=m)
+
+    elif data.startswith("set_globtut_"):
+        parts = data[12:].split("_", 1)
+        if len(parts) < 2: return
+        lang, num = parts
+        update_step(cid, f"wait_globtut_{lang}_{num}")
+        lang_name = LANG_TEXTS.get(lang, {}).get("name", lang)
+        bot.send_message(cid, f"🎬 <b>{lang_name} এর জন্য গ্লোবাল দেখার নিয়ম {num} লিংক দিন:</b>\n\nভিডিওর URL লিখে পাঠান (যেমন: <code>https://t.me/tutorial/123</code>)\nমুছে ফেলতে চাইলে <code>/none</code> লিখুন।")
 
     elif data.startswith("catlist_"):
         parts = data.split("_", 2)
@@ -1401,78 +1713,11 @@ def cb(call):
         m = _mk()
         for idx, ch in enumerate(channels):
             if ch.get("type") != ch_type2: continue
-            m.row(_btn(f"{_ico(ch.get('status','on')=='on')} {ch.get('name','?')}", f"cattog_{cat_id3}_{idx}"), _btn("🗑️", f"catdel_{cat_id3}_{idx}"))
-        m.add(_btn(f"➕ {type_names.get(ch_type2,'?')} চ্যানেল যোগ করুন", f"catadd_{ch_type2}_{cat_id3}"))
+            l_badge = LANG_TEXTS.get(ch.get("lang") or "en", {}).get("badge", "🇬🇧 EN")
+            m.row(_btn(f"{_ico(ch.get('status','on')=='on')} [{l_badge}] {ch.get('name','?')}", f"chdetail_{cat_id3}_{idx}"), _btn("🗑️", f"chdel_{cat_id3}_{idx}"))
+        m.add(_btn(f"➕ {type_names.get(ch_type2,'?')} চ্যানেল যোগ করুন", f"catadd_sellang_{cat_id3}"))
         m.add(_back(f"view_cat_{cat_id3}"))
         bot.edit_message_text(f"<b>{type_names.get(ch_type2,'?')} চ্যানেল — {cat['name']}</b>\nমোট: {len(type_chs)}টি", cid, mid, reply_markup=m)
-
-    elif data.startswith("cattog_"):
-        parts = data[7:].rsplit("_",1)
-        if len(parts)<2: return
-        cat_id4 = parts[0]; idx = int(parts[1])
-        cat = get_category(cat_id4)
-        if cat:
-            channels = cat.get("channels",[])
-            if idx < len(channels):
-                channels[idx]["status"] = "off" if channels[idx].get("status","on")=="on" else "on"
-                categories_col.update_one({"cat_id":cat_id4},{"$set":{"channels":channels}})
-                ch_type3 = channels[idx].get("type","ad")
-                call.data = f"catlist_{ch_type3}_{cat_id4}"; cb(call)
-
-    elif data.startswith("catdel_"):
-        parts = data[7:].rsplit("_",1)
-        if len(parts)<2: return
-        cat_id5 = parts[0]; idx = int(parts[1])
-        cat = get_category(cat_id5)
-        if cat:
-            channels = cat.get("channels",[])
-            if idx < len(channels):
-                ch_type4 = channels[idx].get("type","ad")
-                channels.pop(idx)
-                categories_col.update_one({"cat_id":cat_id5},{"$set":{"channels":channels}})
-                bot.answer_callback_query(call.id,"✅ চ্যানেল মুছে ফেলা হয়েছে!", show_alert=True)
-                call.data=f"catlist_{ch_type4}_{cat_id5}"; cb(call)
-
-    elif data.startswith("catadd_"):
-        parts = data[7:].split("_",1)
-        if len(parts)<2: return
-        ch_type5 = parts[0]; cat_id6 = parts[1]
-        type_names2 = {"ad":"📺 Ad","premium":"💎 Premium","log":"💾 Log"}
-        existing = list(auto_channels_col.find({"type": ch_type5, "status": "on"}))
-        cat6 = get_category(cat_id6)
-        already_ids = [c.get("channel_id") for c in cat6.get("channels",[]) if c.get("type")==ch_type5] if cat6 else []
-        available = [ch for ch in existing if ch.get("channel_id") not in already_ids]
-        m = _mk()
-        if available:
-            for ch in available:
-                m.add(_btn(f"📡 {ch.get('name','?')} ({ch.get('channel_id','')})", f"catpick_{ch_type5}_{cat_id6}_{ch.get('ch_id','')}"))
-        m.add(_btn("✏️ ম্যানুয়ালি যোগ করুন", f"catmanual_{ch_type5}_{cat_id6}"))
-        m.add(_back(f"catlist_{ch_type5}_{cat_id6}"))
-        hint = f"সেভ থাকা <b>{len(available)}</b>টি চ্যানেল পাওয়া গেছে।" if available else "কোনো সেভ করা চ্যানেল নেই।"
-        bot.edit_message_text(f"📡 <b>{type_names2.get(ch_type5,'?')} চ্যানেল যোগ করুন</b>\n{'─'*26}\n{hint}", cid, mid, reply_markup=m)
-
-    elif data.startswith("catpick_"):
-        rest = data[8:]
-        parts = rest.split("_", 2)
-        if len(parts) < 3: return
-        ch_type6, cat_id7, ch_id6 = parts
-        ch6 = auto_channels_col.find_one({"ch_id": ch_id6})
-        cat7 = get_category(cat_id7)
-        if not ch6 or not cat7:
-            bot.answer_callback_query(call.id, "⚠️ পাওয়া যায়নি!", show_alert=True); return
-        channels7 = cat7.get("channels", [])
-        channels7.append({"name": ch6.get("name","?"), "channel_id": ch6.get("channel_id",""), "type": ch_type6, "status": "on"})
-        categories_col.update_one({"cat_id": cat_id7}, {"$set": {"channels": channels7}})
-        bot.answer_callback_query(call.id, f"✅ {ch6.get('name','?')} যোগ হয়েছে!", show_alert=True)
-        call.data = f"catlist_{ch_type6}_{cat_id7}"; cb(call)
-
-    elif data.startswith("catmanual_"):
-        parts = data[10:].split("_", 1)
-        if len(parts) < 2: return
-        ch_type7, cat_id8 = parts
-        update_user(cid, {"step": f"wait_catadd_{ch_type7}_{cat_id8}"})
-        type_names2 = {"ad":"📺 Ad","premium":"💎 Premium","log":"💾 Log"}
-        bot.send_message(cid, f"📝 <b>{type_names2.get(ch_type7,'?')} চ্যানেল ম্যানুয়ালি যোগ করুন:</b>\n\nফরম্যাট: <code>নাম | চ্যানেল_আইডি</code>")
 
     elif data == "settings":
         update_step(cid, "none")
@@ -1500,6 +1745,7 @@ def cb(call):
         m.row(_btn(f"🔗 লিংক ফিল্টার {lf}",  "toggle_link_filter"), _btn(f"📝 টেক্সট ফিল্টার {tf}", "toggle_text_filter"))
         m.add(_btn("─────────────────────────", "noop"))
         m.add(_btn("🔘 পোস্ট বাটন অন/অফ ও কনফিগ", "menu_post_buttons"))
+        m.add(_btn("🌐 ভাষা ভিত্তিক গ্লোবাল টিউটোরিয়াল", "menu_global_langtuts"))
         m.add(_back("settings"))
         bot.edit_message_text(f"📝 <b>পোস্ট সেটিংস</b>\n{'─'*26}\n📌 <b>Header:</b>\n<i>{ph[:80]}</i>\n\n📌 <b>Footer:</b>\n<i>{pf[:80]}</i>\n\n📌 <b>Save Title:</b>\n<i>{st[:80]}</i>", cid, mid, reply_markup=m)
 
@@ -2050,7 +2296,84 @@ def handle_message(message):
         bot.send_message(cid, f"✅ <b>'{ch_name}' চ্যানেলের দেখার নিয়ম ২ লিংক {'আপডেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>")
         return
 
-    # ── Category Tutorial Steps ──
+    # ── Global Language Tutorial Steps ──
+    if step.startswith("wait_globtut_"):
+        parts = step[13:].split("_", 1)
+        if len(parts) == 2:
+            lang, num = parts
+            url_val = "" if text.strip().lower() in ["/none", "/clear", "none", "clear", "0"] else text.strip()
+            set_lang_tutorial(lang, num, url_val)
+            update_step(cid, "none")
+            lang_name = LANG_TEXTS.get(lang, {}).get("name", lang)
+            m = _mk(); m.add(_btn("🔙 গ্লোবাল ভাষা টিউটোরিয়ালে ফিরুন", "menu_global_langtuts"))
+            bot.send_message(cid, f"✅ <b>{lang_name} এর জন্য গ্লোবাল দেখার নিয়ম {num} লিংক {'সেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>\n\n🔗 <code>{url_val if url_val else 'মুছে ফেলা হয়েছে'}</code>", reply_markup=m, disable_web_page_preview=True)
+            return
+
+    # ── Category Language Tutorial Steps ──
+    if step.startswith("wait_cattutlang_"):
+        parts = step[16:].split("_", 2)
+        if len(parts) == 3:
+            cat_id_t, lang, num = parts
+            url_val = "" if text.strip().lower() in ["/none", "/clear", "none", "clear", "0"] else text.strip()
+            cat = get_category(cat_id_t)
+            if cat:
+                categories_col.update_one({"_id": cat["_id"]}, {"$set": {f"tutorial_url_{num}_{lang}": url_val}})
+            update_step(cid, "none")
+            lang_name = LANG_TEXTS.get(lang, {}).get("name", lang)
+            m = _mk(); m.add(_btn(f"📂 '{cat.get('name') if cat else ''}' ভাষা টিউটোরিয়ালে ফিরুন", f"cat_langtuts_{cat_id_t}"))
+            bot.send_message(cid, f"✅ <b>'{cat.get('name') if cat else ''}' ক্যাটাগরির {lang_name} দেখার নিয়ম {num} লিংক {'সেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>\n\n🔗 <code>{url_val if url_val else 'মুছে ফেলা হয়েছে'}</code>", reply_markup=m, disable_web_page_preview=True)
+            return
+
+    # ── Channel Specific Tutorial Steps ──
+    if step.startswith("wait_chtut_"):
+        parts = step[11:].split("_", 2)
+        if len(parts) == 3:
+            num_s, cat_id_s, idx_s = parts
+            idx = int(idx_s)
+            url_val = "" if text.strip().lower() in ["/none", "/clear", "none", "clear", "0"] else text.strip()
+            cat = get_category(cat_id_s)
+            if cat:
+                channels = cat.get("channels", [])
+                if idx < len(channels):
+                    channels[idx][f"tutorial_url_{num_s}"] = url_val
+                    categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": channels}})
+                    ch_name = channels[idx].get("name", "?")
+                    update_step(cid, "none")
+                    m = _mk(); m.add(_btn(f"⚙️ '{ch_name}' চ্যানেল সেটিংসে যান", f"chdetail_{cat_id_s}_{idx_s}"))
+                    bot.send_message(cid, f"✅ <b>'{ch_name}' চ্যানেলের দেখার নিয়ম {num_s} লিংক {'সেট হয়েছে' if url_val else 'মুছে ফেলা হয়েছে'}!</b>\n\n🔗 <code>{url_val if url_val else 'মুছে ফেলা হয়েছে'}</code>", reply_markup=m, disable_web_page_preview=True)
+                    return
+
+    # ── Category Add Channel by Language Steps ──
+    if step.startswith("wait_cataddch_"):
+        parts = step[14:].split("_", 2)
+        if len(parts) == 3 and "|" in text:
+            cat_id_n, lang_n, type_n = parts
+            cn, ci = [p.strip() for p in text.split("|", 1)]
+            cat = get_category(cat_id_n)
+            if cat:
+                channels = cat.get("channels", [])
+                channels.append({
+                    "name": cn,
+                    "channel_id": ci,
+                    "type": type_n,
+                    "lang": lang_n,
+                    "status": "on",
+                    "tutorial_url_1": "",
+                    "tutorial_url_2": ""
+                })
+                categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": channels}})
+                update_step(cid, "none")
+                lang_name = LANG_TEXTS.get(lang_n, {}).get("name", lang_n)
+                type_names = {"ad":"📺 Ad","premium":"💎 Premium","log":"💾 Log"}
+                m = _mk()
+                m.add(_btn(f"📂 {lang_name} চ্যানেল তালিকায় যান", f"catchlist_{cat_id_n}_{lang_n}"))
+                bot.send_message(cid, f"✅ <b>{lang_name} {type_names.get(type_n,'?')} চ্যানেল যোগ হয়েছে:</b> <b>{cn}</b>\n🆔 ID: <code>{ci}</code>", reply_markup=m)
+                return
+        elif step.startswith("wait_cataddch_"):
+            bot.send_message(cid, "⚠️ সঠিক ফরম্যাট দিন: <code>নাম | চ্যানেল_আইডি</code>\n(যেমন: <code>বাংলা মুভি | -1001234567890</code>)")
+            return
+
+    # ── Legacy Category Tutorial Steps ──
     if step.startswith("wait_cattut1_"):
         cat_id = step.replace("wait_cattut1_", "").strip()
         url_val = "" if text.strip().lower() in ["/none", "/clear", "none", "clear", "0"] else text.strip()
@@ -2801,6 +3124,29 @@ def api_add_category():
     sync_categories_to_firebase()
     return jsonify({"ok": True})
 
+@shortener_bp.route('/api/lang_tutorials', methods=['GET','OPTIONS'])
+@require_auth
+def api_get_lang_tutorials():
+    return jsonify({
+        "bn_1": get_lang_tutorial("bn", 1),
+        "bn_2": get_lang_tutorial("bn", 2),
+        "hi_1": get_lang_tutorial("hi", 1),
+        "hi_2": get_lang_tutorial("hi", 2),
+        "en_1": get_lang_tutorial("en", 1),
+        "en_2": get_lang_tutorial("en", 2),
+    })
+
+@shortener_bp.route('/api/lang_tutorials', methods=['POST','OPTIONS'])
+@require_auth
+def api_set_lang_tutorials():
+    data = request.json or {}
+    for lang in ["bn", "hi", "en"]:
+        for num in [1, 2]:
+            k = f"{lang}_{num}"
+            if k in data:
+                set_lang_tutorial(lang, num, str(data[k]).strip())
+    return jsonify({"ok": True})
+
 @shortener_bp.route('/api/categories/update/<cat_id>', methods=['POST','OPTIONS'])
 @require_auth
 def api_update_category(cat_id):
@@ -2816,6 +3162,15 @@ def api_update_category(cat_id):
         update_fields["lang"] = l_val if l_val in LANG_TEXTS else "en"
     if "tutorial_url_1" in data: update_fields["tutorial_url_1"] = data["tutorial_url_1"].strip()
     if "tutorial_url_2" in data: update_fields["tutorial_url_2"] = data["tutorial_url_2"].strip()
+
+    for l in ["bn", "hi", "en"]:
+        for n in [1, 2]:
+            k = f"tutorial_url_{n}_{l}"
+            if k in data:
+                update_fields[k] = str(data[k]).strip()
+
+    if "channels" in data:
+        update_fields["channels"] = data["channels"]
 
     if update_fields:
         categories_col.update_one({"_id": cat["_id"]}, {"$set": update_fields})
