@@ -390,7 +390,9 @@ def resolve_channel_tutorial(ch, cat, num, user=None):
 
 def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
     cat = get_category(cat_id)
-    if not cat: return 0
+    if not cat:
+        logger.warning(f"Category post: category not found for id {cat_id}")
+        return 0
 
     ph = apply_filters(user.get('post_header',''), user['chat_id'])
     pf = apply_filters(user.get('post_footer',''), user['chat_id'])
@@ -403,8 +405,27 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
     file_count = _get_file_count_from_link(d_link)
 
     count = 0
-    for ch in cat.get("channels", []):
-        if ch.get("status") != "on": continue
+    channels_list = cat.get("channels", [])
+    if not channels_list:
+        logger.warning(f"Category post [{cat.get('name')}]: has no channels linked!")
+        return 0
+
+    for ch in channels_list:
+        # স্ট্যাটাস চেক (ডিফল্ট on)
+        st = ch.get("status", "on")
+        if st not in ["on", True, "active", 1, "1", "ON"]:
+            continue
+
+        raw_ch_id = str(ch.get('channel_id', '')).strip()
+        if not raw_ch_id:
+            logger.warning(f"Category [{cat.get('name')}] channel has empty channel_id: {ch}")
+            continue
+
+        try:
+            target_chat_id = int(raw_ch_id)
+        except ValueError:
+            target_chat_id = raw_ch_id
+
         ch_type = ch.get("type", "ad")
         
         # প্রতি চ্যানেলের নিজস্ব ভাষা নির্ধারণ
@@ -438,10 +459,10 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
             markup = _build_post_markup(user, s_link, clean_cap, is_premium=False, ch=merged_ctx)
 
         try:
-            _send_media(ch['channel_id'], mtype, mid, caption, markup, protect if ch_type!="log" else False)
+            _send_media(target_chat_id, mtype, mid, caption, markup, protect if ch_type!="log" else False)
             count += 1
         except Exception as e:
-            logger.warning(f"Category post [{cat.get('name')} / {ch.get('name')}]: {e}")
+            logger.error(f"Category post failed for [{cat.get('name')} / {ch.get('name')} ({target_chat_id})]: {e}")
 
     return count
 
@@ -611,58 +632,59 @@ def _build_post_markup(user, dl_link, share_text, is_premium=False, ch=None):
 
     if user.get("btn_tutorial", 1):
         for tut in tutorials_col.find():
-            mk.add(InlineKeyboardButton(f"📽️ {tut['name']}", url=tut['url']))
+            if tut.get("url") and str(tut["url"]).strip():
+                mk.add(InlineKeyboardButton(f"📽️ {tut['name']}", url=str(tut['url']).strip()))
 
     for btn in user.get("custom_buttons", []):
-        if btn.get("status") == "on":
-            mk.add(InlineKeyboardButton(btn['name'], url=btn['url']))
+        if btn.get("status") == "on" and btn.get("url") and str(btn["url"]).strip():
+            mk.add(InlineKeyboardButton(btn['name'], url=str(btn['url']).strip()))
 
     if user.get("btn_download", 1):
         if is_premium:
             web_post_link = dl_link
             second_link = dl_link
         else:
-            web_post_link = user.get("pending_web_post_link", "")
+            web_post_link = user.get("pending_web_post_link", "") or user.get("pending_short_link") or dl_link
             second_link = user.get("pending_short_link") or dl_link
         
+        # Row 1: Download 1 + Tutorial 1 (only if valid URL exists)
         if user.get("btn_download_1", 1):
             row1 = []
             btn_dl1_label = L["btn_dl_1"]
-            if web_post_link:
-                row1.append(InlineKeyboardButton(btn_dl1_label, url=web_post_link))
-            else:
-                row1.append(InlineKeyboardButton(btn_dl1_label, callback_data="noop"))
+            target_dl1 = web_post_link or second_link or dl_link
+            if target_dl1 and str(target_dl1).strip():
+                row1.append(InlineKeyboardButton(btn_dl1_label, url=str(target_dl1).strip()))
                 
             ct1_url = ch.get("tutorial_url_1") or user.get("custom_link_1")
             ct1_text = user.get("custom_text_1") if (not ch.get("tutorial_url_1") and user.get("custom_text_1")) else L["btn_tut_1"]
-            if ct1_url:
-                row1.append(InlineKeyboardButton(ct1_text, url=ct1_url))
-            else:
-                row1.append(InlineKeyboardButton(ct1_text, callback_data="noop"))
-            mk.row(*row1)
+            if ct1_url and str(ct1_url).strip().startswith("http"):
+                row1.append(InlineKeyboardButton(ct1_text, url=str(ct1_url).strip()))
+            
+            if row1:
+                mk.row(*row1)
 
+        # Row 2: Download 2 + Tutorial 2 (only if valid URL exists)
         if user.get("btn_download_2", 1):
             row2 = []
             btn_dl2_label = L["btn_dl_2"]
-            if second_link:
-                row2.append(InlineKeyboardButton(btn_dl2_label, url=second_link))
-            else:
-                row2.append(InlineKeyboardButton(btn_dl2_label, callback_data="noop"))
+            target_dl2 = second_link or web_post_link or dl_link
+            if target_dl2 and str(target_dl2).strip():
+                row2.append(InlineKeyboardButton(btn_dl2_label, url=str(target_dl2).strip()))
                 
             ct2_url = ch.get("tutorial_url_2") or user.get("custom_link_2")
             ct2_text = user.get("custom_text_2") if (not ch.get("tutorial_url_2") and user.get("custom_text_2")) else L["btn_tut_2"]
-            if ct2_url:
-                row2.append(InlineKeyboardButton(ct2_text, url=ct2_url))
-            else:
-                row2.append(InlineKeyboardButton(ct2_text, callback_data="noop"))
-            mk.row(*row2)
+            if ct2_url and str(ct2_url).strip().startswith("http"):
+                row2.append(InlineKeyboardButton(ct2_text, url=str(ct2_url).strip()))
+                
+            if row2:
+                mk.row(*row2)
 
-    if user.get("btn_share", 1):
+    if user.get("btn_share", 1) and share_text:
         encoded = quote(share_text, safe='')
         share_url = f"https://t.me/share/url?url=&text={encoded}"
         mk.row(InlineKeyboardButton(L["btn_share"], url=share_url))
 
-    return mk
+    return mk if (mk.keyboard and len(mk.keyboard) > 0) else None
 
 # ══════════════════════════════════════════════════
 #  পোস্ট অপশন
@@ -3180,7 +3202,11 @@ def api_update_category(cat_id):
 @shortener_bp.route('/api/categories/delete/<cat_id>', methods=['DELETE','OPTIONS'])
 @require_auth
 def api_delete_category(cat_id):
-    categories_col.delete_one({"cat_id": cat_id})
+    cat = get_category(cat_id)
+    if cat:
+        categories_col.delete_one({"_id": cat["_id"]})
+    else:
+        categories_col.delete_one({"cat_id": cat_id})
     sync_categories_to_firebase()
     return jsonify({"ok": True})
 
@@ -3189,7 +3215,11 @@ def api_delete_category(cat_id):
 def api_update_category_channels(cat_id):
     data = request.json or {}
     channels = data.get("channels", [])
-    categories_col.update_one({"cat_id": cat_id}, {"$set": {"channels": channels}})
+    cat = get_category(cat_id)
+    if cat:
+        categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": channels}})
+    else:
+        categories_col.update_one({"cat_id": cat_id}, {"$set": {"channels": channels}})
     return jsonify({"ok": True})
 
 @shortener_bp.route('/api/forcesub/add', methods=['POST','OPTIONS'])
