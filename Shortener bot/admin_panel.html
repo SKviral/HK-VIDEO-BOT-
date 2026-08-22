@@ -453,12 +453,35 @@ select.fc{cursor:pointer}
 
   <!-- SCHEDULED -->
   <div class="page" id="page-scheduled">
-    <div class="filter-row" id="sched-filters">
-      <button class="ftag active" onclick="filterSched('all',this)">সব</button>
-      <button class="ftag" onclick="filterSched('pending',this)">⏳ পেন্ডিং</button>
-      <button class="ftag" onclick="filterSched('done',this)">✅ সম্পন্ন</button>
-      <button class="ftag" onclick="filterSched('error',this)">❌ ব্যর্থ</button>
+    <!-- Top Summary Counter Row -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
+      <div class="card" style="padding:12px;cursor:pointer;border-left:4px solid var(--warn);" onclick="filterSchedByTab('unscheduled')">
+        <div style="font-size:12px;color:var(--text3);font-weight:600;">⏳ টাইম সেট বাকি</div>
+        <div style="font-size:22px;font-weight:700;color:var(--warn);margin-top:4px;" id="cnt-unscheduled">0</div>
+        <div style="font-size:11px;color:var(--text3);">বটের ড্রাফট কিউ</div>
+      </div>
+      <div class="card" style="padding:12px;cursor:pointer;border-left:4px solid var(--accent);" onclick="filterSchedByTab('timed')">
+        <div style="font-size:12px;color:var(--text3);font-weight:600;">⏰ টাইম সেট করা</div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent2);margin-top:4px;" id="cnt-timed">0</div>
+        <div style="font-size:11px;color:var(--text3);">রেডি সিডিউল পোস্ট</div>
+      </div>
+      <div class="card" style="padding:12px;cursor:pointer;border-left:4px solid var(--success);" onclick="filterSchedByTab('done')">
+        <div style="font-size:12px;color:var(--text3);font-weight:600;">✅ সম্পন্ন</div>
+        <div style="font-size:22px;font-weight:700;color:var(--success);margin-top:4px;" id="cnt-done">0</div>
+        <div style="font-size:11px;color:var(--text3);">পোস্ট হয়ে গেছে</div>
+      </div>
     </div>
+
+    <!-- Filter Buttons Row -->
+    <div class="filter-row" id="sched-filters">
+      <button class="ftag active" id="tab-unscheduled" onclick="filterSched('unscheduled',this)">⏳ টাইম সেট বাকি (<span id="tag-cnt-unscheduled">0</span>)</button>
+      <button class="ftag" id="tab-timed" onclick="filterSched('timed',this)">⏰ টাইম সেট করা (<span id="tag-cnt-timed">0</span>)</button>
+      <button class="ftag" id="tab-pending" onclick="filterSched('pending',this)">📋 সব পেন্ডিং</button>
+      <button class="ftag" id="tab-done" onclick="filterSched('done',this)">✅ সম্পন্ন</button>
+      <button class="ftag" id="tab-error" onclick="filterSched('error',this)">❌ ব্যর্থ</button>
+      <button class="ftag" id="tab-all" onclick="filterSched('all',this)">🌐 সব পোস্ট</button>
+    </div>
+
     <div class="bulk-bar" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;background:var(--bg3);padding:10px 14px;border-radius:var(--rs);border:1px solid var(--border2)">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;font-weight:600">
         <input type="checkbox" id="chk-select-all" onchange="toggleSelectAllSched(this.checked)">
@@ -967,6 +990,12 @@ async function loadDash(){
 
 // ══════════ SCHEDULED ══════════
 let selectedSchedIds = new Set();
+let currentFilter = 'unscheduled';
+
+function filterSchedByTab(tabKey){
+  const el = document.getElementById('tab-' + tabKey);
+  filterSched(tabKey, el);
+}
 
 async function loadSched(){
   const res=await api('/api/scheduled');
@@ -976,33 +1005,87 @@ async function loadSched(){
 
 function filterSched(f,el){
   currentFilter=f||currentFilter;
-  if(el){document.querySelectorAll('.ftag').forEach(t=>t.classList.remove('active'));el.classList.add('active')}
-  const items=currentFilter==='all'?D.scheduled:D.scheduled.filter(x=>x.status===currentFilter);
+  if(el){
+    document.querySelectorAll('#sched-filters .ftag').forEach(t=>t.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  const allPending = D.scheduled.filter(x => x.status === 'pending');
+  const unscheduled = allPending.filter(x => !x.is_time_set || (x.scheduled_at && x.scheduled_at.startsWith('203')));
+  const timed = allPending.filter(x => x.is_time_set && !(x.scheduled_at && x.scheduled_at.startsWith('203')));
+  const doneItems = D.scheduled.filter(x => x.status === 'done');
+  const errorItems = D.scheduled.filter(x => x.status === 'error');
+
+  // Update counter badges
+  set('cnt-unscheduled', unscheduled.length);
+  set('cnt-timed', timed.length);
+  set('cnt-done', doneItems.length);
+  set('tag-cnt-unscheduled', unscheduled.length);
+  set('tag-cnt-timed', timed.length);
+
+  // Update nav badge (total pending)
+  const p = allPending.length;
+  set('sb-badge', p); set('sb-badge-d', p);
+  const bnb = $('bn-badge');
+  if(bnb) {
+    if(p > 0) { bnb.textContent = p; bnb.style.display = 'block'; }
+    else bnb.style.display = 'none';
+  }
+
+  let items = [];
+  if(currentFilter === 'unscheduled') items = unscheduled;
+  else if(currentFilter === 'timed') items = timed;
+  else if(currentFilter === 'pending') items = allPending;
+  else if(currentFilter === 'done') items = doneItems;
+  else if(currentFilter === 'error') items = errorItems;
+  else items = D.scheduled;
+
   const cont=$('sched-list');
-  if(!items.length){cont.innerHTML='<div class="empty"><span class="eico">⏰</span><p>কোনো সিডিউল পোস্ট নেই</p></div>';return}
+  if(!items.length){
+    let emptyMsg = 'কোনো সিডিউল পোস্ট নেই';
+    if(currentFilter === 'unscheduled') emptyMsg = '🎉 চমৎকার! কোনো পোস্টের টাইম সেট বাকি নেই';
+    else if(currentFilter === 'timed') emptyMsg = '⏰ কোনো টাইম সেট করা সিডিউল পোস্ট নেই';
+    cont.innerHTML=`<div class="empty"><span class="eico">⏰</span><p>${emptyMsg}</p></div>`;
+    return;
+  }
   
-  cont.innerHTML=items.map(s=>`
-    <div class="si">
+  cont.innerHTML=items.map(s=>{
+    const isUnscheduled = !s.is_time_set || (s.scheduled_at && s.scheduled_at.startsWith('203'));
+    const isPending = s.status === 'pending';
+    const catObj = s.category_id ? D.categories.find(c => c.cat_id === s.category_id) : null;
+    const catName = catObj ? `📂 ${catObj.name}` : (s.category_id ? '📂 ক্যাটাগরি পোস্ট' : '🌐 সব চ্যানেল');
+    const title = s.web_title || catName;
+
+    return `
+    <div class="si" style="${isUnscheduled ? 'border-left:4px solid var(--warn);' : (isPending ? 'border-left:4px solid var(--accent);' : '')}">
       <div class="si-row" style="align-items:center">
-        ${s.status==='pending'?`
+        ${isPending ? `
           <input type="checkbox" class="sched-chk" value="${s.sched_id}" ${selectedSchedIds.has(s.sched_id)?'checked':''} onchange="onSchedChkChange('${s.sched_id}',this.checked)" style="width:18px;height:18px;margin-right:8px;cursor:pointer">
         `:''}
         <div class="si-thumb">${mico(s.media_type)}</div>
         <div class="si-info">
-          <div class="si-title">${s.category_id?'📂 ক্যাটাগরি পোস্ট':'🌐 সব চ্যানেলে পোস্ট'}</div>
-          <div class="si-time">⏰ ${ft(s.scheduled_at)}</div>
+          <div class="si-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span>${title}</span>
+            ${isPending ? (isUnscheduled ? '<span class="badge b-y" style="font-size:10px;">⏳ টাইম সেট বাকি</span>' : '<span class="badge b-g" style="font-size:10px;">⏰ রেডি সিডিউল</span>') : ''}
+          </div>
+          <div class="si-time" style="${isUnscheduled ? 'color:var(--warn);font-weight:600;' : ''}">
+            ${isUnscheduled ? '⏳ সময় নির্ধারণ বাকি (ড্রাফট কিউ)' : '⏰ ' + ft(s.scheduled_at)}
+          </div>
         </div>
       </div>
       <div class="si-footer">
         <span class="si-id">🆔 ${s.sched_id||'—'}</span>
         <span class="badge ${sbadge(s.status)}">${slbl(s.status)}</span>
-        ${s.status==='pending'?`
-          <button class="btn btn-g btn-sm" style="margin-left:auto" onclick="editSchedTime('${s.sched_id}')">✏️ সময় সেট</button>
-          <button class="btn btn-p btn-sm" onclick="postNowSched('${s.sched_id}')">🚀 এখনই পোস্ট</button>
+        ${isPending ? `
+          <button class="btn ${isUnscheduled ? 'btn-p' : 'btn-g'} btn-sm" style="margin-left:auto" onclick="editSchedTime('${s.sched_id}')">
+            ${isUnscheduled ? '📅 টাইম সেট করুন' : '✏️ সময় পরিবর্তন'}
+          </button>
+          <button class="btn btn-g btn-sm" onclick="postNowSched('${s.sched_id}')">🚀 এখনই পোস্ট</button>
           <button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')">🗑️ ডিলিট</button>
         `:''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
     
   updateBulkCountLabel();
 }
@@ -1036,8 +1119,11 @@ function updateBulkCountLabel() {
 }
 
 function openBulkIntervalModal() {
-  const pendingItems = D.scheduled.filter(x => x.status === 'pending');
-  if(!pendingItems.length) {
+  const allPending = D.scheduled.filter(x => x.status === 'pending');
+  const unscheduled = allPending.filter(x => !x.is_time_set || (x.scheduled_at && x.scheduled_at.startsWith('203')));
+  const targetCount = selectedSchedIds.size > 0 ? selectedSchedIds.size : (currentFilter === 'unscheduled' ? unscheduled.length : allPending.length);
+  
+  if(!targetCount) {
     toast('⚠️ কোনো পেন্ডিং সিডিউল পোস্ট নেই!', 'warn');
     return;
   }
@@ -1063,7 +1149,10 @@ function setBulkIntervalValue(mins) {
 }
 
 function updateBulkPreview() {
-  const targetCount = selectedSchedIds.size > 0 ? selectedSchedIds.size : D.scheduled.filter(x => x.status === 'pending').length;
+  const allPending = D.scheduled.filter(x => x.status === 'pending');
+  const unscheduled = allPending.filter(x => !x.is_time_set || (x.scheduled_at && x.scheduled_at.startsWith('203')));
+  const targetCount = selectedSchedIds.size > 0 ? selectedSchedIds.size : (currentFilter === 'unscheduled' ? unscheduled.length : allPending.length);
+  
   const val = parseInt(document.getElementById('bulk-interval-val')?.value || 6);
   const unit = document.getElementById('bulk-interval-unit')?.value || 'hours';
   const unitText = unit === 'hours' ? 'ঘণ্টা' : 'মিনিট';
@@ -1075,7 +1164,10 @@ function updateBulkPreview() {
 }
 
 async function applyBulkInterval() {
-  const targetIds = Array.from(selectedSchedIds);
+  const allPending = D.scheduled.filter(x => x.status === 'pending');
+  const unscheduled = allPending.filter(x => !x.is_time_set || (x.scheduled_at && x.scheduled_at.startsWith('203')));
+  const targetIds = selectedSchedIds.size > 0 ? Array.from(selectedSchedIds) : (currentFilter === 'unscheduled' ? unscheduled.map(x=>x.sched_id) : allPending.map(x=>x.sched_id));
+  
   const startType = document.getElementById('bulk-start-type').value;
   let startTimeStr = '';
   
@@ -1105,6 +1197,7 @@ async function applyBulkInterval() {
     const allChk = document.getElementById('chk-select-all');
     if(allChk) allChk.checked = false;
     updateBulkCountLabel();
+    filterSchedByTab('timed');
     loadSched();
     toast(`✅ ${r.updated_count}টি সিডিউল পোস্টে সফলভাবে সময় সেট করা হয়েছে!`, 'success');
   } else {
@@ -1178,8 +1271,9 @@ async function saveSchedTime(){
   const r = await api('/api/scheduled/update_time/'+id, 'POST', {scheduled_at: formatted});
   if(r?.ok){
     closeM('m-edit-sched');
+    filterSchedByTab('timed');
     loadSched();
-    toast('✅ সিডিউল সময় আপডেট করা হয়েছে','success');
+    toast('✅ সিডিউল সময় সফলভাবে সেট করা হয়েছে! এটি এখন "টাইম সেট করা" তালিকায় রয়েছে।','success');
   } else {
     toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
   }

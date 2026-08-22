@@ -1340,15 +1340,115 @@ def cb(call):
         return
 
     elif data == "menu_schedule":
-        scheds = list(scheduled_col.find({"status": "pending"}).sort("scheduled_at", 1).limit(10))
+        all_pending = list(scheduled_col.find({"status": "pending"}))
+        unscheduled = [s for s in all_pending if str(s.get("scheduled_at","")).startswith("203") or s.get("time_set") is False]
+        timed = [s for s in all_pending if not str(s.get("scheduled_at","")).startswith("203") and s.get("time_set") is not False]
+        timed.sort(key=lambda x: x.get("scheduled_at",""))
+
+        txt = (
+            f"⏰ <b>সিডিউল পোস্ট ম্যানেজমেন্ট</b>\n"
+            f"{'─'*26}\n"
+            f"⏳ <b>টাইম সেট বাকি (ড্রাফট কিউ):</b> <b>{len(unscheduled)}</b>টি\n"
+            f"⏰ <b>টাইম সেট করা (রেডি সিডিউল):</b> <b>{len(timed)}</b>টি\n"
+            f"{'─'*26}\n"
+            f"💡 <i>বট থেকে সিডিউল করা নতুন পোস্টগুলো 'টাইম সেট বাকি' কিউতে থাকে। সহজে সময় সেট করতে নিচের বাটনে ক্লিক করুন।</i>"
+        )
         m = _mk()
-        for s_ in scheds:
-            cat = get_category(s_.get("category_id","")) if s_.get("category_id") else None
-            cat_txt = cat['name'] if cat else "সব চ্যানেল"
-            s_time = s_.get("scheduled_at","")[:16].replace("T"," ")
-            m.add(_btn(f"⏰ {s_time} — {cat_txt}", f"del_sched_{s_['sched_id']}"))
+        m.add(_btn(f"⏳ টাইম সেট বাকি ড্রাফট ({len(unscheduled)}টি)", "schedlist_unscheduled"))
+        m.add(_btn(f"⏰ টাইম সেট করা পোস্ট ({len(timed)}টি)", "schedlist_timed"))
         m.add(_back("main_menu"))
-        bot.edit_message_text(f"⏰ <b>সিডিউল পোস্ট ম্যানেজমেন্ট</b>\n{'─'*26}\nমোট পেন্ডিং: <b>{len(scheds)}</b>টি\n\n<i>মুছতে পোস্টে ক্লিক করুন।</i>", cid, mid, reply_markup=m)
+        bot.edit_message_text(txt, cid, mid, reply_markup=m)
+
+    elif data == "schedlist_unscheduled":
+        all_pending = list(scheduled_col.find({"status": "pending"}))
+        unscheduled = [s for s in all_pending if str(s.get("scheduled_at","")).startswith("203") or s.get("time_set") is False]
+        unscheduled.sort(key=lambda x: x.get("created_at",""), reverse=True)
+        m = _mk()
+        for s in unscheduled[:15]:
+            cat = get_category(s.get("category_id","")) if s.get("category_id") else None
+            cat_txt = cat['name'] if cat else "সব চ্যানেল"
+            m.row(_btn(f"⏳ {s.get('web_title') or cat_txt} ({s['sched_id'][:6]})", f"scheddetail_{s['sched_id']}"), _btn("🗑️", f"del_sched_{s['sched_id']}"))
+        m.add(_back("menu_schedule"))
+        bot.edit_message_text(f"⏳ <b>টাইম সেট বাকি ড্রাফট পোস্ট ({len(unscheduled)}টি)</b>\n{'─'*26}\nটাইম সেট করতে বা এখনই পোস্ট করতে যেকোনো পোস্টে ক্লিক করুন।", cid, mid, reply_markup=m)
+
+    elif data == "schedlist_timed":
+        all_pending = list(scheduled_col.find({"status": "pending"}))
+        timed = [s for s in all_pending if not str(s.get("scheduled_at","")).startswith("203") and s.get("time_set") is not False]
+        timed.sort(key=lambda x: x.get("scheduled_at",""))
+        m = _mk()
+        for s in timed[:15]:
+            cat = get_category(s.get("category_id","")) if s.get("category_id") else None
+            cat_txt = cat['name'] if cat else "সব চ্যানেল"
+            s_time = s.get("scheduled_at","")[:16].replace("T"," ")
+            m.row(_btn(f"⏰ {s_time} — {cat_txt}", f"scheddetail_{s['sched_id']}"), _btn("🗑️", f"del_sched_{s['sched_id']}"))
+        m.add(_back("menu_schedule"))
+        bot.edit_message_text(f"⏰ <b>টাইম সেট করা রেডি পোস্ট ({len(timed)}টি)</b>\n{'─'*26}\nডিটেইলস দেখতে বা সময় পরিবর্তন করতে পোস্টে ক্লিক করুন।", cid, mid, reply_markup=m)
+
+    elif data.startswith("scheddetail_"):
+        sid = data[12:]
+        s = scheduled_col.find_one({"sched_id": sid})
+        if not s:
+            bot.answer_callback_query(call.id, "⚠️ পোস্টটি পাওয়া যায়নি!", show_alert=True); return
+        cat = get_category(s.get("category_id","")) if s.get("category_id") else None
+        cat_txt = cat['name'] if cat else "🌐 সব চ্যানেল"
+        is_timed = not str(s.get("scheduled_at","")).startswith("203") and s.get("time_set") is not False
+        time_display = s.get("scheduled_at","")[:16].replace("T"," ") if is_timed else "⏳ টাইম সেট করা নেই (ড্রাফট)"
+        
+        txt = (
+            f"📌 <b>সিডিউল পোস্ট ডিটেইলস</b>\n"
+            f"{'─'*26}\n"
+            f"🆔 <b>আইডি:</b> <code>{s['sched_id']}</code>\n"
+            f"📂 <b>ক্যাটাগরি:</b> <b>{cat_txt}</b>\n"
+            f"🎬 <b>টাইটেল:</b> {s.get('web_title') or 'ডিফল্ট'}\n"
+            f"📅 <b>সিডিউল সময়:</b> <b>{time_display}</b>\n"
+            f"📊 <b>স্ট্যাটাস:</b> {s.get('status')}\n"
+        )
+        m = _mk()
+        m.row(_btn("✏️ সময় সেট / পরিবর্তন", f"sched_settime_{sid}"), _btn("🚀 এখনই পোস্ট করুন", f"sched_postnow_{sid}"))
+        m.add(_btn("🗑️ এই পোস্টটি মুছুন", f"del_sched_{sid}"))
+        m.add(_back("schedlist_timed" if is_timed else "schedlist_unscheduled"))
+        bot.edit_message_text(txt, cid, mid, reply_markup=m)
+
+    elif data.startswith("sched_settime_"):
+        sid = data[14:]
+        update_user(cid, {"step": f"wait_sched_newtime_{sid}"})
+        bot.send_message(cid, f"⏰ <b>সিডিউল সময় দিন (বাংলাদেশ সময়):</b>\n\nফরম্যাট: <code>YYYY-MM-DD HH:MM</code>\n(যেমন: <code>2026-08-25 20:30</code>)")
+
+    elif data.startswith("sched_postnow_"):
+        sid = data[14:]
+        item = scheduled_col.find_one({"sched_id": sid, "status": "pending"})
+        if not item:
+            bot.answer_callback_query(call.id, "⚠️ পোস্ট পাওয়া যায়নি!", show_alert=True); return
+        admin_id = item['admin_id']
+        user = get_user(admin_id)
+        cat_id = item.get("category_id", "")
+        mtype  = item['media_type']
+        mid_   = item['media_id']
+        d_link = item.get('d_link','')
+        s_link = item.get('s_link','')
+        user["pending_link"] = d_link
+        user["pending_short_link"] = s_link
+        user["pending_web_title"] = item.get("web_title", "")
+        user["pending_thumb_url"] = item.get("thumb_url", "")
+        user["pending_web_video_id"] = item.get("web_video_id", "")
+        user["pending_web_post_link"] = item.get("web_post_link", "")
+        user["pending_web_ads"] = item.get("web_ads", 1)
+
+        count = 0
+        if cat_id:
+            cat = get_category(cat_id)
+            if not user.get("pending_web_post_link"):
+                user["pending_web_post_link"] = create_web_video_entry(user, cat.get("name", "Others") if cat else "Others")
+            count = _post_to_category(cat_id, mtype, mid_, user, d_link, s_link)
+        else:
+            if not user.get("pending_web_post_link"):
+                user["pending_web_post_link"] = create_web_video_entry(user, "Others")
+            _do_post_all_channels(admin_id, user, mtype, mid_, d_link, s_link)
+            count = 1
+
+        scheduled_col.update_one({"sched_id": sid}, {"$set": {"status": "done", "posted_at": datetime.now().isoformat()}})
+        bot.answer_callback_query(call.id, f"✅ পোস্ট সম্পন্ন! ({count}টি চ্যানেলে)", show_alert=True)
+        call.data = "menu_schedule"; cb(call)
 
     elif data.startswith("del_sched_"):
         sid = data[10:]
@@ -2500,6 +2600,21 @@ def handle_message(message):
             bot.send_message(cid,"⚠️ ফরম্যাট ভুল! সঠিক ফরম্যাট:\n<code>YYYY-MM-DD HH:MM</code>")
         return
 
+    if step.startswith("wait_sched_newtime_"):
+        sid = step.replace("wait_sched_newtime_", "").strip()
+        try:
+            dt = datetime.strptime(text.strip(), "%Y-%m-%d %H:%M")
+            dt_utc = dt - timedelta(hours=6)
+            if dt_utc <= datetime.utcnow():
+                bot.send_message(cid,"⚠️ সময়টি ভবিষ্যতে হওয়া উচিত!"); return
+            scheduled_col.update_one({"sched_id": sid}, {"$set": {"scheduled_at": dt_utc.isoformat(), "status": "pending", "time_set": True}})
+            update_step(cid, "none")
+            m = _mk(); m.add(_btn("⏰ সিডিউল মেনুতে ফিরুন", "menu_schedule"))
+            bot.send_message(cid, f"✅ <b>সিডিউল সময় সফলভাবে সেট হয়েছে!</b>\n📅 সময়: <b>{text.strip()}</b>", reply_markup=m)
+        except ValueError:
+            bot.send_message(cid,"⚠️ ভুল ফরম্যাট! সঠিক ফরম্যাট:\n<code>YYYY-MM-DD HH:MM</code>")
+        return
+
     if step=="wait_add_force_sub":
         if "|" in text:
             pts=[p.strip() for p in text.split("|")]
@@ -2831,13 +2946,26 @@ def panel():
 @require_auth
 def api_stats():
     s = get_stats()
-    s['pending_scheduled'] = scheduled_col.count_documents({"status": "pending"})
+    all_pending = list(scheduled_col.find({"status": "pending"}))
+    s['pending_scheduled'] = len(all_pending)
+    s['pending_scheduled_timed'] = len([x for x in all_pending if not str(x.get('scheduled_at','')).startswith('203') and x.get('time_set') is not False])
+    s['pending_scheduled_unscheduled'] = s['pending_scheduled'] - s['pending_scheduled_timed']
     return jsonify(s)
 
 @shortener_bp.route('/api/scheduled', methods=['GET','OPTIONS'])
 @require_auth
 def api_scheduled():
-    items = list(scheduled_col.find({}, {"_id":0}).sort("scheduled_at", 1).limit(200))
+    items = list(scheduled_col.find({}, {"_id":0}).sort("created_at", -1).limit(300))
+    for item in items:
+        # Determine if real time is set or it's an unscheduled draft from bot
+        is_timed = not str(item.get("scheduled_at", "")).startswith("203") and item.get("time_set") is not False
+        item["is_time_set"] = is_timed
+        if not is_timed and item.get("status") == "pending":
+            item["queue_type"] = "unscheduled"
+        elif is_timed and item.get("status") == "pending":
+            item["queue_type"] = "timed"
+        else:
+            item["queue_type"] = item.get("status", "done")
     return jsonify(items)
 
 @shortener_bp.route('/api/scheduled/delete/<sched_id>', methods=['DELETE','OPTIONS'])
@@ -2895,7 +3023,7 @@ def api_update_sched_time(sched_id):
         new_time = new_time.replace("T", " ")
         dt = datetime.strptime(new_time.strip(), "%Y-%m-%d %H:%M")
         dt_utc = dt - timedelta(hours=6) # UTC+6 to UTC
-        scheduled_col.update_one({"sched_id": sched_id}, {"$set": {"scheduled_at": dt_utc.isoformat(), "status": "pending"}})
+        scheduled_col.update_one({"sched_id": sched_id}, {"$set": {"scheduled_at": dt_utc.isoformat(), "status": "pending", "time_set": True}})
         return jsonify({"ok": True})
     except ValueError:
         return jsonify({"ok": False, "error": "সঠিক ফরম্যাট দিন (YYYY-MM-DD HH:MM)"}), 400
@@ -2930,7 +3058,7 @@ def api_bulk_interval_sched():
         scheduled_dt = dt_start_utc + timedelta(minutes=idx * interval_minutes)
         scheduled_col.update_one(
             {"sched_id": item["sched_id"]},
-            {"$set": {"scheduled_at": scheduled_dt.isoformat(), "status": "pending"}}
+            {"$set": {"scheduled_at": scheduled_dt.isoformat(), "status": "pending", "time_set": True}}
         )
         updated_count += 1
 
