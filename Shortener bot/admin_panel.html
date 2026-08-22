@@ -830,125 +830,218 @@ select.fc{cursor:pointer}
 let CFG={}, D={scheduled:[],categories:[],channels:[],admins:[],users:[],files:[]};
 let currentFilter='all';
 
-function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  const opts = Object.assign({}, options);
-  if (controller) opts.signal = controller.signal;
-
-  return fetch(url, opts).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
+/* ═══════ SAFE FETCH (works in ALL browsers) ═══════ */
+function safeFetch(url, opts, timeoutMs){
+  timeoutMs = timeoutMs || 20000;
+  opts = opts || {};
+  return new Promise(function(resolve, reject){
+    var done = false;
+    var timer = setTimeout(function(){
+      if(!done){ done=true; reject(new Error('টাইমআউট: সার্ভার সাড়া দিচ্ছে না। '+ timeoutMs/1000 +'s পরে বন্ধ হয়েছে।')); }
+    }, timeoutMs);
+    fetch(url, opts).then(function(r){
+      if(!done){ done=true; clearTimeout(timer); resolve(r); }
+    }).catch(function(e){
+      if(!done){ done=true; clearTimeout(timer); reject(e); }
+    });
   });
 }
 
+/* ═══════ CONFIG ═══════ */
 function loadCFG(){
-  const injectedKey = (typeof CFG !== 'undefined' && CFG && CFG.key) ? CFG.key : '';
-  const injectedUrl = (typeof CFG !== 'undefined' && CFG && CFG.url) ? CFG.url : window.location.origin;
-  let stored = {};
+  var serverKey = '';
+  var serverUrl = '';
+  try{ serverKey = (CFG && CFG.key) ? CFG.key : ''; }catch(e){}
+  try{ serverUrl = (CFG && CFG.url) ? CFG.url : ''; }catch(e){}
   try{
-    stored = JSON.parse(localStorage.getItem('botpanel') || '{}');
-  }catch{
-    stored = {};
+    var raw = localStorage.getItem('botpanel');
+    if(raw){
+      var stored = JSON.parse(raw);
+      CFG = {};
+      for(var k in stored) CFG[k] = stored[k];
+    } else {
+      CFG = {};
+    }
+  }catch(e){
+    CFG = {};
   }
-  CFG = Object.assign({}, stored);
-  // Server injected key from /panel is authoritative
-  if(injectedKey && injectedKey.trim() !== '') {
-    CFG.key = injectedKey;
+  // Server-injected key always wins
+  if(serverKey && serverKey.length > 2){
+    CFG.key = serverKey;
   }
-  if(!CFG.url || CFG.url === '') {
-    CFG.url = injectedUrl || window.location.origin;
+  if(!CFG.url || CFG.url.length < 5){
+    CFG.url = serverUrl || window.location.origin;
   }
-  saveCFG();
+  try{ localStorage.setItem('botpanel', JSON.stringify(CFG)); }catch(e){}
 }
-function saveCFG(){localStorage.setItem('botpanel',JSON.stringify(CFG))}
+function saveCFG(){
+  try{ localStorage.setItem('botpanel', JSON.stringify(CFG)); }catch(e){}
+}
 
 loadCFG();
-if(CFG.key && CFG.key.trim() !== '') {
-  hideSetup();
-} else {
-  setTimeout(()=>{
-    if($('s-url')) $('s-url').value = CFG.url || window.location.origin;
-    if($('s-key') && CFG.key) $('s-key').value = CFG.key;
-    if($('s-admin') && CFG.admin) $('s-admin').value = CFG.admin;
-    if($('s-user') && CFG.user) $('s-user').value = CFG.user;
-  }, 50);
+
+/* ═══════ AUTO-LOGIN on page load ═══════ */
+(function(){
+  try{
+    if(CFG.key && CFG.key.trim().length > 2){
+      var ss = document.getElementById('setup-screen');
+      if(ss) ss.style.display = 'none';
+      // Defer dashboard loading to after DOM is fully ready
+      if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', function(){
+          try{ _doAutoLogin(); }catch(e){ console.error('Auto-login DOMContentLoaded error:', e); }
+        });
+      } else {
+        setTimeout(function(){ try{ _doAutoLogin(); }catch(e){ console.error('Auto-login timeout error:', e); } }, 100);
+      }
+    } else {
+      // Pre-fill form fields if we have stored values
+      setTimeout(function(){
+        try{
+          var su = document.getElementById('s-url');
+          var sk = document.getElementById('s-key');
+          var sa = document.getElementById('s-admin');
+          var suu = document.getElementById('s-user');
+          if(su) su.value = CFG.url || window.location.origin;
+          if(sk && CFG.key) sk.value = CFG.key;
+          if(sa && CFG.admin) sa.value = CFG.admin;
+          if(suu && CFG.user) suu.value = CFG.user;
+        }catch(e){}
+      }, 100);
+    }
+  }catch(e){
+    console.error('Auto-login init error:', e);
+  }
+})();
+
+function _doAutoLogin(){
+  var cu = document.getElementById('conn-url');
+  if(cu){
+    var short = (CFG.url||window.location.origin).replace('https://','').replace('http://','').split('.')[0];
+    cu.textContent = short;
+  }
+  loadPage('dashboard');
 }
 
 function autoLoad(){
   loadCFG();
-  $('s-url').value=CFG.url||window.location.origin;
-  $('s-key').value=CFG.key||'';
-  $('s-admin').value=CFG.admin||'';
-  $('s-user').value=CFG.user||'';
+  var su = document.getElementById('s-url');
+  var sk = document.getElementById('s-key');
+  var sa = document.getElementById('s-admin');
+  var suu = document.getElementById('s-user');
+  if(su) su.value = CFG.url || window.location.origin;
+  if(sk) sk.value = CFG.key || '';
+  if(sa) sa.value = CFG.admin || '';
+  if(suu) suu.value = CFG.user || '';
   toast('✅ আগের কনফিগ লোড হয়েছে','success');
 }
 
-// ══════════ SETUP ══════════
+/* ═══════ SETUP (manual login button) ═══════ */
 async function doSetup(){
-  const url=($('s-url').value.trim()||window.location.origin).replace(/\/+$/,'');
-  const key=$('s-key').value.trim();
-  const admin=$('s-admin').value.trim();
-  const user=$('s-user').value.trim();
-  if(!key){showSS('❌ Secret Key দিন!','s-err');return}
-  const btn=$('setup-btn');
-  btn.disabled=true; btn.textContent='⏳ পরীক্ষা হচ্ছে…';
-  showSS('⏳ বটের সাথে যোগাযোগ করা হচ্ছে…','s-load');
-  try{
-    const r2 = await fetchWithTimeout(url+'/api/stats', {
-      method: 'GET',
-      headers: {'X-Admin-Key': key}
-    }, 15000);
+  var statusEl = document.getElementById('setup-status');
+  var btn = document.getElementById('setup-btn');
 
-    if(r2.status===401){
-      showSS('❌ Secret Key ভুল! Render-এ PANEL_SECRET এর মান চেক করুন।','s-err');
-      btn.disabled=false;
-      btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
+  // Read form values
+  var urlInput = document.getElementById('s-url');
+  var keyInput = document.getElementById('s-key');
+  var adminInput = document.getElementById('s-admin');
+  var userInput = document.getElementById('s-user');
+
+  var url = ((urlInput ? urlInput.value.trim() : '') || window.location.origin).replace(/\/+$/, '');
+  var key = keyInput ? keyInput.value.trim() : '';
+  var admin = adminInput ? adminInput.value.trim() : '';
+  var user = userInput ? userInput.value.trim() : '';
+
+  if(!key){
+    showSS('❌ Secret Key দিন!','s-err');
+    return;
+  }
+
+  if(btn){ btn.disabled=true; btn.textContent='⏳ পরীক্ষা হচ্ছে…'; }
+  showSS('⏳ বটের সাথে যোগাযোগ করা হচ্ছে…','s-load');
+
+  try{
+    var r2 = await safeFetch(url + '/api/stats', {
+      method: 'GET',
+      headers: {'X-Admin-Key': key, 'Content-Type': 'application/json'}
+    }, 20000);
+
+    if(r2.status === 401){
+      showSS('❌ Secret Key ভুল! Render → Environment → PANEL_SECRET চেক করুন।','s-err');
+      if(btn){ btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন'; }
       return;
     }
-    if(!r2.ok) throw new Error('API Error: '+r2.status);
-    
-    CFG={url,key,admin,user};
+    if(!r2.ok){
+      showSS('❌ সার্ভার এরর: HTTP '+r2.status+'. কিছুক্ষণ পরে চেষ্টা করুন।','s-err');
+      if(btn){ btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন'; }
+      return;
+    }
+
+    // Success!
+    CFG = {url: url, key: key, admin: admin, user: user};
     saveCFG();
     showSS('✅ সফল! প্যানেল খুলছে…','s-ok');
-    setTimeout(()=>{
+
+    setTimeout(function(){
       hideSetup();
-      btn.disabled=false;
-      btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
+      if(btn){ btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন'; }
     }, 400);
+
   }catch(e){
-    console.error('Setup error:', e);
-    showSS('❌ '+(e.name==='AbortError'?'সময় শেষ। Render চালু হতে ৩০ সেকেন্ড লাগতে পারে, পুনরায় চেষ্টা করুন।':(e.message||'সংযোগ ব্যর্থ')),'s-err');
-    btn.disabled=false;
-    btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
+    console.error('doSetup error:', e);
+    var msg = '';
+    if(e.message && e.message.indexOf('টাইমআউট') > -1){
+      msg = e.message;
+    } else if(e.name === 'TypeError' && e.message && e.message.indexOf('fetch') > -1){
+      msg = 'সংযোগ ব্যর্থ! URL ঠিক আছে কিনা দেখুন: ' + url;
+    } else {
+      msg = e.message || 'অজানা সমস্যা। কনসোল চেক করুন।';
+    }
+    showSS('❌ ' + msg, 's-err');
+    if(btn){ btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন'; }
   }
 }
-function showSS(msg,cls){const el=$('setup-status');el.textContent=msg;el.className=cls;el.style.display='block'}
+
+function showSS(msg,cls){
+  var el = document.getElementById('setup-status');
+  if(el){ el.textContent=msg; el.className=cls; el.style.display='block'; }
+}
 function hideSetup(){
-  $('setup-screen').style.display='none';
-  const short=(CFG.url||window.location.origin).replace('https://','').replace('http://','').split('.')[0];
-  $('conn-url').textContent=short;
+  var ss = document.getElementById('setup-screen');
+  if(ss) ss.style.display='none';
+  var cu = document.getElementById('conn-url');
+  if(cu){
+    var short=(CFG.url||window.location.origin).replace('https://','').replace('http://','').split('.')[0];
+    cu.textContent=short;
+  }
   loadPage('dashboard');
 }
 function resetCFG(){if(!confirm('সেটআপ রিসেট করবেন?'))return;localStorage.removeItem('botpanel');location.reload()}
 
-// ══════════ API ══════════
-async function api(path,method='GET',body=null){
+/* ═══════ API ═══════ */
+async function api(path, method, body){
+  method = method || 'GET';
+  body = body || null;
   try{
-    const baseUrl = (CFG.url || window.location.origin).replace(/\/+$/,'');
-    const headers = {
-      'Content-Type': 'application/json',
-      'X-Admin-Key': CFG.key || ''
+    var baseUrl = (CFG.url || window.location.origin).replace(/\/+$/, '');
+    var opts = {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Key': CFG.key || ''
+      }
     };
-    const opts = { method, headers };
     if(body) opts.body = JSON.stringify(body);
-    
-    const r = await fetchWithTimeout(baseUrl + path, opts, 15000);
-    if(r.status===401){toast('❌ Auth Error — Secret Key ভুল?','danger');return null}
-    if(!r.ok){toast('⚠️ API Error: '+r.status,'warn');return null}
+
+    var r = await safeFetch(baseUrl + path, opts, 20000);
+    if(r.status === 401){ toast('❌ Auth Error — Secret Key ভুল?','danger'); return null; }
+    if(!r.ok){ toast('⚠️ API Error: '+r.status,'warn'); return null; }
     return await r.json();
   }catch(e){
-    console.error('API call error:', e);
-    if(e.name==='AbortError') toast('⚠️ সময় শেষ হয়ে গেছে','warn');
+    console.error('API error ['+path+']:', e);
+    if(e.message && e.message.indexOf('টাইমআউট') > -1){
+      toast('⚠️ সময় শেষ হয়ে গেছে','warn');
+    }
     return null;
   }
 }
@@ -1046,7 +1139,7 @@ async function loadDash(){
 
 // ══════════ SCHEDULED ══════════
 let selectedSchedIds = new Set();
-let currentFilter = 'unscheduled';
+currentFilter = 'unscheduled';
 
 function filterSchedByTab(tabKey){
   const el = document.getElementById('tab-' + tabKey);
