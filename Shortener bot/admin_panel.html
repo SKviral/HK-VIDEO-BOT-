@@ -830,22 +830,38 @@ select.fc{cursor:pointer}
 let CFG={}, D={scheduled:[],categories:[],channels:[],admins:[],users:[],files:[]};
 let currentFilter='all';
 
+function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const opts = Object.assign({}, options);
+  if (controller) opts.signal = controller.signal;
+
+  return fetch(url, opts).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 function loadCFG(){
   const injectedKey = (typeof CFG !== 'undefined' && CFG && CFG.key) ? CFG.key : '';
-  const injectedUrl = (typeof CFG !== 'undefined' && CFG && CFG.url) ? CFG.url : '';
+  const injectedUrl = (typeof CFG !== 'undefined' && CFG && CFG.url) ? CFG.url : window.location.origin;
+  let stored = {};
   try{
-    const stored = JSON.parse(localStorage.getItem('botpanel')||'{}');
-    CFG = Object.assign({}, stored);
+    stored = JSON.parse(localStorage.getItem('botpanel') || '{}');
   }catch{
-    CFG = {};
+    stored = {};
   }
-  if(!CFG.key && injectedKey) CFG.key = injectedKey;
-  if(!CFG.url) CFG.url = injectedUrl || window.location.origin;
+  CFG = Object.assign({}, stored);
+  if(!CFG.key || CFG.key === '') {
+    if(injectedKey) CFG.key = injectedKey;
+  }
+  if(!CFG.url || CFG.url === '') {
+    CFG.url = injectedUrl || window.location.origin;
+  }
 }
 function saveCFG(){localStorage.setItem('botpanel',JSON.stringify(CFG))}
 
 loadCFG();
-if(CFG.key) {
+if(CFG.key && CFG.key.trim() !== '') {
   hideSetup();
 } else {
   setTimeout(()=>{
@@ -876,21 +892,32 @@ async function doSetup(){
   btn.disabled=true; btn.textContent='⏳ পরীক্ষা হচ্ছে…';
   showSS('⏳ বটের সাথে যোগাযোগ করা হচ্ছে…','s-load');
   try{
-    try{
-      const r1=await fetch(url+'/health',{signal:AbortSignal.timeout(8000)});
-      if(!r1.ok) await fetch(url+'/global_health',{signal:AbortSignal.timeout(8000)});
-    }catch(e){console.warn('Health check:', e)}
+    const r2 = await fetchWithTimeout(url+'/api/stats', {
+      method: 'GET',
+      headers: {'X-Admin-Key': key}
+    }, 15000);
 
-    const r2=await fetch(url+'/api/stats',{headers:{'X-Admin-Key':key},signal:AbortSignal.timeout(12000)});
-    if(r2.status===401){showSS('❌ Secret Key ভুল! Render-এ PANEL_SECRET এর মান চেক করুন।','s-err');btn.disabled=false;btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';return}
+    if(r2.status===401){
+      showSS('❌ Secret Key ভুল! Render-এ PANEL_SECRET এর মান চেক করুন।','s-err');
+      btn.disabled=false;
+      btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
+      return;
+    }
     if(!r2.ok) throw new Error('API Error: '+r2.status);
     
-    CFG={url,key,admin,user};saveCFG();
+    CFG={url,key,admin,user};
+    saveCFG();
     showSS('✅ সফল! প্যানেল খুলছে…','s-ok');
-    setTimeout(hideSetup,500);
+    setTimeout(()=>{
+      hideSetup();
+      btn.disabled=false;
+      btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
+    }, 400);
   }catch(e){
-    showSS('❌ '+(e.name==='TimeoutError'?'সময় শেষ। Render চালু হতে ৩০ সেকেন্ড লাগতে পারে, পুনরায় চেষ্টা করুন।':e.message||'সংযোগ ব্যর্থ'),'s-err');
-    btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
+    console.error('Setup error:', e);
+    showSS('❌ '+(e.name==='AbortError'?'সময় শেষ। Render চালু হতে ৩০ সেকেন্ড লাগতে পারে, পুনরায় চেষ্টা করুন।':(e.message||'সংযোগ ব্যর্থ')),'s-err');
+    btn.disabled=false;
+    btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
   }
 }
 function showSS(msg,cls){const el=$('setup-status');el.textContent=msg;el.className=cls;el.style.display='block'}
@@ -905,15 +932,21 @@ function resetCFG(){if(!confirm('সেটআপ রিসেট করবেন
 // ══════════ API ══════════
 async function api(path,method='GET',body=null){
   try{
-    const baseUrl = CFG.url || window.location.origin;
-    const opts={method,headers:{'Content-Type':'application/json','X-Admin-Key':CFG.key||''},signal:AbortSignal.timeout(12000)};
-    if(body) opts.body=JSON.stringify(body);
-    const r=await fetch(baseUrl.replace(/\/+$/,'')+path,opts);
+    const baseUrl = (CFG.url || window.location.origin).replace(/\/+$/,'');
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Admin-Key': CFG.key || ''
+    };
+    const opts = { method, headers };
+    if(body) opts.body = JSON.stringify(body);
+    
+    const r = await fetchWithTimeout(baseUrl + path, opts, 15000);
     if(r.status===401){toast('❌ Auth Error — Secret Key ভুল?','danger');return null}
     if(!r.ok){toast('⚠️ API Error: '+r.status,'warn');return null}
     return await r.json();
   }catch(e){
-    if(e.name==='TimeoutError') toast('⚠️ সময় শেষ হয়ে গেছে','warn');
+    console.error('API call error:', e);
+    if(e.name==='AbortError') toast('⚠️ সময় শেষ হয়ে গেছে','warn');
     return null;
   }
 }
