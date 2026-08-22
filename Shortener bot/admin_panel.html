@@ -851,12 +851,14 @@ function loadCFG(){
     stored = {};
   }
   CFG = Object.assign({}, stored);
-  if(!CFG.key || CFG.key === '') {
-    if(injectedKey) CFG.key = injectedKey;
+  // Server injected key from /panel is authoritative
+  if(injectedKey && injectedKey.trim() !== '') {
+    CFG.key = injectedKey;
   }
   if(!CFG.url || CFG.url === '') {
     CFG.url = injectedUrl || window.location.origin;
   }
+  saveCFG();
 }
 function saveCFG(){localStorage.setItem('botpanel',JSON.stringify(CFG))}
 
