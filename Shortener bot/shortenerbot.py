@@ -2909,7 +2909,15 @@ def require_auth(f):
     def wrapper(*args, **kwargs):
         if request.method == 'OPTIONS':
             return jsonify({"ok": True}), 200
-        key = request.headers.get("X-Admin-Key", "")
+        # Support X-Admin-Key header, Authorization Bearer, or ?key= query parameter
+        key = request.headers.get("X-Admin-Key", "").strip()
+        if not key:
+            auth_header = request.headers.get("Authorization", "").strip()
+            if auth_header.startswith("Bearer "):
+                key = auth_header[7:].strip()
+        if not key:
+            key = request.args.get("key", "").strip()
+
         if key != PANEL_SECRET:
             return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
@@ -2918,7 +2926,7 @@ def require_auth(f):
 @shortener_bp.after_request
 def add_cors(response):
     response.headers["Access-Control-Allow-Origin"]  = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Admin-Key"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Admin-Key, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
     return response
 
@@ -2932,25 +2940,49 @@ def health():
     return jsonify({"status":"ok","time":datetime.now().isoformat()})
 
 @shortener_bp.route('/panel')
+@shortener_bp.route('/panel.html')
+@shortener_bp.route('/admin_panel')
+@shortener_bp.route('/admin_panel.html')
+@shortener_bp.route('/shortener_panel')
 def panel():
     import os
-    for p in ['Shortener bot/admin_panel.html', 'admin_panel.html', 'static/admin_panel.html']:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(current_dir, 'admin_panel.html'),
+        os.path.join(os.getcwd(), 'Shortener bot', 'admin_panel.html'),
+        os.path.join(os.getcwd(), 'shortener bot', 'admin_panel.html'),
+        os.path.join(os.getcwd(), 'admin_panel.html'),
+        os.path.join(os.getcwd(), 'static', 'admin_panel.html')
+    ]
+    for p in candidates:
         if os.path.exists(p):
-            with open(p, encoding='utf-8') as f:
-                content = f.read()
-                content = content.replace('let CFG={},', f'let CFG={{key:"{PANEL_SECRET}"}},')
-                return content, 200, {'Content-Type': 'text/html; charset=utf-8'}
-    return '<h2>admin_panel.html ফাইল পাওয়া যায়নি। bot.py এর পাশে রাখুন।</h2>', 200, {'Content-Type': 'text/html; charset=utf-8'}
+            try:
+                with open(p, encoding='utf-8') as f:
+                    content = f.read()
+                    # Inject pre-authenticated config
+                    content = content.replace('let CFG={},', f'let CFG={{key:"{PANEL_SECRET}"}},')
+                    return content, 200, {
+                        'Content-Type': 'text/html; charset=utf-8',
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    }
+            except Exception as e:
+                logger.error(f"Error reading admin_panel.html from {p}: {e}")
+
+    return '<h2>admin_panel.html ফাইল পাওয়া যায়নি।</h2>', 200, {'Content-Type': 'text/html; charset=utf-8'}
 
 @shortener_bp.route('/api/stats', methods=['GET','OPTIONS'])
 @require_auth
 def api_stats():
-    s = get_stats()
-    all_pending = list(scheduled_col.find({"status": "pending"}))
-    s['pending_scheduled'] = len(all_pending)
-    s['pending_scheduled_timed'] = len([x for x in all_pending if not str(x.get('scheduled_at','')).startswith('203') and x.get('time_set') is not False])
-    s['pending_scheduled_unscheduled'] = s['pending_scheduled'] - s['pending_scheduled_timed']
-    return jsonify(s)
+    try:
+        s = get_stats()
+        all_pending = list(scheduled_col.find({"status": "pending"}))
+        s['pending_scheduled'] = len(all_pending)
+        s['pending_scheduled_timed'] = len([x for x in all_pending if not str(x.get('scheduled_at','')).startswith('203') and x.get('time_set') is not False])
+        s['pending_scheduled_unscheduled'] = s['pending_scheduled'] - s['pending_scheduled_timed']
+        return jsonify(s)
+    except Exception as e:
+        logger.error(f"api_stats error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @shortener_bp.route('/api/scheduled', methods=['GET','OPTIONS'])
 @require_auth

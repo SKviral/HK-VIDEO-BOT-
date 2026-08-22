@@ -831,13 +831,30 @@ let CFG={}, D={scheduled:[],categories:[],channels:[],admins:[],users:[],files:[
 let currentFilter='all';
 
 function loadCFG(){
-  try{CFG=JSON.parse(localStorage.getItem('botpanel')||'{}')}catch{CFG={}}
-  if(!CFG.url) CFG.url = window.location.origin;
+  const injectedKey = (typeof CFG !== 'undefined' && CFG && CFG.key) ? CFG.key : '';
+  const injectedUrl = (typeof CFG !== 'undefined' && CFG && CFG.url) ? CFG.url : '';
+  try{
+    const stored = JSON.parse(localStorage.getItem('botpanel')||'{}');
+    CFG = Object.assign({}, stored);
+  }catch{
+    CFG = {};
+  }
+  if(!CFG.key && injectedKey) CFG.key = injectedKey;
+  if(!CFG.url) CFG.url = injectedUrl || window.location.origin;
 }
 function saveCFG(){localStorage.setItem('botpanel',JSON.stringify(CFG))}
 
 loadCFG();
-if(CFG.key) hideSetup();
+if(CFG.key) {
+  hideSetup();
+} else {
+  setTimeout(()=>{
+    if($('s-url')) $('s-url').value = CFG.url || window.location.origin;
+    if($('s-key') && CFG.key) $('s-key').value = CFG.key;
+    if($('s-admin') && CFG.admin) $('s-admin').value = CFG.admin;
+    if($('s-user') && CFG.user) $('s-user').value = CFG.user;
+  }, 50);
+}
 
 function autoLoad(){
   loadCFG();
@@ -859,16 +876,20 @@ async function doSetup(){
   btn.disabled=true; btn.textContent='⏳ পরীক্ষা হচ্ছে…';
   showSS('⏳ বটের সাথে যোগাযোগ করা হচ্ছে…','s-load');
   try{
-    const r1=await fetch(url+'/health',{signal:AbortSignal.timeout(10000)});
-    if(!r1.ok) throw new Error('বট সার্ভার সাড়া দেয়নি ('+r1.status+')');
-    const r2=await fetch(url+'/api/stats',{headers:{'X-Admin-Key':key},signal:AbortSignal.timeout(10000)});
-    if(r2.status===401){showSS('❌ Secret Key ভুল! Render-এ PANEL_SECRET চেক করুন।','s-err');btn.disabled=false;btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';return}
+    try{
+      const r1=await fetch(url+'/health',{signal:AbortSignal.timeout(8000)});
+      if(!r1.ok) await fetch(url+'/global_health',{signal:AbortSignal.timeout(8000)});
+    }catch(e){console.warn('Health check:', e)}
+
+    const r2=await fetch(url+'/api/stats',{headers:{'X-Admin-Key':key},signal:AbortSignal.timeout(12000)});
+    if(r2.status===401){showSS('❌ Secret Key ভুল! Render-এ PANEL_SECRET এর মান চেক করুন।','s-err');btn.disabled=false;btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';return}
     if(!r2.ok) throw new Error('API Error: '+r2.status);
+    
     CFG={url,key,admin,user};saveCFG();
     showSS('✅ সফল! প্যানেল খুলছে…','s-ok');
-    setTimeout(hideSetup,700);
+    setTimeout(hideSetup,500);
   }catch(e){
-    showSS('❌ '+(e.name==='TimeoutError'?'সময় শেষ। Render চালু আছে কিনা দেখুন।':e.message||'সংযোগ ব্যর্থ'),'s-err');
+    showSS('❌ '+(e.name==='TimeoutError'?'সময় শেষ। Render চালু হতে ৩০ সেকেন্ড লাগতে পারে, পুনরায় চেষ্টা করুন।':e.message||'সংযোগ ব্যর্থ'),'s-err');
     btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন';
   }
 }
