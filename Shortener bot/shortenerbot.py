@@ -32,7 +32,7 @@ BOT_USERNAME  = os.environ.get("BOT_USERNAME",  "YourBotUsername")
 WEBBOT_USERNAME = os.environ.get("WEBBOT_USERNAME", "StreamXVideoBot")
 MAIN_ADMIN_ID = os.environ.get("MAIN_ADMIN_ID", "5991854507")
 TERABOX_TOKEN = os.environ.get("TERABOX_TOKEN", "71b16be6b48d01937bfe7d2c3043cbc0b6363c82")
-IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY", "")
+IMGBB_API_KEY = (os.environ.get("IMGBB_API_KEY") or os.environ.get("IMGBB_KEY") or os.environ.get("IMG_BB_API_KEY") or "").strip().strip('"').strip("'")
 FIREBASE_DB_URL = os.environ.get("FIREBASE_DB_URL", "https://telegram-bot-ca2a6-default-rtdb.firebaseio.com/")
 MONGO_URL     = os.environ.get("MONGO_URL")
 BOT_VERSION   = "6.0.0"
@@ -562,19 +562,124 @@ def get_short_link(url):
     return url
 
 def upload_photo_to_imgbb(file_id):
-    if not IMGBB_API_KEY:
-        logger.warning("IMGBB_API_KEY not configured; thumbnail upload skipped.")
+    """
+    Downloads thumbnail/photo from Telegram and uploads to ImgBB (with fallback support).
+    Uses multipart/form-data matching browser HTML FormData for 100% reliability.
+    """
+    api_key = (os.environ.get("IMGBB_API_KEY") or os.environ.get("IMGBB_KEY") or os.environ.get("IMG_BB_API_KEY") or IMGBB_API_KEY or "").strip().strip('"').strip("'")
+    
+    if not file_id:
+        logger.warning("upload_photo_to_imgbb: file_id is empty")
         return ""
+
+    raw = None
     try:
         tg_file = bot.get_file(file_id)
+        if not tg_file or not getattr(tg_file, 'file_path', None):
+            logger.warning(f"Failed to get Telegram file path for file_id: {file_id}")
+            return ""
         raw = bot.download_file(tg_file.file_path)
-        payload = {"key": IMGBB_API_KEY, "image": base64.b64encode(raw).decode("ascii")}
-        r = requests.post("https://api.imgbb.com/1/upload", data=payload, timeout=25).json()
-        if r.get("success") and r.get("data", {}).get("url"):
-            return r["data"]["url"]
-        logger.warning(f"ImgBB upload failed: {r}")
     except Exception as e:
-        logger.warning(f"ImgBB upload error: {e}")
+        logger.warning(f"Telegram file download error for {file_id}: {e}")
+        return ""
+
+    if not raw:
+        logger.warning(f"Downloaded empty file bytes for {file_id}")
+        return ""
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
+
+    # 1. Primary: Multipart upload to ImgBB (identical to browser HTML FormData / fetch)
+    if api_key:
+        try:
+            files = {
+                "image": ("thumbnail.jpg", raw, "image/jpeg")
+            }
+            params = {
+                "key": api_key
+            }
+            resp = requests.post("https://api.imgbb.com/1/upload", params=params, files=files, headers=headers, timeout=30)
+            
+            try:
+                r = resp.json()
+            except Exception:
+                r = {}
+
+            if r.get("success") and r.get("data", {}).get("url"):
+                url = r["data"]["url"]
+                logger.info(f"✅ ImgBB multipart upload success: {url}")
+                return url
+            else:
+                err_msg = r.get("error", {}).get("message") or resp.text[:200]
+                logger.warning(f"⚠️ ImgBB multipart rejected (HTTP {resp.status_code}): {err_msg}")
+        except Exception as e:
+            logger.warning(f"⚠️ ImgBB multipart attempt failed: {e}")
+
+        # 2. Secondary fallback: Base64 POST to ImgBB
+        try:
+            b64_str = base64.b64encode(raw).decode("ascii")
+            resp = requests.post(
+                "https://api.imgbb.com/1/upload",
+                params={"key": api_key},
+                data={"image": b64_str},
+                headers=headers,
+                timeout=30
+            )
+            try:
+                r = resp.json()
+            except Exception:
+                r = {}
+                
+            if r.get("success") and r.get("data", {}).get("url"):
+                url = r["data"]["url"]
+                logger.info(f"✅ ImgBB base64 upload success: {url}")
+                return url
+            else:
+                err_msg = r.get("error", {}).get("message") or resp.text[:200]
+                logger.warning(f"⚠️ ImgBB base64 rejected (HTTP {resp.status_code}): {err_msg}")
+        except Exception as e:
+            logger.warning(f"⚠️ ImgBB base64 attempt failed: {e}")
+    else:
+        logger.warning("IMGBB_API_KEY not configured in environment variables!")
+
+    # 3. Tertiary fallback: Catbox.moe (Free, direct image hosting, no key needed)
+    try:
+        resp = requests.post(
+            "https://catbox.moe/user/api.php",
+            data={"reqtype": "fileupload"},
+            files={"fileToUpload": ("thumb.jpg", raw, "image/jpeg")},
+            headers=headers,
+            timeout=25
+        )
+        if resp.status_code == 200 and resp.text.startswith("http"):
+            url = resp.text.strip()
+            logger.info(f"✅ Catbox fallback upload success: {url}")
+            return url
+        else:
+            logger.warning(f"⚠️ Catbox fallback rejected (HTTP {resp.status_code}): {resp.text[:150]}")
+    except Exception as e:
+        logger.warning(f"⚠️ Catbox fallback attempt failed: {e}")
+
+    # 4. Quaternary fallback: Freeimage.host free API
+    try:
+        resp = requests.post(
+            "https://freeimage.host/api/1/upload",
+            params={"key": "6d207e02198a847aa98d0a2a901485a5"},
+            files={"source": ("thumb.jpg", raw, "image/jpeg")},
+            headers=headers,
+            timeout=25
+        )
+        r = resp.json()
+        if r.get("image", {}).get("url"):
+            url = r["image"]["url"]
+            logger.info(f"✅ Freeimage fallback upload success: {url}")
+            return url
+    except Exception as e:
+        logger.warning(f"⚠️ Freeimage fallback attempt failed: {e}")
+
+    logger.error("❌ All image upload attempts failed.")
     return ""
 
 def _web_app_post_link(video_id):
