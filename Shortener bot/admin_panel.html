@@ -22,6 +22,21 @@
 html{height:100%}
 body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 
+/* ══ SVG ICONS SYSTEM ══ */
+.svg-ico{
+  display:inline-flex;align-items:center;justify-content:center;
+  vertical-align:middle;line-height:1;flex-shrink:0;
+}
+.svg-ico svg{
+  width:1em;height:1em;fill:none;stroke:currentColor;
+  stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+}
+.ico-xs svg{width:0.75em;height:0.75em}
+.ico-sm svg{width:0.9em;height:0.9em}
+.ico-md svg{width:1.15em;height:1.15em}
+.ico-lg svg{width:1.35em;height:1.35em}
+.ico-xl svg{width:1.75em;height:1.75em}
+
 /* ══ SETUP SCREEN ══ */
 #setup-screen{
   position:fixed;inset:0;background:var(--bg);z-index:9999;
@@ -29,11 +44,16 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 }
 .setup-inner{max-width:440px;margin:0 auto}
 .setup-logo{text-align:center;padding:24px 0 28px}
-.setup-logo .ico{font-size:52px;display:block;margin-bottom:12px}
+.setup-logo .ico{
+  width:68px;height:68px;margin:0 auto 16px;border-radius:18px;
+  background:linear-gradient(135deg,var(--accent),var(--pink));
+  display:flex;align-items:center;justify-content:center;color:#fff;
+  box-shadow:0 8px 24px var(--glow);font-size:32px;
+}
 .setup-logo h1{font-size:24px;font-weight:700}
 .setup-logo p{font-size:14px;color:var(--text3);margin-top:5px}
 .sf{margin-bottom:18px}
-.sf label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px}
+.sf label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px}
 .sf input{
   width:100%;background:var(--bg3);border:1.5px solid var(--border2);
   border-radius:var(--rs);color:var(--text);padding:14px 16px;
@@ -47,6 +67,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
   width:100%;padding:16px;border:none;border-radius:var(--rs);
   background:var(--accent);color:#fff;font-size:16px;
   font-family:var(--sans);font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
   transition:background .15s;margin-top:8px;
 }
 #setup-btn:active{background:var(--accent2)}
@@ -68,13 +89,13 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
   display:flex;align-items:center;padding:0 16px;gap:10px;
 }
 .topbar-menu{
-  background:none;border:none;color:var(--text2);font-size:22px;
-  cursor:pointer;padding:6px;border-radius:8px;display:flex;align-items:center;
+  background:none;border:none;color:var(--text2);font-size:20px;
+  cursor:pointer;padding:6px;border-radius:8px;display:flex;align-items:center;justify-content:center;
 }
 .topbar-menu:active{background:var(--bg4)}
 .tb-title{font-size:17px;font-weight:700;flex:1}
 .tb-dot{width:8px;height:8px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;flex-shrink:0}
-.tb-refresh{background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:6px;border-radius:8px}
+.tb-refresh{background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:6px;border-radius:8px;display:flex;align-items:center;justify-content:center}
 .tb-refresh:active{background:var(--bg4)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
@@ -94,11 +115,11 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 }
 .drawer-logo{
   width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--pink));
-  border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;
+  border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;flex-shrink:0;
 }
 .drawer-hd h2{font-size:15px;font-weight:700}
 .drawer-hd p{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px}
-.drawer-close{margin-left:auto;background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer}
+.drawer-close{margin-left:auto;background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 nav{padding:10px 10px;flex:1}
 .ns{font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;padding:10px 10px 4px}
 .ni{
@@ -109,9 +130,9 @@ nav{padding:10px 10px;flex:1}
 }
 .ni:active{background:var(--bg4)}
 .ni.active{background:var(--glow);color:var(--accent2);border:1px solid rgba(108,99,255,.2)}
-.ni .ico{font-size:18px;width:22px;text-align:center;flex-shrink:0}
+.ni .ico{font-size:18px;width:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .nbadge{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:20px;font-weight:600}
-.drawer-foot{padding:14px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);font-family:var(--mono)}
+.drawer-foot{padding:14px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);font-family:var(--mono);display:flex;align-items:center}
 
 /* ══ BOTTOM NAV ══ */
 .bottom-nav{
@@ -122,11 +143,11 @@ nav{padding:10px 10px;flex:1}
 }
 .bn-item{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;padding:8px 4px;cursor:pointer;border:none;background:none;
+  gap:4px;padding:8px 4px;cursor:pointer;border:none;background:none;
   color:var(--text3);font-family:var(--sans);transition:all .15s;position:relative;
 }
 .bn-item.active{color:var(--accent2)}
-.bn-item .bn-ico{font-size:22px;line-height:1}
+.bn-item .bn-ico{font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center}
 .bn-item .bn-lbl{font-size:10px;font-weight:500}
 .bn-badge{
   position:absolute;top:6px;right:calc(50% - 18px);
@@ -149,23 +170,35 @@ nav{padding:10px 10px;flex:1}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
 .sc{
   background:var(--card);border:1px solid var(--border);border-radius:var(--r);
-  padding:16px;position:relative;overflow:hidden;
+  padding:16px;position:relative;overflow:hidden;transition:border-color .2s;
 }
+.sc:hover{border-color:var(--border2)}
 .sc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
 .sc.blue::before{background:var(--accent)}.sc.green::before{background:var(--green)}
 .sc.yellow::before{background:var(--yellow)}.sc.red::before{background:var(--red)}
 .sc.cyan::before{background:var(--cyan)}.sc.pink::before{background:var(--pink)}
-.sc-ico{font-size:20px;margin-bottom:8px;display:block}
+.sc-ico-wrap{
+  width:36px;height:36px;border-radius:10px;
+  display:inline-flex;align-items:center;justify-content:center;
+  margin-bottom:10px;font-size:18px;
+}
+.sc.blue .sc-ico-wrap{background:rgba(108,99,255,.15);color:var(--accent2)}
+.sc.green .sc-ico-wrap{background:rgba(34,197,94,.15);color:var(--green)}
+.sc.yellow .sc-ico-wrap{background:rgba(245,158,11,.15);color:var(--yellow)}
+.sc.cyan .sc-ico-wrap{background:rgba(6,182,212,.15);color:var(--cyan)}
+.sc.red .sc-ico-wrap{background:rgba(239,68,68,.15);color:var(--red)}
+.sc.pink .sc-ico-wrap{background:rgba(236,72,153,.15);color:var(--pink)}
 .sc-val{font-size:24px;font-weight:700;font-family:var(--mono);line-height:1;margin-bottom:3px}
 .sc-lbl{font-size:11px;color:var(--text3)}
-.sc-sub{font-size:10px;color:var(--green);margin-top:3px;font-family:var(--mono)}
+.sc-sub{font-size:10px;color:var(--green);margin-top:4px;font-family:var(--mono);display:flex;align-items:center;gap:4px}
 
 /* ══ CARD ══ */
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px}
 .card-hd{
   padding:14px 16px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:10px;
+  display:flex;align-items:center;gap:10px;font-size:15px;color:var(--text);
 }
+.card-hd .svg-ico{font-size:18px;color:var(--accent2)}
 .card-title{font-size:14px;font-weight:600;flex:1}
 .card-body{padding:14px 16px}
 
@@ -175,11 +208,11 @@ nav{padding:10px 10px;flex:1}
   border-radius:var(--rs);padding:14px;margin-bottom:10px;
 }
 .si-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.si-thumb{width:42px;height:42px;border-radius:8px;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.si-thumb{width:40px;height:40px;border-radius:10px;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--accent2);flex-shrink:0}
 .si-info{flex:1;min-width:0}
 .si-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px}
-.si-time{font-size:11px;color:var(--text3);font-family:var(--mono)}
-.si-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.si-time{font-size:11px;color:var(--text3);font-family:var(--mono);display:flex;align-items:center;gap:5px}
+.si-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .si-id{font-size:11px;color:var(--text3);font-family:var(--mono);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ══ USER / CHANNEL CARD (mobile list) ══ */
@@ -188,14 +221,14 @@ nav{padding:10px 10px;flex:1}
   border-radius:var(--rs);padding:14px;margin-bottom:10px;
 }
 .list-card-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.list-card-ico{width:40px;height:40px;border-radius:10px;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.list-card-ico{width:40px;height:40px;border-radius:10px;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--accent2);flex-shrink:0}
 .list-card-info{flex:1;min-width:0}
 .list-card-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .list-card-sub{font-size:11px;color:var(--text3);font-family:var(--mono)}
-.list-card-actions{display:flex;gap:8px;flex-wrap:wrap}
+.list-card-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
 /* ══ BADGE ══ */
-.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono)}
 .b-g{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.25)}
 .b-y{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.25)}
 .b-r{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.25)}
@@ -338,31 +371,31 @@ select.fc{cursor:pointer}
 <div id="setup-screen">
   <div class="setup-inner">
     <div class="setup-logo">
-      <span class="ico">🤖</span>
+      <div class="ico"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><path d="M12 2v2"/><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="11" r="1.5" fill="currentColor"/><circle cx="15" cy="11" r="1.5" fill="currentColor"/><path d="M9 16h6"/><path d="M2 12h2"/><path d="M20 12h2"/></svg></span></div>
       <h1>Bot Admin Panel</h1>
       <p>নিচের ৪টি তথ্য দিয়ে সংযোগ করুন</p>
     </div>
     <div class="sf">
-      <label>🌐 Bot API URL</label>
+      <label><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span> Bot API URL</label>
       <input id="s-url" type="url" inputmode="url" placeholder="https://your-bot.onrender.com" autocomplete="off" autocorrect="off" autocapitalize="none">
       <div class="hint">Render ড্যাশবোর্ড → সার্ভিস → উপরে URL দেওয়া আছে</div>
     </div>
     <div class="sf">
-      <label>🔑 Secret Key (PANEL_SECRET)</label>
+      <label><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span> Secret Key (PANEL_SECRET)</label>
       <input id="s-key" type="password" placeholder="Render-এ যা সেট করেছেন" autocomplete="off">
       <div class="hint">Render → Environment → PANEL_SECRET এর Value</div>
     </div>
     <div class="sf">
-      <label>🆔 আপনার Telegram Admin ID</label>
+      <label><span class="svg-ico"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="8" cy="10" r="2"/><line x1="14" y1="9" x2="18" y2="9"/><line x1="14" y1="13" x2="18" y2="13"/><path d="M4 18c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg></span> আপনার Telegram Admin ID</label>
       <input id="s-admin" type="tel" inputmode="numeric" placeholder="যেমন: 5991854507">
       <div class="hint">না জানলে @userinfobot এ /start দিন</div>
     </div>
     <div class="sf">
-      <label>🤖 Bot Username</label>
+      <label><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M12 2v2"/><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="11" r="1.5" fill="currentColor"/><circle cx="15" cy="11" r="1.5" fill="currentColor"/><path d="M9 16h6"/><path d="M2 12h2"/><path d="M20 12h2"/></svg></span> Bot Username</label>
       <input id="s-user" type="text" placeholder="HKVIDEO_BOT (@ ছাড়া)" autocorrect="off" autocapitalize="none">
     </div>
     <div id="setup-status"></div>
-    <button id="setup-btn" onclick="doSetup()">🔌 সংযোগ করুন ও প্যানেল খুলুন</button>
+    <button id="setup-btn" onclick="doSetup()"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/></svg></span> সংযোগ করুন ও প্যানেল খুলুন</button>
     <div class="setup-link">আগে সেটআপ করা থাকলে → <span onclick="autoLoad()">সেভ করা কনফিগ লোড করুন</span></div>
   </div>
 </div>
@@ -370,62 +403,62 @@ select.fc{cursor:pointer}
 <!-- ══════════════ DESKTOP SIDEBAR ══════════════ -->
 <aside class="sidebar-desktop">
   <div style="padding:20px 18px 14px;border-bottom:1px solid var(--border)">
-    <div style="width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--pink));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:10px">🤖</div>
+    <div style="width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--pink));border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;margin-bottom:10px"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M12 2v2"/><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="11" r="1.5" fill="currentColor"/><circle cx="15" cy="11" r="1.5" fill="currentColor"/><path d="M9 16h6"/><path d="M2 12h2"/><path d="M20 12h2"/></svg></span></div>
     <div style="font-size:15px;font-weight:700">Bot Admin Panel</div>
     <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px">Premium File Share v6.0</div>
   </div>
   <nav style="padding:10px">
     <div class="ns">মেইন</div>
-    <button class="ni active" onclick="go('dashboard',this)"><span class="ico">📊</span>ড্যাশবোর্ড</button>
-    <button class="ni" onclick="go('scheduled',this)"><span class="ico">⏰</span>সিডিউল পোস্ট<span class="nbadge" id="sb-badge-d">0</span></button>
-    <button class="ni" onclick="go('categories',this)"><span class="ico">📂</span>ক্যাটাগরি</button>
+    <button class="ni active" onclick="go('dashboard',this)"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span></span>ড্যাশবোর্ড</button>
+    <button class="ni" onclick="go('scheduled',this)"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span></span>সিডিউল পোস্ট<span class="nbadge" id="sb-badge-d">0</span></button>
+    <button class="ni" onclick="go('categories',this)"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span></span>ক্যাটাগরি</button>
     <div class="ns">ম্যানেজমেন্ট</div>
-    <button class="ni" onclick="go('channels',this)"><span class="ico">📡</span>চ্যানেল</button>
-    <button class="ni" onclick="go('admins',this)"><span class="ico">👑</span>এডমিন</button>
-    <button class="ni" onclick="go('users',this)"><span class="ico">👥</span>ইউজার</button>
-    <button class="ni" onclick="go('files',this)"><span class="ico">🗂️</span>ফাইল</button>
+    <button class="ni" onclick="go('channels',this)"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span></span>চ্যানেল</button>
+    <button class="ni" onclick="go('admins',this)"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span></span>এডমিন</button>
+    <button class="ni" onclick="go('users',this)"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span></span>ইউজার</button>
+    <button class="ni" onclick="go('files',this)"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M15.5 2H8.6c-.4 0-.8.2-1.1.5-.3.3-.5.7-.5 1.1v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8c.4 0 .8-.2 1.1-.5.3-.3.5-.7.5-1.1V6.5L15.5 2z"/><path d="M3 7.6v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8"/><polyline points="15 2 15 7 20 7"/></svg></span></span>ফাইল</button>
     <div class="ns">সিস্টেম</div>
-    <button class="ni" onclick="go('settings',this)"><span class="ico">⚙️</span>বট সেটিংস</button>
-    <button class="ni" onclick="go('forcesub',this)"><span class="ico">🔒</span>Force Subscribe</button>
-    <button class="ni" onclick="resetCFG()"><span class="ico">🔧</span>পুনরায় সেটআপ</button>
+    <button class="ni" onclick="go('settings',this)"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span></span>বট সেটিংস</button>
+    <button class="ni" onclick="go('forcesub',this)"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>Force Subscribe</button>
+    <button class="ni" onclick="resetCFG()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span></span>পুনরায় সেটআপ</button>
   </nav>
-  <div style="padding:14px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);font-family:var(--mono)">
-    <span class="tb-dot" style="display:inline-block;margin-right:5px"></span>সংযুক্ত
+  <div style="padding:14px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);font-family:var(--mono);display:flex;align-items:center">
+    <span class="tb-dot" style="display:inline-block;margin-right:8px"></span>সংযুক্ত
   </div>
 </aside>
 
 <!-- ══════════════ TOP BAR ══════════════ -->
 <div class="topbar">
-  <button class="topbar-menu" onclick="openDrawer()">☰</button>
+  <button class="topbar-menu" onclick="openDrawer()" title="মেনু"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span></button>
   <div class="tb-title" id="pg-title">ড্যাশবোর্ড</div>
   <span class="tb-dot"></span>
-  <button class="tb-refresh" onclick="refresh()" title="রিফ্রেশ">🔄</button>
+  <button class="tb-refresh" onclick="refresh()" title="রিফ্রেশ"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span></button>
 </div>
 
 <!-- ══════════════ DRAWER ══════════════ -->
 <div class="drawer-bg" id="drawer-bg" onclick="closeDrawer()"></div>
 <div class="drawer" id="drawer">
   <div class="drawer-hd">
-    <div class="drawer-logo">🤖</div>
+    <div class="drawer-logo"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M12 2v2"/><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="11" r="1.5" fill="currentColor"/><circle cx="15" cy="11" r="1.5" fill="currentColor"/><path d="M9 16h6"/><path d="M2 12h2"/><path d="M20 12h2"/></svg></span></div>
     <div><div style="font-size:15px;font-weight:700">Bot Admin Panel</div><div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px">Premium File Share v6.0</div></div>
-    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    <button class="drawer-close" onclick="closeDrawer()"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button>
   </div>
   <nav>
     <div class="ns">মেইন</div>
-    <button class="ni active" onclick="go('dashboard',this);closeDrawer()"><span class="ico">📊</span>ড্যাশবোর্ড</button>
-    <button class="ni" onclick="go('scheduled',this);closeDrawer()"><span class="ico">⏰</span>সিডিউল পোস্ট<span class="nbadge" id="sb-badge">0</span></button>
-    <button class="ni" onclick="go('categories',this);closeDrawer()"><span class="ico">📂</span>ক্যাটাগরি</button>
+    <button class="ni active" onclick="go('dashboard',this);closeDrawer()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span></span>ড্যাশবোর্ড</button>
+    <button class="ni" onclick="go('scheduled',this);closeDrawer()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span></span>সিডিউল পোস্ট<span class="nbadge" id="sb-badge">0</span></button>
+    <button class="ni" onclick="go('categories',this);closeDrawer()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span></span>ক্যাটাগরি</button>
     <div class="ns">ম্যানেজমেন্ট</div>
-    <button class="ni" onclick="go('channels',this);closeDrawer()"><span class="ico">📡</span>চ্যানেল</button>
-    <button class="ni" onclick="go('admins',this);closeDrawer()"><span class="ico">👑</span>এডমিন</button>
-    <button class="ni" onclick="go('users',this);closeDrawer()"><span class="ico">👥</span>ইউজার</button>
-    <button class="ni" onclick="go('files',this);closeDrawer()"><span class="ico">🗂️</span>ফাইল</button>
+    <button class="ni" onclick="go('channels',this);closeDrawer()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span></span>চ্যানেল</button>
+    <button class="ni" onclick="go('admins',this);closeDrawer()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span></span>এডমিন</button>
+    <button class="ni" onclick="go('users',this);closeDrawer()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span></span>ইউজার</button>
+    <button class="ni" onclick="go('files',this);closeDrawer()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M15.5 2H8.6c-.4 0-.8.2-1.1.5-.3.3-.5.7-.5 1.1v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8c.4 0 .8-.2 1.1-.5.3-.3.5-.7.5-1.1V6.5L15.5 2z"/><path d="M3 7.6v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8"/><polyline points="15 2 15 7 20 7"/></svg></span></span>ফাইল</button>
     <div class="ns">সিস্টেম</div>
-    <button class="ni" onclick="go('settings',this);closeDrawer()"><span class="ico">⚙️</span>বট সেটিংস</button>
-    <button class="ni" onclick="go('forcesub',this);closeDrawer()"><span class="ico">🔒</span>Force Subscribe</button>
-    <button class="ni" onclick="resetCFG()"><span class="ico">🔧</span>পুনরায় সেটআপ</button>
+    <button class="ni" onclick="go('settings',this);closeDrawer()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span></span>বট সেটিংস</button>
+    <button class="ni" onclick="go('forcesub',this);closeDrawer()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>Force Subscribe</button>
+    <button class="ni" onclick="resetCFG()"><span class="ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span></span>পুনরায় সেটআপ</button>
   </nav>
-  <div class="drawer-foot"><span class="tb-dot" style="display:inline-block;margin-right:5px"></span>সংযুক্ত: <span id="conn-url" style="color:var(--text2)"></span></div>
+  <div class="drawer-foot"><span class="tb-dot" style="display:inline-block;margin-right:8px"></span>সংযুক্ত: <span id="conn-url" style="color:var(--text2)"></span></div>
 </div>
 
 <!-- ══════════════ MAIN CONTENT ══════════════ -->
@@ -434,20 +467,20 @@ select.fc{cursor:pointer}
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
     <div class="stat-grid">
-      <div class="sc blue"><span class="sc-ico">👥</span><div class="sc-val" id="sv-users">—</div><div class="sc-lbl">মোট ইউজার</div><div class="sc-sub" id="sv-active"></div></div>
-      <div class="sc green"><span class="sc-ico">🗂️</span><div class="sc-val" id="sv-files">—</div><div class="sc-lbl">মোট ফাইল</div><div class="sc-sub" id="sv-ul"></div></div>
-      <div class="sc yellow"><span class="sc-ico">📥</span><div class="sc-val" id="sv-dl">—</div><div class="sc-lbl">ডাউনলোড আজ</div></div>
-      <div class="sc cyan"><span class="sc-ico">👑</span><div class="sc-val" id="sv-adm">—</div><div class="sc-lbl">মোট এডমিন</div></div>
-      <div class="sc red"><span class="sc-ico">🚫</span><div class="sc-val" id="sv-ban">—</div><div class="sc-lbl">ব্যানড ইউজার</div></div>
-      <div class="sc pink"><span class="sc-ico">⏰</span><div class="sc-val" id="sv-sched">—</div><div class="sc-lbl">পেন্ডিং সিডিউল</div></div>
+      <div class="sc blue"><div class="sc-ico-wrap"><span class="svg-ico ico-lg"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span></div><div class="sc-val" id="sv-users">—</div><div class="sc-lbl">মোট ইউজার</div><div class="sc-sub" id="sv-active"></div></div>
+      <div class="sc green"><div class="sc-ico-wrap"><span class="svg-ico ico-lg"><svg viewBox="0 0 24 24"><path d="M15.5 2H8.6c-.4 0-.8.2-1.1.5-.3.3-.5.7-.5 1.1v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8c.4 0 .8-.2 1.1-.5.3-.3.5-.7.5-1.1V6.5L15.5 2z"/><path d="M3 7.6v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8"/><polyline points="15 2 15 7 20 7"/></svg></span></div><div class="sc-val" id="sv-files">—</div><div class="sc-lbl">মোট ফাইল</div><div class="sc-sub" id="sv-ul"></div></div>
+      <div class="sc yellow"><div class="sc-ico-wrap"><span class="svg-ico ico-lg"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span></div><div class="sc-val" id="sv-dl">—</div><div class="sc-lbl">ডাউনলোড আজ</div></div>
+      <div class="sc cyan"><div class="sc-ico-wrap"><span class="svg-ico ico-lg"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span></div><div class="sc-val" id="sv-adm">—</div><div class="sc-lbl">মোট এডমিন</div></div>
+      <div class="sc red"><div class="sc-ico-wrap"><span class="svg-ico ico-lg"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></span></div><div class="sc-val" id="sv-ban">—</div><div class="sc-lbl">ব্যানড ইউজার</div></div>
+      <div class="sc pink"><div class="sc-ico-wrap"><span class="svg-ico ico-lg"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span></div><div class="sc-val" id="sv-sched">—</div><div class="sc-lbl">পেন্ডিং সিডিউল</div></div>
     </div>
     <div class="card">
-      <div class="card-hd"><span>⏰</span><div class="card-title">আসন্ন সিডিউল পোস্ট</div><button class="btn btn-sm btn-p" onclick="go('scheduled',null)">সব →</button></div>
-      <div class="card-body" id="d-upcoming"><div class="empty"><span class="eico">📭</span><p>লোড হচ্ছে…</p></div></div>
+      <div class="card-hd"><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><div class="card-title">আসন্ন সিডিউল পোস্ট</div><button class="btn btn-sm btn-p" onclick="go('scheduled',null)">সব →</button></div>
+      <div class="card-body" id="d-upcoming"><div class="empty"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span><p>লোড হচ্ছে…</p></div></div>
     </div>
     <div class="card">
-      <div class="card-hd"><span>📡</span><div class="card-title">সক্রিয় চ্যানেল</div><button class="btn btn-sm btn-p" onclick="go('channels',null)">সব →</button></div>
-      <div class="card-body" id="d-channels"><div class="empty"><span class="eico">📡</span><p>লোড হচ্ছে…</p></div></div>
+      <div class="card-hd"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span><div class="card-title">সক্রিয় চ্যানেল</div><button class="btn btn-sm btn-p" onclick="go('channels',null)">সব →</button></div>
+      <div class="card-body" id="d-channels"><div class="empty"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span><p>লোড হচ্ছে…</p></div></div>
     </div>
   </div>
 
@@ -456,17 +489,17 @@ select.fc{cursor:pointer}
     <!-- Top Summary Counter Row -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
       <div class="card" style="padding:12px;cursor:pointer;border-left:4px solid var(--warn);" onclick="filterSchedByTab('unscheduled')">
-        <div style="font-size:12px;color:var(--text3);font-weight:600;">⏳ টাইম সেট বাকি</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:600;display:flex;align-items:center;gap:5px"><span class="svg-ico" style="color:var(--warn)"><svg viewBox="0 0 24 24"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></span> টাইম সেট বাকি</div>
         <div style="font-size:22px;font-weight:700;color:var(--warn);margin-top:4px;" id="cnt-unscheduled">0</div>
         <div style="font-size:11px;color:var(--text3);">বটের ড্রাফট কিউ</div>
       </div>
       <div class="card" style="padding:12px;cursor:pointer;border-left:4px solid var(--accent);" onclick="filterSchedByTab('timed')">
-        <div style="font-size:12px;color:var(--text3);font-weight:600;">⏰ টাইম সেট করা</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:600;display:flex;align-items:center;gap:5px"><span class="svg-ico" style="color:var(--accent2)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> টাইম সেট করা</div>
         <div style="font-size:22px;font-weight:700;color:var(--accent2);margin-top:4px;" id="cnt-timed">0</div>
         <div style="font-size:11px;color:var(--text3);">রেডি সিডিউল পোস্ট</div>
       </div>
       <div class="card" style="padding:12px;cursor:pointer;border-left:4px solid var(--success);" onclick="filterSchedByTab('done')">
-        <div style="font-size:12px;color:var(--text3);font-weight:600;">✅ সম্পন্ন</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:600;display:flex;align-items:center;gap:5px"><span class="svg-ico" style="color:var(--green)"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span> সম্পন্ন</div>
         <div style="font-size:22px;font-weight:700;color:var(--success);margin-top:4px;" id="cnt-done">0</div>
         <div style="font-size:11px;color:var(--text3);">পোস্ট হয়ে গেছে</div>
       </div>
@@ -474,12 +507,12 @@ select.fc{cursor:pointer}
 
     <!-- Filter Buttons Row -->
     <div class="filter-row" id="sched-filters">
-      <button class="ftag active" id="tab-unscheduled" onclick="filterSched('unscheduled',this)">⏳ টাইম সেট বাকি (<span id="tag-cnt-unscheduled">0</span>)</button>
-      <button class="ftag" id="tab-timed" onclick="filterSched('timed',this)">⏰ টাইম সেট করা (<span id="tag-cnt-timed">0</span>)</button>
-      <button class="ftag" id="tab-pending" onclick="filterSched('pending',this)">📋 সব পেন্ডিং</button>
-      <button class="ftag" id="tab-done" onclick="filterSched('done',this)">✅ সম্পন্ন</button>
-      <button class="ftag" id="tab-error" onclick="filterSched('error',this)">❌ ব্যর্থ</button>
-      <button class="ftag" id="tab-all" onclick="filterSched('all',this)">🌐 সব পোস্ট</button>
+      <button class="ftag active" id="tab-unscheduled" onclick="filterSched('unscheduled',this)"><span class="svg-ico ico-sm"><svg viewBox="0 0 24 24"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></span> টাইম সেট বাকি (<span id="tag-cnt-unscheduled">0</span>)</button>
+      <button class="ftag" id="tab-timed" onclick="filterSched('timed',this)"><span class="svg-ico ico-sm"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> টাইম সেট করা (<span id="tag-cnt-timed">0</span>)</button>
+      <button class="ftag" id="tab-pending" onclick="filterSched('pending',this)"><span class="svg-ico ico-sm"><svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></span> সব পেন্ডিং</button>
+      <button class="ftag" id="tab-done" onclick="filterSched('done',this)"><span class="svg-ico ico-sm"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span> সম্পন্ন</button>
+      <button class="ftag" id="tab-error" onclick="filterSched('error',this)"><span class="svg-ico ico-sm"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span> ব্যর্থ</button>
+      <button class="ftag" id="tab-all" onclick="filterSched('all',this)"><span class="svg-ico ico-sm"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span> সব পোস্ট</button>
     </div>
 
     <div class="bulk-bar" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;background:var(--bg3);padding:10px 14px;border-radius:var(--rs);border:1px solid var(--border2)">
@@ -488,69 +521,69 @@ select.fc{cursor:pointer}
         <span>সব সিলেক্ট করুন</span>
       </label>
       <span id="bulk-count-lbl" style="font-size:12px;color:var(--text3);margin-left:auto">(0টি সিলেক্টেড)</span>
-      <button class="btn btn-p btn-sm" onclick="openBulkIntervalModal()">⚡ বাল্ক ইনটারভাল সিডিউল</button>
-      <button class="btn btn-d btn-sm" onclick="bulkDeleteSched()">🗑️ সিলেক্টেড ডিলিট</button>
+      <button class="btn btn-p btn-sm" onclick="openBulkIntervalModal()"><span class="svg-ico"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> বাল্ক ইনটারভাল সিডিউল</button>
+      <button class="btn btn-d btn-sm" onclick="bulkDeleteSched()"><span class="svg-ico"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span> সিলেক্টেড ডিলিট</button>
     </div>
-    <div id="sched-list"><div class="empty"><span class="eico">⏰</span><p>লোড হচ্ছে…</p></div></div>
+    <div id="sched-list"><div class="empty"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><p>লোড হচ্ছে…</p></div></div>
   </div>
 
   <!-- CATEGORIES -->
   <div class="page" id="page-categories">
-    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-cat')">📂 + নতুন ক্যাটাগরি তৈরি করুন</button>
-    <div id="cat-list"><div class="empty"><span class="eico">📂</span><p>লোড হচ্ছে…</p></div></div>
+    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-cat')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span> নতুন ক্যাটাগরি তৈরি করুন</button>
+    <div id="cat-list"><div class="empty"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span><p>লোড হচ্ছে…</p></div></div>
   </div>
 
   <!-- CHANNELS -->
   <div class="page" id="page-channels">
-    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-ch')">📡 + নতুন চ্যানেল যোগ করুন</button>
-    <div id="ch-list"><div class="empty"><span class="eico">📡</span><p>লোড হচ্ছে…</p></div></div>
+    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-ch')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span> নতুন চ্যানেল যোগ করুন</button>
+    <div id="ch-list"><div class="empty"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span><p>লোড হচ্ছে…</p></div></div>
   </div>
 
   <!-- ADMINS -->
   <div class="page" id="page-admins">
-    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-admin')">👑 + নতুন এডমিন যোগ করুন</button>
-    <div id="adm-list"><div class="empty"><span class="eico">👑</span><p>লোড হচ্ছে…</p></div></div>
+    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-admin')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span> নতুন এডমিন যোগ করুন</button>
+    <div id="adm-list"><div class="empty"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span><p>লোড হচ্ছে…</p></div></div>
   </div>
 
   <!-- USERS -->
   <div class="page" id="page-users">
     <div class="search-bar">
-      <span class="sico">🔍</span>
+      <span class="sico"><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span></span>
       <input type="search" inputmode="numeric" placeholder="Chat ID দিয়ে খুঁজুন…" oninput="searchU(this.value)">
     </div>
-    <div id="usr-list"><div class="empty"><span class="eico">👥</span><p>লোড হচ্ছে…</p></div></div>
+    <div id="usr-list"><div class="empty"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><p>লোড হচ্ছে…</p></div></div>
   </div>
 
   <!-- FILES -->
   <div class="page" id="page-files">
     <div class="search-bar">
-      <span class="sico">🔍</span>
+      <span class="sico"><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span></span>
       <input type="search" placeholder="File Key দিয়ে খুঁজুন…" oninput="searchF(this.value)">
     </div>
-    <div id="file-list"><div class="empty"><span class="eico">🗂️</span><p>লোড হচ্ছে…</p></div></div>
+    <div id="file-list"><div class="empty"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><path d="M15.5 2H8.6c-.4 0-.8.2-1.1.5-.3.3-.5.7-.5 1.1v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8c.4 0 .8-.2 1.1-.5.3-.3.5-.7.5-1.1V6.5L15.5 2z"/><path d="M3 7.6v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8"/><polyline points="15 2 15 7 20 7"/></svg></span><p>লোড হচ্ছে…</p></div></div>
   </div>
 
   <!-- SETTINGS -->
   <div class="page" id="page-settings">
     <div class="section-lbl">সাধারণ সেটিংস</div>
-    <div class="tgl-row"><div class="tgl-lbl">🔒 Protect Content (ফরওয়ার্ড বন্ধ)</div><label class="tgl"><input type="checkbox" id="t-protect" onchange="saveSetting('protect_content',+this.checked)"><span class="ts"></span></label></div>
-    <div class="tgl-row"><div class="tgl-lbl">🔗 Short Link চালু</div><label class="tgl"><input type="checkbox" id="t-sl" onchange="saveSetting('short_link_on',+this.checked)"><span class="ts"></span></label></div>
-    <div class="tgl-row"><div class="tgl-lbl">🔒 Force Subscribe চালু</div><label class="tgl"><input type="checkbox" id="t-fs" onchange="saveSetting('force_sub_on',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl"><span class="svg-ico" style="margin-right:6px;color:var(--accent2)"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Protect Content (ফরওয়ার্ড বন্ধ)</div><label class="tgl"><input type="checkbox" id="t-protect" onchange="saveSetting('protect_content',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl"><span class="svg-ico" style="margin-right:6px;color:var(--accent2)"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span> Short Link চালু</div><label class="tgl"><input type="checkbox" id="t-sl" onchange="saveSetting('short_link_on',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl"><span class="svg-ico" style="margin-right:6px;color:var(--accent2)"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Force Subscribe চালু</div><label class="tgl"><input type="checkbox" id="t-fs" onchange="saveSetting('force_sub_on',+this.checked)"><span class="ts"></span></label></div>
     <div class="divider"></div>
     <div class="section-lbl">বাটন সেটিংস</div>
-    <div class="tgl-row"><div class="tgl-lbl">⬇️ মাষ্টার ডাউনলোড বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-dl" onchange="saveSetting('btn_download',+this.checked)"><span class="ts"></span></label></div>
-    <div class="tgl-row"><div class="tgl-lbl">⬇️ ডাউনলোড ১ বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-dl1" onchange="saveSetting('btn_download_1',+this.checked)"><span class="ts"></span></label></div>
-    <div class="tgl-row"><div class="tgl-lbl">⬇️ ডাউনলোড ২ বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-dl2" onchange="saveSetting('btn_download_2',+this.checked)"><span class="ts"></span></label></div>
-    <div class="tgl-row"><div class="tgl-lbl">↗️ Share বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-sh" onchange="saveSetting('btn_share',+this.checked)"><span class="ts"></span></label></div>
-    <div class="tgl-row"><div class="tgl-lbl">🎓 Tutorial বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-tut" onchange="saveSetting('btn_tutorial',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl"><span class="svg-ico" style="margin-right:6px;color:var(--accent2)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span> মাষ্টার ডাউনলোড বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-dl" onchange="saveSetting('btn_download',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl"><span class="svg-ico" style="margin-right:6px;color:var(--accent2)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span> ডাউনলোড ১ বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-dl1" onchange="saveSetting('btn_download_1',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl"><span class="svg-ico" style="margin-right:6px;color:var(--accent2)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span> ডাউনলোড ২ বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-dl2" onchange="saveSetting('btn_download_2',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl"><span class="svg-ico" style="margin-right:6px;color:var(--accent2)"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span> Share বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-sh" onchange="saveSetting('btn_share',+this.checked)"><span class="ts"></span></label></div>
+    <div class="tgl-row"><div class="tgl-lbl"><span class="svg-ico" style="margin-right:6px;color:var(--accent2)"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span> Tutorial বাটন দেখাবে</div><label class="tgl"><input type="checkbox" id="t-tut" onchange="saveSetting('btn_tutorial',+this.checked)"><span class="ts"></span></label></div>
     <div class="divider"></div>
-    <button class="btn btn-d btn-full" onclick="resetCFG()">🔧 পুনরায় সেটআপ করুন</button>
+    <button class="btn btn-d btn-full" onclick="resetCFG()"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> পুনরায় সেটআপ করুন</button>
   </div>
 
   <!-- FORCE SUB -->
   <div class="page" id="page-forcesub">
-    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-fs')">🔒 + Force Sub চ্যানেল যোগ</button>
-    <div id="fs-list"><div class="empty"><span class="eico">🔒</span><p>লোড হচ্ছে…</p></div></div>
+    <button class="btn btn-p btn-full" style="margin-bottom:14px" onclick="openM('m-fs')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span> Force Sub চ্যানেল যোগ</button>
+    <div id="fs-list"><div class="empty"><span class="svg-ico ico-xl"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><p>লোড হচ্ছে…</p></div></div>
   </div>
 
 </div><!-- /main -->
@@ -558,72 +591,72 @@ select.fc{cursor:pointer}
 <!-- ══════════════ BOTTOM NAV ══════════════ -->
 <nav class="bottom-nav">
   <button class="bn-item active" onclick="go('dashboard',this)" id="bn-dashboard">
-    <span class="bn-ico">📊</span><span class="bn-lbl">ড্যাশবোর্ড</span>
+    <span class="bn-ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span></span><span class="bn-lbl">ড্যাশবোর্ড</span>
   </button>
   <button class="bn-item" onclick="go('scheduled',this)" id="bn-scheduled">
-    <span class="bn-ico">⏰</span><span class="bn-lbl">সিডিউল</span>
+    <span class="bn-ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span></span><span class="bn-lbl">সিডিউল</span>
     <span class="bn-badge" id="bn-badge" style="display:none">0</span>
   </button>
   <button class="bn-item" onclick="go('users',this)" id="bn-users">
-    <span class="bn-ico">👥</span><span class="bn-lbl">ইউজার</span>
+    <span class="bn-ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span></span><span class="bn-lbl">ইউজার</span>
   </button>
   <button class="bn-item" onclick="go('settings',this)" id="bn-settings">
-    <span class="bn-ico">⚙️</span><span class="bn-lbl">সেটিংস</span>
+    <span class="bn-ico"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span></span><span class="bn-lbl">সেটিংস</span>
   </button>
 </nav>
 
 <!-- ══════════════ MODALS ══════════════ -->
 <div class="mbg" id="m-info">
   <div class="modal">
-    <div class="mhd"><span class="mtitle">⏰ সিডিউল পোস্ট তৈরি</span><button class="mclose" onclick="closeM('m-info')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--accent2);margin-right:8px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>সিডিউল পোস্ট তৈরি</span><button class="mclose" onclick="closeM('m-info')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
-      <div class="alert a-info">টেলিগ্রামে বটে মিডিয়া পাঠান (ছবি/ভিডিও/ফাইল) → তারপর ⏰ বাটনে ক্লিক করুন → সময় সেট করুন। সিডিউল এই প্যানেলে স্বয়ংক্রিয়ভাবে দেখাবে।</div>
+      <div class="alert a-info"><span class="svg-ico ico-md" style="margin-top:2px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span><div>টেলিগ্রামে বটে মিডিয়া পাঠান (ছবি/ভিডিও/ফাইল) → তারপর সময় সেট করুন। সিডিউল এই প্যানেলে স্বয়ংক্রিয়ভাবে দেখাবে।</div></div>
     </div>
-    <div class="mfoot"><button class="btn btn-p" onclick="closeM('m-info')">বুঝেছি ✓</button></div>
+    <div class="mfoot"><button class="btn btn-p" onclick="closeM('m-info')"><span class="svg-ico"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> বুঝেছি</button></div>
   </div>
 </div>
 
 <div class="mbg" id="m-admin">
   <div class="modal">
-    <div class="mhd"><span class="mtitle">👑 নতুন এডমিন যোগ</span><button class="mclose" onclick="closeM('m-admin')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--cyan);margin-right:8px"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span>নতুন এডমিন যোগ</span><button class="mclose" onclick="closeM('m-admin')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
       <div class="fg">
-        <label class="fl">🆔 Telegram Chat ID</label>
+        <label class="fl">Telegram Chat ID</label>
         <input class="fc" id="new-adm" type="tel" inputmode="numeric" placeholder="5991854507">
         <div class="fhint">বটের কাছে /id পাঠিয়ে Chat ID জানুন</div>
       </div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-admin')">বাতিল</button>
-      <button class="btn btn-p" onclick="addAdmin()">✅ এডমিন করুন</button>
+      <button class="btn btn-p" onclick="addAdmin()"><span class="svg-ico"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> এডমিন করুন</button>
     </div>
   </div>
 </div>
 
 <div class="mbg" id="m-fs">
   <div class="modal">
-    <div class="mhd"><span class="mtitle">🔒 Force Subscribe যোগ</span><button class="mclose" onclick="closeM('m-fs')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--accent2);margin-right:8px"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Force Subscribe যোগ</span><button class="mclose" onclick="closeM('m-fs')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
-      <div class="alert a-warn">⚠️ বটকে চ্যানেলের অ্যাডমিন করতে হবে।</div>
-      <div class="fg"><label class="fl">📝 চ্যানেল নাম</label><input class="fc" id="fs-nm" placeholder="আমার চ্যানেল"></div>
-      <div class="fg"><label class="fl">🆔 চ্যানেল ID</label><input class="fc" id="fs-id" type="tel" inputmode="numeric" placeholder="-100xxxxxxxxxx"><div class="fhint">Telegram চ্যানেলের numeric ID (মাইনাস সহ)</div></div>
-      <div class="fg"><label class="fl">🔗 Join লিংক</label><input class="fc" id="fs-url" type="url" inputmode="url" placeholder="https://t.me/mychannel"></div>
+      <div class="alert a-warn"><span class="svg-ico ico-md" style="margin-top:2px"><svg viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><div>বটকে চ্যানেলের অ্যাডমিন করতে হবে।</div></div>
+      <div class="fg"><label class="fl">চ্যানেল নাম</label><input class="fc" id="fs-nm" placeholder="আমার চ্যানেল"></div>
+      <div class="fg"><label class="fl">চ্যানেল ID</label><input class="fc" id="fs-id" type="tel" inputmode="numeric" placeholder="-100xxxxxxxxxx"><div class="fhint">Telegram চ্যানেলের numeric ID (মাইনাস সহ)</div></div>
+      <div class="fg"><label class="fl">Join লিংক</label><input class="fc" id="fs-url" type="url" inputmode="url" placeholder="https://t.me/mychannel"></div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-fs')">বাতিল</button>
-      <button class="btn btn-p" onclick="addFS()">✅ যোগ করুন</button>
+      <button class="btn btn-p" onclick="addFS()"><span class="svg-ico"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> যোগ করুন</button>
     </div>
   </div>
 </div>
 
 <div class="mbg" id="m-ch">
   <div class="modal">
-    <div class="mhd"><span class="mtitle">📡 নতুন চ্যানেল যোগ</span><button class="mclose" onclick="closeM('m-ch')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--accent2);margin-right:8px"><svg viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span>নতুন চ্যানেল যোগ</span><button class="mclose" onclick="closeM('m-ch')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
-      <div class="fg"><label class="fl">📝 চ্যানেল নাম</label><input class="fc" id="ch-nm" placeholder="আমার চ্যানেল"></div>
-      <div class="fg"><label class="fl">🆔 চ্যানেল ID</label><input class="fc" id="ch-id-input" placeholder="-100xxxxxxxxxx"></div>
+      <div class="fg"><label class="fl">চ্যানেল নাম</label><input class="fc" id="ch-nm" placeholder="আমার চ্যানেল"></div>
+      <div class="fg"><label class="fl">চ্যানেল ID</label><input class="fc" id="ch-id-input" placeholder="-100xxxxxxxxxx"></div>
       <div class="fg">
-        <label class="fl">📡 চ্যানেল টাইপ</label>
+        <label class="fl">চ্যানেল টাইপ</label>
         <select class="fc" id="ch-type">
           <option value="ad">📢 Ad Channel</option>
           <option value="premium">💎 Premium Channel</option>
@@ -631,33 +664,33 @@ select.fc{cursor:pointer}
         </select>
       </div>
       <div class="fg">
-        <label class="fl">🌐 ভাষা (Language)</label>
+        <label class="fl">ভাষা (Language)</label>
         <select class="fc" id="ch-lang">
-          <option value="en" selected>🇬🇧 English (ডিফল্ট)</option>
-          <option value="bn">🇧🇩 বাংলা (Bengali)</option>
-          <option value="hi">🇮🇳 हिंदी (Hindi)</option>
+          <option value="en" selected>English (ডিফল্ট)</option>
+          <option value="bn">বাংলা (Bengali)</option>
+          <option value="hi">हिंदी (Hindi)</option>
         </select>
         <div class="fhint">এই চ্যানেলে যে ভাষায় পোস্ট ও বাটন তৈরি হবে।</div>
       </div>
-      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ১ লিংক (Tutorial 1 - ঐচ্ছিক)</label><input class="fc" id="ch-tut1" placeholder="https://t.me/tutorial/123"></div>
-      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ২ লিংক (Tutorial 2 - ঐচ্ছিক)</label><input class="fc" id="ch-tut2" placeholder="https://t.me/tutorial/456"></div>
+      <div class="fg"><label class="fl">দেখার নিয়ম ১ লিংক (Tutorial 1 - ঐচ্ছিক)</label><input class="fc" id="ch-tut1" placeholder="https://t.me/tutorial/123"></div>
+      <div class="fg"><label class="fl">দেখার নিয়ম ২ লিংক (Tutorial 2 - ঐচ্ছিক)</label><input class="fc" id="ch-tut2" placeholder="https://t.me/tutorial/456"></div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-ch')">বাতিল</button>
-      <button class="btn btn-p" onclick="addCh()">✅ যোগ করুন</button>
+      <button class="btn btn-p" onclick="addCh()"><span class="svg-ico"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> যোগ করুন</button>
     </div>
   </div>
 </div>
 
 <div class="mbg" id="m-edit-ch">
   <div class="modal">
-    <div class="mhd"><span class="mtitle">⚙️ চ্যানেল সেটিংস</span><button class="mclose" onclick="closeM('m-edit-ch')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--accent2);margin-right:8px"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>চ্যানেল সেটিংস</span><button class="mclose" onclick="closeM('m-edit-ch')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
       <input type="hidden" id="ech-id">
-      <div class="fg"><label class="fl">📝 চ্যানেল নাম</label><input class="fc" id="ech-nm"></div>
-      <div class="fg"><label class="fl">🆔 চ্যানেল ID</label><input class="fc" id="ech-channel-id"></div>
+      <div class="fg"><label class="fl">চ্যানেল নাম</label><input class="fc" id="ech-nm"></div>
+      <div class="fg"><label class="fl">চ্যানেল ID</label><input class="fc" id="ech-channel-id"></div>
       <div class="fg">
-        <label class="fl">📡 চ্যানেল টাইপ</label>
+        <label class="fl">চ্যানেল টাইপ</label>
         <select class="fc" id="ech-type">
           <option value="ad">📢 Ad Channel</option>
           <option value="premium">💎 Premium Channel</option>
@@ -665,123 +698,123 @@ select.fc{cursor:pointer}
         </select>
       </div>
       <div class="fg">
-        <label class="fl">🌐 ভাষা (Language)</label>
+        <label class="fl">ভাষা (Language)</label>
         <select class="fc" id="ech-lang">
-          <option value="en">🇬🇧 English (ডিফল্ট)</option>
-          <option value="bn">🇧🇩 বাংলা (Bengali)</option>
-          <option value="hi">🇮🇳 हिंदी (Hindi)</option>
+          <option value="en">English (ডিফল্ট)</option>
+          <option value="bn">বাংলা (Bengali)</option>
+          <option value="hi">हिंदी (Hindi)</option>
         </select>
         <div class="fhint">এই চ্যানেলে যে ভাষায় পোস্ট ও বাটন তৈরি হবে।</div>
       </div>
-      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ১ লিংক (Tutorial URL 1)</label><input class="fc" id="ech-tut1" placeholder="https://t.me/tutorial/123"><div class="fhint">ডাউনলোড ১ এর পাশে যে দেখার নিয়ম বাটন থাকে।</div></div>
-      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ২ লিংক (Tutorial URL 2)</label><input class="fc" id="ech-tut2" placeholder="https://t.me/tutorial/456"><div class="fhint">ডাউনলোড ২ এর পাশে যে দেখার নিয়ম বাটন থাকে।</div></div>
+      <div class="fg"><label class="fl">দেখার নিয়ম ১ লিংক (Tutorial URL 1)</label><input class="fc" id="ech-tut1" placeholder="https://t.me/tutorial/123"><div class="fhint">ডাউনলোড ১ এর পাশে যে দেখার নিয়ম বাটন থাকে।</div></div>
+      <div class="fg"><label class="fl">দেখার নিয়ম ২ লিংক (Tutorial URL 2)</label><input class="fc" id="ech-tut2" placeholder="https://t.me/tutorial/456"><div class="fhint">ডাউনলোড ২ এর পাশে যে দেখার নিয়ম বাটন থাকে।</div></div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-edit-ch')">বাতিল</button>
-      <button class="btn btn-p" onclick="saveEditCh()">💾 সেভ করুন</button>
+      <button class="btn btn-p" onclick="saveEditCh()"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span> সেভ করুন</button>
     </div>
   </div>
 </div>
 
 <div class="mbg" id="m-cat">
   <div class="modal">
-    <div class="mhd"><span class="mtitle">📂 নতুন ক্যাটাগরি তৈরি</span><button class="mclose" onclick="closeM('m-cat')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--accent2);margin-right:8px"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>নতুন ক্যাটাগরি তৈরি</span><button class="mclose" onclick="closeM('m-cat')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
-      <div class="fg"><label class="fl">📝 ক্যাটাগরি নাম</label><input class="fc" id="cat-nm" placeholder="যেমন: বাংলাদেশ, ইন্ডিয়া, English"></div>
+      <div class="fg"><label class="fl">ক্যাটাগরি নাম</label><input class="fc" id="cat-nm" placeholder="যেমন: বাংলাদেশ, ইন্ডিয়া, English"></div>
       <div class="fg">
-        <label class="fl">🌐 ভাষা (Language)</label>
+        <label class="fl">ভাষা (Language)</label>
         <select class="fc" id="cat-lang">
-          <option value="en" selected>🇬🇧 English (ডিফল্ট)</option>
-          <option value="bn">🇧🇩 বাংলা (Bengali)</option>
-          <option value="hi">🇮🇳 हिंदी (Hindi)</option>
+          <option value="en" selected>English (ডিফল্ট)</option>
+          <option value="bn">বাংলা (Bengali)</option>
+          <option value="hi">हिंदी (Hindi)</option>
         </select>
         <div class="fhint">এই ক্যাটাগরির সমস্ত চ্যানেলে যে ভাষায় পোস্ট ও বাটন তৈরি হবে।</div>
       </div>
-      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ১ লিংক (Tutorial 1 - ঐচ্ছিক)</label><input class="fc" id="cat-tut1" placeholder="https://t.me/tutorial/123"></div>
-      <div class="fg"><label class="fl">🎬 দেখার নিয়ম ২ লিংক (Tutorial 2 - ঐচ্ছিক)</label><input class="fc" id="cat-tut2" placeholder="https://t.me/tutorial/456"></div>
+      <div class="fg"><label class="fl">দেখার নিয়ম ১ লিংক (Tutorial 1 - ঐচ্ছিক)</label><input class="fc" id="cat-tut1" placeholder="https://t.me/tutorial/123"></div>
+      <div class="fg"><label class="fl">দেখার নিয়ম ২ লিংক (Tutorial 2 - ঐচ্ছিক)</label><input class="fc" id="cat-tut2" placeholder="https://t.me/tutorial/456"></div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-cat')">বাতিল</button>
-      <button class="btn btn-p" onclick="addCat()">✅ তৈরি করুন</button>
+      <button class="btn btn-p" onclick="addCat()"><span class="svg-ico"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> তৈরি করুন</button>
     </div>
   </div>
 </div>
 
 <div class="mbg" id="m-edit-cat">
   <div class="modal" style="max-width:550px;">
-    <div class="mhd"><span class="mtitle">⚙️ ক্যাটাগরি সেটিংস</span><button class="mclose" onclick="closeM('m-edit-cat')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--accent2);margin-right:8px"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>ক্যাটাগরি সেটিংস</span><button class="mclose" onclick="closeM('m-edit-cat')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
       <input type="hidden" id="ecat-id">
-      <div class="fg"><label class="fl">📝 ক্যাটাগরি নাম</label><input class="fc" id="ecat-nm"></div>
+      <div class="fg"><label class="fl">ক্যাটাগরি নাম</label><input class="fc" id="ecat-nm"></div>
       
       <div style="background:var(--bg3);border-radius:8px;padding:12px;margin:10px 0;">
-        <div style="font-weight:600;margin-bottom:8px;color:var(--p2);">🇧🇩 বাংলা দেখার নিয়ম লিংক</div>
-        <div class="fg"><label class="fl">🎬 বাংলা দেখার নিয়ম ১ লিংক</label><input class="fc" id="ecat-tut1-bn" placeholder="https://t.me/tutorial/bn1"></div>
-        <div class="fg"><label class="fl">🎬 বাংলা দেখার নিয়ম ২ লিংক</label><input class="fc" id="ecat-tut2-bn" placeholder="https://t.me/tutorial/bn2"></div>
+        <div style="font-weight:600;margin-bottom:8px;color:var(--accent2);display:flex;align-items:center;gap:6px"><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span> বাংলা দেখার নিয়ম লিংক</div>
+        <div class="fg"><label class="fl">বাংলা দেখার নিয়ম ১ লিংক</label><input class="fc" id="ecat-tut1-bn" placeholder="https://t.me/tutorial/bn1"></div>
+        <div class="fg"><label class="fl">বাংলা দেখার নিয়ম ২ লিংক</label><input class="fc" id="ecat-tut2-bn" placeholder="https://t.me/tutorial/bn2"></div>
       </div>
 
       <div style="background:var(--bg3);border-radius:8px;padding:12px;margin:10px 0;">
-        <div style="font-weight:600;margin-bottom:8px;color:var(--p2);">🇮🇳 हिंदी দেখার নিয়ম লিংক</div>
-        <div class="fg"><label class="fl">🎬 হিন্দি দেখার নিয়ম ১ লিংক</label><input class="fc" id="ecat-tut1-hi" placeholder="https://t.me/tutorial/hi1"></div>
-        <div class="fg"><label class="fl">🎬 হিন্দি দেখার নিয়ম ২ লিংক</label><input class="fc" id="ecat-tut2-hi" placeholder="https://t.me/tutorial/hi2"></div>
+        <div style="font-weight:600;margin-bottom:8px;color:var(--accent2);display:flex;align-items:center;gap:6px"><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span> हिंदी দেখার নিয়ম লিংক</div>
+        <div class="fg"><label class="fl">হিন্দি দেখার নিয়ম ১ লিংক</label><input class="fc" id="ecat-tut1-hi" placeholder="https://t.me/tutorial/hi1"></div>
+        <div class="fg"><label class="fl">হিন্দি দেখার নিয়ম ২ লিংক</label><input class="fc" id="ecat-tut2-hi" placeholder="https://t.me/tutorial/hi2"></div>
       </div>
 
       <div style="background:var(--bg3);border-radius:8px;padding:12px;margin:10px 0;">
-        <div style="font-weight:600;margin-bottom:8px;color:var(--p2);">🇬🇧 English দেখার নিয়ম লিংক</div>
-        <div class="fg"><label class="fl">🎬 ইংলিশ দেখার নিয়ম ১ লিংক</label><input class="fc" id="ecat-tut1-en" placeholder="https://t.me/tutorial/en1"></div>
-        <div class="fg"><label class="fl">🎬 ইংলিশ দেখার নিয়ম ২ লিংক</label><input class="fc" id="ecat-tut2-en" placeholder="https://t.me/tutorial/en2"></div>
+        <div style="font-weight:600;margin-bottom:8px;color:var(--accent2);display:flex;align-items:center;gap:6px"><span class="svg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span> English দেখার নিয়ম লিংক</div>
+        <div class="fg"><label class="fl">ইংলিশ দেখার নিয়ম ১ লিংক</label><input class="fc" id="ecat-tut1-en" placeholder="https://t.me/tutorial/en1"></div>
+        <div class="fg"><label class="fl">ইংলিশ দেখার নিয়ম ২ লিংক</label><input class="fc" id="ecat-tut2-en" placeholder="https://t.me/tutorial/en2"></div>
       </div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-edit-cat')">বাতিল</button>
-      <button class="btn btn-p" onclick="saveEditCat()">💾 সেভ করুন</button>
+      <button class="btn btn-p" onclick="saveEditCat()"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span> সেভ করুন</button>
     </div>
   </div>
 </div>
 
 <div class="mbg" id="m-cat-channels">
   <div class="modal">
-    <div class="mhd"><span class="mtitle">🔗 ক্যাটাগরিতে চ্যানেল লিংক করুন</span><button class="mclose" onclick="closeM('m-cat-channels')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--accent2);margin-right:8px"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>ক্যাটাগরিতে চ্যানেল লিংক করুন</span><button class="mclose" onclick="closeM('m-cat-channels')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
       <input type="hidden" id="active-cat-id">
-      <div class="alert a-info">এই ক্যাটাগরিতে যে চ্যানেলগুলোতে পোস্ট করতে চান সেগুলো সিলেক্ট করুন।</div>
+      <div class="alert a-info"><span class="svg-ico ico-md" style="margin-top:2px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span><div>এই ক্যাটাগরিতে যে চ্যানেলগুলোতে পোস্ট করতে চান সেগুলো সিলেক্ট করুন।</div></div>
       <div id="cat-ch-checkboxes" style="display:flex;flex-direction:column;gap:10px;max-height:300px;overflow-y:auto;padding:5px 0;">
         <!-- checkboxes populated by JS -->
       </div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-cat-channels')">বাতিল</button>
-      <button class="btn btn-p" onclick="saveCatChannels()">💾 সেভ করুন</button>
+      <button class="btn btn-p" onclick="saveCatChannels()"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span> সেভ করুন</button>
     </div>
   </div>
 </div>
 
 <div class="mbg" id="m-edit-sched">
   <div class="modal">
-    <div class="mhd"><span class="mtitle">📅 সিডিউল সময় পরিবর্তন</span><button class="mclose" onclick="closeM('m-edit-sched')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--accent2);margin-right:8px"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>সিডিউল সময় পরিবর্তন</span><button class="mclose" onclick="closeM('m-edit-sched')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
       <input type="hidden" id="edit-sched-id">
       <div class="fg">
-        <label class="fl">⏰ নতুন সময় (বাংলাদেশ সময় UTC+6)</label>
+        <label class="fl">নতুন সময় (বাংলাদেশ সময় UTC+6)</label>
         <input class="fc" id="new-sched-time" type="datetime-local">
         <div class="fhint">সময় নির্বাচন করুন এবং সেভ করুন।</div>
       </div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-edit-sched')">বাতিল</button>
-      <button class="btn btn-p" onclick="saveSchedTime()">💾 সেভ করুন</button>
+      <button class="btn btn-p" onclick="saveSchedTime()"><span class="svg-ico"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span> সেভ করুন</button>
     </div>
   </div>
 </div>
 
 <div class="mbg" id="m-bulk-interval">
   <div class="modal">
-    <div class="mhd"><span class="mtitle">⚡ বাল্ক ইনটারভাল সিডিউলিং</span><button class="mclose" onclick="closeM('m-bulk-interval')">✕</button></div>
+    <div class="mhd"><span class="mtitle" style="display:flex;align-items:center;"><span class="svg-ico" style="color:var(--yellow);margin-right:8px"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>বাল্ক ইনটারভাল সিডিউলিং</span><button class="mclose" onclick="closeM('m-bulk-interval')"><span class="svg-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button></div>
     <div class="mbody">
-      <div class="alert a-info">সিলেক্টেড পেন্ডিং পোস্টগুলোতে প্রতি নির্দিষ্ট সময় পর পর অটোমেটিক সময় সেট হয়ে যাবে।</div>
+      <div class="alert a-info"><span class="svg-ico ico-md" style="margin-top:2px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span><div>সিলেক্টেড পেন্ডিং পোস্টগুলোতে প্রতি নির্দিষ্ট সময় পর পর অটোমেটিক সময় সেট হয়ে যাবে।</div></div>
       
       <div class="fg">
-        <label class="fl">📌 শুরু করার সময় (বাংলাদেশ সময় UTC+6)</label>
+        <label class="fl">শুরু করার সময় (বাংলাদেশ সময় UTC+6)</label>
         <select class="fc" id="bulk-start-type" onchange="toggleBulkStartInput(this.value)">
           <option value="now">⚡ এখনই শুরু করুন (Start Now)</option>
           <option value="custom">📅 নির্দিষ্ট সময় থেকে শুরু (Custom Time)</option>
@@ -789,12 +822,12 @@ select.fc{cursor:pointer}
       </div>
 
       <div class="fg" id="bulk-start-custom-wrap" style="display:none">
-        <label class="fl">⏰ প্রথম পোস্টের তারিখ ও সময়</label>
+        <label class="fl">প্রথম পোস্টের তারিখ ও সময়</label>
         <input class="fc" id="bulk-start-time" type="datetime-local">
       </div>
 
       <div class="fg">
-        <label class="fl">⏳ সময় বিরতি (Interval Gap)</label>
+        <label class="fl">সময় বিরতি (Interval Gap)</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
           <button type="button" class="btn btn-g btn-sm" onclick="setBulkIntervalValue(60)">১ ঘণ্টা</button>
           <button type="button" class="btn btn-g btn-sm" onclick="setBulkIntervalValue(120)">২ ঘণ্টা</button>
@@ -813,12 +846,12 @@ select.fc{cursor:pointer}
       </div>
 
       <div class="alert a-warn" id="bulk-preview-txt">
-        📋 <b>প্রিভিউ:</b> মোট 0টি পোস্টে ৬ ঘণ্টা পর পর সময় সেট করা হবে।
+        <span class="svg-ico ico-md" style="margin-top:2px"><svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></span><div><b>প্রিভিউ:</b> মোট 0টি পোস্টে ৬ ঘণ্টা পর পর সময় সেট করা হবে।</div>
       </div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" onclick="closeM('m-bulk-interval')">বাতিল</button>
-      <button class="btn btn-p" onclick="applyBulkInterval()">⚡ সিডিউল কার্যকর করুন</button>
+      <button class="btn btn-p" onclick="applyBulkInterval()"><span class="svg-ico"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> সিডিউল কার্যকর করুন</button>
     </div>
   </div>
 </div>
@@ -829,6 +862,54 @@ select.fc{cursor:pointer}
 // ══════════ CONFIG ══════════
 let CFG={}, D={scheduled:[],categories:[],channels:[],admins:[],users:[],files:[]};
 let currentFilter='all';
+
+// ══════════ SVG ICONS ══════════
+const ICONS = {
+  dashboard: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  hourglass: '<svg viewBox="0 0 24 24"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>',
+  folder: '<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+  channel: '<svg viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>',
+  crown: '<svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>',
+  star: '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  users: '<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  user: '<svg viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  files: '<svg viewBox="0 0 24 24"><path d="M15.5 2H8.6c-.4 0-.8.2-1.1.5-.3.3-.5.7-.5 1.1v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8c.4 0 .8-.2 1.1-.5.3-.3.5-.7.5-1.1V6.5L15.5 2z"/><path d="M3 7.6v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8"/><polyline points="15 2 15 7 20 7"/></svg>',
+  file: '<svg viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  video: '<svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>',
+  image: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+  music: '<svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  lock: '<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
+  rocket: '<svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+  'check-circle': '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+  'x-circle': '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+  'alert-triangle': '<svg viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+  link: '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+  upload: '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+  download: '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  ban: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
+  diamond: '<svg viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 13L2 9z"/></svg>',
+  clipboard: '<svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
+  megaphone: '<svg viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  inbox: '<svg viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>',
+  globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  tag: '<svg viewBox="0 0 24 24"><path d="m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+  zap: '<svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+};
+
+function ico(name, extraClass='', size=''){
+  const svg = ICONS[name] || ICONS['file'];
+  const style = size ? `style="font-size:${size}px;"` : '';
+  return `<span class="svg-ico ${extraClass}" ${style}>${svg}</span>`;
+}
 
 /* ═══════ SAFE FETCH (works in ALL browsers) ═══════ */
 function safeFetch(url, opts, timeoutMs){
@@ -933,7 +1014,7 @@ function autoLoad(){
   if(sk) sk.value = CFG.key || '';
   if(sa) sa.value = CFG.admin || '';
   if(suu) suu.value = CFG.user || '';
-  toast('✅ আগের কনফিগ লোড হয়েছে','success');
+  toast('আগের কনফিগ লোড হয়েছে','success');
 }
 
 /* ═══════ SETUP (manual login button) ═══════ */
@@ -953,12 +1034,12 @@ async function doSetup(){
   var user = userInput ? userInput.value.trim() : '';
 
   if(!key){
-    showSS('❌ Secret Key দিন!','s-err');
+    showSS(ico('x-circle','ico-xs') + ' Secret Key দিন!','s-err');
     return;
   }
 
-  if(btn){ btn.disabled=true; btn.textContent='⏳ পরীক্ষা হচ্ছে…'; }
-  showSS('⏳ বটের সাথে যোগাযোগ করা হচ্ছে…','s-load');
+  if(btn){ btn.disabled=true; btn.innerHTML=ico('clock','ico-xs') + ' পরীক্ষা হচ্ছে…'; }
+  showSS(ico('clock','ico-xs') + ' বটের সাথে যোগাযোগ করা হচ্ছে…','s-load');
 
   try{
     var r2 = await safeFetch(url + '/api/stats', {
@@ -967,24 +1048,24 @@ async function doSetup(){
     }, 20000);
 
     if(r2.status === 401){
-      showSS('❌ Secret Key ভুল! Render → Environment → PANEL_SECRET চেক করুন।','s-err');
-      if(btn){ btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন'; }
+      showSS(ico('x-circle','ico-xs') + ' Secret Key ভুল! Render → Environment → PANEL_SECRET চেক করুন।','s-err');
+      if(btn){ btn.disabled=false; btn.innerHTML=ico('zap','ico-xs') + ' সংযোগ করুন ও প্যানেল খুলুন'; }
       return;
     }
     if(!r2.ok){
-      showSS('❌ সার্ভার এরর: HTTP '+r2.status+'. কিছুক্ষণ পরে চেষ্টা করুন।','s-err');
-      if(btn){ btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন'; }
+      showSS(ico('x-circle','ico-xs') + ' সার্ভার এরর: HTTP '+r2.status+'. কিছুক্ষণ পরে চেষ্টা করুন।','s-err');
+      if(btn){ btn.disabled=false; btn.innerHTML=ico('zap','ico-xs') + ' সংযোগ করুন ও প্যানেল খুলুন'; }
       return;
     }
 
     // Success!
     CFG = {url: url, key: key, admin: admin, user: user};
     saveCFG();
-    showSS('✅ সফল! প্যানেল খুলছে…','s-ok');
+    showSS(ico('check-circle','ico-xs') + ' সফল! প্যানেল খুলছে…','s-ok');
 
     setTimeout(function(){
       hideSetup();
-      if(btn){ btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন'; }
+      if(btn){ btn.disabled=false; btn.innerHTML=ico('zap','ico-xs') + ' সংযোগ করুন ও প্যানেল খুলুন'; }
     }, 400);
 
   }catch(e){
@@ -997,14 +1078,14 @@ async function doSetup(){
     } else {
       msg = e.message || 'অজানা সমস্যা। কনসোল চেক করুন।';
     }
-    showSS('❌ ' + msg, 's-err');
-    if(btn){ btn.disabled=false; btn.textContent='🔌 সংযোগ করুন ও প্যানেল খুলুন'; }
+    showSS(ico('x-circle','ico-xs') + ' ' + msg, 's-err');
+    if(btn){ btn.disabled=false; btn.innerHTML=ico('zap','ico-xs') + ' সংযোগ করুন ও প্যানেল খুলুন'; }
   }
 }
 
 function showSS(msg,cls){
   var el = document.getElementById('setup-status');
-  if(el){ el.textContent=msg; el.className=cls; el.style.display='block'; }
+  if(el){ el.innerHTML=msg; el.className=cls; el.style.display='block'; }
 }
 function hideSetup(){
   var ss = document.getElementById('setup-screen');
@@ -1034,13 +1115,13 @@ async function api(path, method, body){
     if(body) opts.body = JSON.stringify(body);
 
     var r = await safeFetch(baseUrl + path, opts, 20000);
-    if(r.status === 401){ toast('❌ Auth Error — Secret Key ভুল?','danger'); return null; }
-    if(!r.ok){ toast('⚠️ API Error: '+r.status,'warn'); return null; }
+    if(r.status === 401){ toast('Auth Error — Secret Key ভুল?','danger'); return null; }
+    if(!r.ok){ toast('API Error: '+r.status,'warn'); return null; }
     return await r.json();
   }catch(e){
     console.error('API error ['+path+']:', e);
     if(e.message && e.message.indexOf('টাইমআউট') > -1){
-      toast('⚠️ সময় শেষ হয়ে গেছে','warn');
+      toast('সময় শেষ হয়ে গেছে','warn');
     }
     return null;
   }
@@ -1083,7 +1164,7 @@ function refresh(){
   const p=document.querySelector('.page.active');
   const id=p?.id?.replace('page-','');
   if(id) loadPage(id);
-  toast('🔄 রিফ্রেশ হচ্ছে…','info');
+  toast('রিফ্রেশ হচ্ছে…','info');
 }
 
 // ══════════ DRAWER ══════════
@@ -1099,7 +1180,7 @@ async function loadDash(){
     set('sv-ban',n(stats.total_banned));
     set('sv-active',n(stats.active_today)+' সক্রিয়');
     set('sv-ul',n(stats.ul_today)+' আপলোড');
-  }else toast('⚠️ স্ট্যাটস লোড হয়নি','warn');
+  }else toast('স্ট্যাটস লোড হয়নি','warn');
 
   if(scheds){
     D.scheduled=scheds;
@@ -1109,28 +1190,30 @@ async function loadDash(){
     const bnb=$('bn-badge');
     if(pend.length>0){bnb.textContent=pend.length;bnb.style.display='block'}else{bnb.style.display='none'}
     const ul=$('d-upcoming');
-    if(!pend.length){ul.innerHTML='<div class="empty"><span class="eico">📭</span><p>কোনো পেন্ডিং পোস্ট নেই</p></div>';}
+    if(!pend.length){ul.innerHTML='<div class="empty"><span class="eico">'+ico('inbox','ico-xl')+'</span><p>কোনো পেন্ডিং পোস্ট নেই</p></div>';}
     else ul.innerHTML=pend.slice(0,4).map(s=>`
       <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:24px">${mico(s.media_type)}</span>
+        <span class="sc-ico-wrap" style="width:36px;height:36px;flex-shrink:0;">${mico(s.media_type)}</span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:14px;font-weight:600">${s.category_id?'📂 ক্যাটাগরি':'🌐 সব চ্যানেল'}</div>
+          <div style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;">
+            ${s.category_id ? ico('folder', 'ico-xs') + ' ক্যাটাগরি' : ico('globe', 'ico-xs') + ' সব চ্যানেল'}
+          </div>
           <div style="font-size:12px;color:var(--text3);font-family:var(--mono);margin-top:2px">${ft(s.scheduled_at)}</div>
         </div>
-        <button class="btn btn-g btn-sm" onclick="editSchedTime('${s.sched_id}')" title="সময় সেট">✏️</button>
-        <button class="btn btn-p btn-sm" onclick="postNowSched('${s.sched_id}')" title="এখনই পোস্ট">🚀</button>
-        <button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')">🗑️</button>
+        <button class="btn btn-g btn-sm" onclick="editSchedTime('${s.sched_id}')" title="সময় সেট">${ico('edit', 'ico-xs')}</button>
+        <button class="btn btn-p btn-sm" onclick="postNowSched('${s.sched_id}')" title="এখনই পোস্ট">${ico('rocket', 'ico-xs')}</button>
+        <button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')" title="ডিলিট">${ico('trash', 'ico-xs')}</button>
       </div>`).join('');
   }
 
   if(chans){
     D.channels=chans;
     const el=$('d-channels');
-    if(!chans.length){el.innerHTML='<div class="empty"><span class="eico">📡</span><p>কোনো চ্যানেল নেই</p></div>';}
+    if(!chans.length){el.innerHTML='<div class="empty"><span class="eico">'+ico('channel','ico-xl')+'</span><p>কোনো চ্যানেল নেই</p></div>';}
     else el.innerHTML=`<div style="font-size:13px;color:var(--text2);margin-bottom:10px">সক্রিয়: <b style="color:var(--green)">${chans.filter(c=>c.status==='on').length}</b> / মোট: <b>${chans.length}</b></div>`+
       chans.slice(0,5).map(c=>`
         <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-          <span class="badge ${c.type==='premium'?'b-c':c.type==='log'?'b-p':'b-y'}">${c.type==='premium'?'💎':c.type==='log'?'📋':'📢'}</span>
+          <span class="badge ${c.type==='premium'?'b-c':c.type==='log'?'b-p':'b-y'}">${c.type==='premium'?ico('diamond','ico-xs'):c.type==='log'?ico('clipboard','ico-xs'):ico('megaphone','ico-xs')}</span>
           <span style="font-size:14px;flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</span>
           <span class="badge ${c.status==='on'?'b-g':'b-r'}">${c.status==='on'?'চালু':'বন্ধ'}</span>
         </div>`).join('');
@@ -1192,9 +1275,9 @@ function filterSched(f,el){
   const cont=$('sched-list');
   if(!items.length){
     let emptyMsg = 'কোনো সিডিউল পোস্ট নেই';
-    if(currentFilter === 'unscheduled') emptyMsg = '🎉 চমৎকার! কোনো পোস্টের টাইম সেট বাকি নেই';
-    else if(currentFilter === 'timed') emptyMsg = '⏰ কোনো টাইম সেট করা সিডিউল পোস্ট নেই';
-    cont.innerHTML=`<div class="empty"><span class="eico">⏰</span><p>${emptyMsg}</p></div>`;
+    if(currentFilter === 'unscheduled') emptyMsg = 'চমৎকার! কোনো পোস্টের টাইম সেট বাকি নেই';
+    else if(currentFilter === 'timed') emptyMsg = 'কোনো টাইম সেট করা সিডিউল পোস্ট নেই';
+    cont.innerHTML=`<div class="empty"><span class="eico">${ico('clock','ico-xl')}</span><p>${emptyMsg}</p></div>`;
     return;
   }
   
@@ -1202,7 +1285,7 @@ function filterSched(f,el){
     const isUnscheduled = !s.is_time_set || (s.scheduled_at && s.scheduled_at.startsWith('203'));
     const isPending = s.status === 'pending';
     const catObj = s.category_id ? D.categories.find(c => c.cat_id === s.category_id) : null;
-    const catName = catObj ? `📂 ${catObj.name}` : (s.category_id ? '📂 ক্যাটাগরি পোস্ট' : '🌐 সব চ্যানেল');
+    const catName = catObj ? `${ico('folder','ico-xs')} ${catObj.name}` : (s.category_id ? `${ico('folder','ico-xs')} ক্যাটাগরি পোস্ট` : `${ico('globe','ico-xs')} সব চ্যানেল`);
     const title = s.web_title || catName;
 
     return `
@@ -1215,22 +1298,22 @@ function filterSched(f,el){
         <div class="si-info">
           <div class="si-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <span>${title}</span>
-            ${isPending ? (isUnscheduled ? '<span class="badge b-y" style="font-size:10px;">⏳ টাইম সেট বাকি</span>' : '<span class="badge b-g" style="font-size:10px;">⏰ রেডি সিডিউল</span>') : ''}
+            ${isPending ? (isUnscheduled ? `<span class="badge b-y" style="font-size:10px;">${ico('hourglass','ico-xs')} টাইম সেট বাকি</span>` : `<span class="badge b-g" style="font-size:10px;">${ico('clock','ico-xs')} রেডি সিডিউল</span>`) : ''}
           </div>
           <div class="si-time" style="${isUnscheduled ? 'color:var(--warn);font-weight:600;' : ''}">
-            ${isUnscheduled ? '⏳ সময় নির্ধারণ বাকি (ড্রাফট কিউ)' : '⏰ ' + ft(s.scheduled_at)}
+            ${isUnscheduled ? ico('hourglass','ico-xs') + ' সময় নির্ধারণ বাকি (ড্রাফট কিউ)' : ico('clock','ico-xs') + ' ' + ft(s.scheduled_at)}
           </div>
         </div>
       </div>
       <div class="si-footer">
-        <span class="si-id">🆔 ${s.sched_id||'—'}</span>
+        <span class="si-id">${ico('tag','ico-xs')} ${s.sched_id||'—'}</span>
         <span class="badge ${sbadge(s.status)}">${slbl(s.status)}</span>
         ${isPending ? `
           <button class="btn ${isUnscheduled ? 'btn-p' : 'btn-g'} btn-sm" style="margin-left:auto" onclick="editSchedTime('${s.sched_id}')">
-            ${isUnscheduled ? '📅 টাইম সেট করুন' : '✏️ সময় পরিবর্তন'}
+            ${isUnscheduled ? ico('calendar','ico-xs') + ' টাইম সেট করুন' : ico('edit','ico-xs') + ' সময় পরিবর্তন'}
           </button>
-          <button class="btn btn-g btn-sm" onclick="postNowSched('${s.sched_id}')">🚀 এখনই পোস্ট</button>
-          <button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')">🗑️ ডিলিট</button>
+          <button class="btn btn-g btn-sm" onclick="postNowSched('${s.sched_id}')">${ico('rocket','ico-xs')} এখনই পোস্ট</button>
+          <button class="btn btn-d btn-sm" onclick="delSched('${s.sched_id}')">${ico('trash','ico-xs')} ডিলিট</button>
         `:''}
       </div>
     </div>`;
@@ -1273,7 +1356,7 @@ function openBulkIntervalModal() {
   const targetCount = selectedSchedIds.size > 0 ? selectedSchedIds.size : (currentFilter === 'unscheduled' ? unscheduled.length : allPending.length);
   
   if(!targetCount) {
-    toast('⚠️ কোনো পেন্ডিং সিডিউল পোস্ট নেই!', 'warn');
+    toast('কোনো পেন্ডিং সিডিউল পোস্ট নেই!', 'warn');
     return;
   }
   updateBulkPreview();
@@ -1308,7 +1391,7 @@ function updateBulkPreview() {
   
   const previewEl = document.getElementById('bulk-preview-txt');
   if(previewEl) {
-    previewEl.innerHTML = `📋 <b>প্রিভিউ:</b> মোট <b>${targetCount}টি</b> পোস্টে প্রতি <b>${val} ${unitText}</b> পর পর সময় সেট করা হবে।`;
+    previewEl.innerHTML = `${ico('clipboard','ico-xs')} <b>প্রিভিউ:</b> মোট <b>${targetCount}টি</b> পোস্টে প্রতি <b>${val} ${unitText}</b> পর পর সময় সেট করা হবে।`;
   }
 }
 
@@ -1323,7 +1406,7 @@ async function applyBulkInterval() {
   if(startType === 'custom') {
     const customVal = document.getElementById('bulk-start-time').value;
     if(!customVal) {
-      toast('⚠️ শুরু করার সময় নির্বাচন করুন', 'warn');
+      toast('শুরু করার সময় নির্বাচন করুন', 'warn');
       return;
     }
     startTimeStr = customVal.replace('T', ' ');
@@ -1333,7 +1416,7 @@ async function applyBulkInterval() {
   const unit = document.getElementById('bulk-interval-unit').value;
   const intervalMinutes = unit === 'hours' ? val * 60 : val;
   
-  toast('⏳ বাল্ক সিডিউল সেট করা হচ্ছে…', 'info');
+  toast('বাল্ক সিডিউল সেট করা হচ্ছে…', 'info');
   const r = await api('/api/scheduled/bulk_interval', 'POST', {
     sched_ids: targetIds,
     start_time: startTimeStr,
@@ -1348,21 +1431,21 @@ async function applyBulkInterval() {
     updateBulkCountLabel();
     filterSchedByTab('timed');
     loadSched();
-    toast(`✅ ${r.updated_count}টি সিডিউল পোস্টে সফলভাবে সময় সেট করা হয়েছে!`, 'success');
+    toast(`${r.updated_count}টি সিডিউল পোস্টে সফলভাবে সময় সেট করা হয়েছে!`, 'success');
   } else {
-    toast('❌ ' + (r?.error || 'বাল্ক সিডিউল সেট ব্যর্থ'), 'danger');
+    toast(r?.error || 'বাল্ক সিডিউল সেট ব্যর্থ', 'danger');
   }
 }
 
 async function bulkDeleteSched() {
   const targetIds = Array.from(selectedSchedIds);
   if(!targetIds.length) {
-    toast('⚠️ প্রথমে পোস্ট সিলেক্ট করুন!', 'warn');
+    toast('প্রথমে পোস্ট সিলেক্ট করুন!', 'warn');
     return;
   }
   if(!confirm(`সিলেক্টেড ${targetIds.length}টি সিডিউল পোস্ট মুছে ফেলতে চান?`)) return;
   
-  toast('⏳ ডিলিট করা হচ্ছে…', 'info');
+  toast('ডিলিট করা হচ্ছে…', 'info');
   const r = await api('/api/scheduled/bulk_delete', 'POST', { sched_ids: targetIds });
   if(r?.ok) {
     selectedSchedIds.clear();
@@ -1370,9 +1453,9 @@ async function bulkDeleteSched() {
     if(allChk) allChk.checked = false;
     updateBulkCountLabel();
     loadSched();
-    toast(`🗑️ ${r.deleted}টি সিডিউল পোস্ট মুছে ফেলা হয়েছে!`, 'danger');
+    toast(`${r.deleted}টি সিডিউল পোস্ট মুছে ফেলা হয়েছে!`, 'danger');
   } else {
-    toast('❌ ডিলিট ব্যর্থ', 'danger');
+    toast('ডিলিট ব্যর্থ', 'danger');
   }
 }
 async function delSched(id){
@@ -1382,17 +1465,17 @@ async function delSched(id){
     const p=D.scheduled.filter(x=>x.status==='pending').length;
     set('sb-badge',p);set('sb-badge-d',p);
     const bnb=$('bn-badge');if(p>0){bnb.textContent=p;bnb.style.display='block'}else bnb.style.display='none';
-    toast('🗑️ সিডিউল ডিলিট হয়েছে','danger');
-  }else toast('❌ ডিলিট ব্যর্থ','danger');
+    toast('সিডিউল ডিলিট হয়েছে','danger');
+  }else toast('ডিলিট ব্যর্থ','danger');
 }
 async function postNowSched(id){
   if(!confirm('এই সিডিউল পোস্টটি এখনই পোস্ট করতে চান?'))return;
-  toast('⏳ পোস্ট পাঠানো হচ্ছে…','info');
+  toast('পোস্ট পাঠানো হচ্ছে…','info');
   const r=await api('/api/scheduled/post_now/'+id,'POST');
   if(r?.ok){
-    toast('✅ সফলভাবে পোস্ট পাঠানো হয়েছে!','success');
+    toast('সফলভাবে পোস্ট পাঠানো হয়েছে!','success');
     loadSched();
-  }else toast('❌ '+(r?.error||'পোস্ট পাঠাতে ব্যর্থ'),'danger');
+  }else toast(r?.error||'পোস্ট পাঠাতে ব্যর্থ','danger');
 }
 function editSchedTime(id){
   const s = D.scheduled.find(x => x.sched_id === id);
@@ -1415,16 +1498,16 @@ function editSchedTime(id){
 async function saveSchedTime(){
   const id = $('edit-sched-id').value;
   const localTime = $('new-sched-time').value;
-  if(!localTime){toast('⚠️ সময় নির্বাচন করুন','warn');return}
+  if(!localTime){toast('সময় নির্বাচন করুন','warn');return}
   const formatted = localTime.replace('T', ' ');
   const r = await api('/api/scheduled/update_time/'+id, 'POST', {scheduled_at: formatted});
   if(r?.ok){
     closeM('m-edit-sched');
     filterSchedByTab('timed');
     loadSched();
-    toast('✅ সিডিউল সময় সফলভাবে সেট করা হয়েছে! এটি এখন "টাইম সেট করা" তালিকায় রয়েছে।','success');
+    toast('সিডিউল সময় সফলভাবে সেট করা হয়েছে! এটি এখন "টাইম সেট করা" তালিকায় রয়েছে।','success');
   } else {
-    toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+    toast(r?.error||'ব্যর্থ','danger');
   }
 }
 
@@ -1433,7 +1516,7 @@ async function loadCats(){
   const res=await api('/api/categories');
   if(res) D.categories=res;
   const el=$('cat-list');
-  if(!D.categories.length){el.innerHTML='<div class="empty"><span class="eico">📂</span><p>কোনো ক্যাটাগরি নেই<br>বটে /addcat দিয়ে তৈরি করুন</p></div>';return}
+  if(!D.categories.length){el.innerHTML='<div class="empty"><span class="eico">'+ico('folder','ico-xl')+'</span><p>কোনো ক্যাটাগরি নেই<br>বটে /addcat দিয়ে তৈরি করুন</p></div>';return}
   el.innerHTML=D.categories.map(c=>{
     const chs = c.channels || [];
     const bnCount = chs.filter(x => (x.lang||'en')==='bn').length;
@@ -1442,7 +1525,7 @@ async function loadCats(){
     return `
     <div class="list-card">
       <div class="list-card-row">
-        <div class="list-card-ico">📂</div>
+        <div class="list-card-ico">${ico('folder','ico-md')}</div>
         <div class="list-card-info">
           <div class="list-card-title">${c.name}</div>
           <div class="list-card-sub">মোট ${chs.length}টি চ্যানেল যুক্ত</div>
@@ -1460,9 +1543,9 @@ async function loadCats(){
         }).join('')}
       </div>
       <div class="list-card-actions">
-        <button class="btn btn-g btn-sm" onclick="openEditCat('${c.cat_id}')">⚙️ দেখার নিয়ম টিউটোরিয়াল</button>
-        <button class="btn btn-g btn-sm" onclick="manageCatChannels('${c.cat_id}')">🔗 চ্যানেল লিংক ও ভাষা</button>
-        <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="delCat('${c.cat_id}')">🗑️ মুছুন</button>
+        <button class="btn btn-g btn-sm" onclick="openEditCat('${c.cat_id}')">${ico('settings','ico-xs')} দেখার নিয়ম টিউটোরিয়াল</button>
+        <button class="btn btn-g btn-sm" onclick="manageCatChannels('${c.cat_id}')">${ico('link','ico-xs')} চ্যানেল লিংক ও ভাষা</button>
+        <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="delCat('${c.cat_id}')">${ico('trash','ico-xs')} মুছুন</button>
       </div>
     </div>`;
   }).join('');
@@ -1473,11 +1556,11 @@ async function loadChs(){
   const res=await api('/api/channels');
   if(res) D.channels=res;
   const el=$('ch-list');
-  if(!D.channels.length){el.innerHTML='<div class="empty"><span class="eico">📡</span><p>কোনো চ্যানেল নেই</p></div>';return}
+  if(!D.channels.length){el.innerHTML='<div class="empty"><span class="eico">'+ico('channel','ico-xl')+'</span><p>কোনো চ্যানেল নেই</p></div>';return}
   el.innerHTML=D.channels.map(c=>`
     <div class="list-card">
       <div class="list-card-row">
-        <div class="list-card-ico">${c.type==='premium'?'💎':c.type==='log'?'📋':'📢'}</div>
+        <div class="list-card-ico">${c.type==='premium'?ico('diamond','ico-md'):c.type==='log'?ico('clipboard','ico-md'):ico('megaphone','ico-md')}</div>
         <div class="list-card-info">
           <div class="list-card-title">${c.name}</div>
           <div class="list-card-sub">${c.channel_id}</div>
@@ -1486,14 +1569,14 @@ async function loadChs(){
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;">
         <span class="badge b-p">${c.lang==='bn'?'🇧🇩 বাংলা':c.lang==='hi'?'🇮🇳 हिंदी':'🇬🇧 English'}</span>
-        ${c.tutorial_url_1?'<span class="badge b-c" title="'+c.tutorial_url_1+'">🎬 Tut 1 ✓</span>':''}
-        ${c.tutorial_url_2?'<span class="badge b-c" title="'+c.tutorial_url_2+'">🎬 Tut 2 ✓</span>':''}
+        ${c.tutorial_url_1?`<span class="badge b-c" title="${c.tutorial_url_1}">${ico('video','ico-xs')} Tut 1 ✓</span>`:''}
+        ${c.tutorial_url_2?`<span class="badge b-c" title="${c.tutorial_url_2}">${ico('video','ico-xs')} Tut 2 ✓</span>`:''}
       </div>
       <div class="list-card-actions">
-        <span class="badge ${c.type==='premium'?'b-c':c.type==='log'?'b-p':'b-y'}">${c.type==='premium'?'💎 Premium':c.type==='log'?'📋 Log':'📢 Ad'}</span>
+        <span class="badge ${c.type==='premium'?'b-c':c.type==='log'?'b-p':'b-y'}">${c.type==='premium'?ico('diamond','ico-xs')+' Premium':c.type==='log'?ico('clipboard','ico-xs')+' Log':ico('megaphone','ico-xs')+' Ad'}</span>
         <div style="margin-left:auto;display:flex;gap:6px;">
-          <button class="btn btn-g btn-sm" onclick="openEditCh('${c.ch_id}')">⚙️ সেটিংস</button>
-          <button class="btn btn-d btn-sm" onclick="delCh('${c.ch_id}')">🗑️ সরান</button>
+          <button class="btn btn-g btn-sm" onclick="openEditCh('${c.ch_id}')">${ico('settings','ico-xs')} সেটিংস</button>
+          <button class="btn btn-d btn-sm" onclick="delCh('${c.ch_id}')">${ico('trash','ico-xs')} সরান</button>
         </div>
       </div>
     </div>`).join('');
@@ -1501,8 +1584,8 @@ async function loadChs(){
 async function delCh(id){
   if(!confirm('চ্যানেলটি সরাবেন?'))return;
   const r=await api('/api/channels/delete/'+id,'DELETE');
-  if(r?.ok){D.channels=D.channels.filter(x=>x.ch_id!==id);loadChs();toast('✅ চ্যানেল সরানো হয়েছে','success')}
-  else toast('❌ ব্যর্থ','danger');
+  if(r?.ok){D.channels=D.channels.filter(x=>x.ch_id!==id);loadChs();toast('চ্যানেল সরানো হয়েছে','success')}
+  else toast('ব্যর্থ','danger');
 }
 
 // ══════════ ADMINS ══════════
@@ -1510,32 +1593,32 @@ async function loadAdms(){
   const res=await api('/api/admins');
   if(res) D.admins=res;
   const el=$('adm-list');
-  if(!D.admins.length){el.innerHTML='<div class="empty"><span class="eico">👑</span><p>কোনো এডমিন নেই</p></div>';return}
+  if(!D.admins.length){el.innerHTML='<div class="empty"><span class="eico">'+ico('crown','ico-xl')+'</span><p>কোনো এডমিন নেই</p></div>';return}
   el.innerHTML=D.admins.map(a=>`
     <div class="list-card">
       <div class="list-card-row">
-        <div class="list-card-ico">${a.role==='super_admin'?'⭐':'👑'}</div>
+        <div class="list-card-ico">${a.role==='super_admin'?ico('star','ico-md'):ico('crown','ico-md')}</div>
         <div class="list-card-info">
           <div class="list-card-title"><span class="code">${a.chat_id}</span></div>
           <div class="list-card-sub">${fd(a.added_at)}</div>
         </div>
         <span class="badge ${a.role==='super_admin'?'b-c':'b-p'}">${a.role==='super_admin'?'Super':'Admin'}</span>
       </div>
-      ${a.role==='super_admin'?'':'<button class="btn btn-d btn-sm" onclick="delAdm(\''+a.chat_id+'\')">🗑️ এডমিন থেকে সরান</button>'}
+      ${a.role==='super_admin'?'':'<button class="btn btn-d btn-sm" onclick="delAdm(\''+a.chat_id+'\')">'+ico('trash','ico-xs')+' এডমিন থেকে সরান</button>'}
     </div>`).join('');
 }
 async function addAdmin(){
   const id=$('new-adm').value.trim();
-  if(!id){toast('⚠️ Chat ID দিন','warn');return}
+  if(!id){toast('Chat ID দিন','warn');return}
   const r=await api('/api/admins/add','POST',{chat_id:id});
-  if(r?.ok){closeM('m-admin');loadAdms();toast('✅ এডমিন যোগ হয়েছে','success')}
-  else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+  if(r?.ok){closeM('m-admin');loadAdms();toast('এডমিন যোগ হয়েছে','success')}
+  else toast(r?.error||'ব্যর্থ','danger');
 }
 async function delAdm(id){
   if(!confirm('এই এডমিনকে সরাবেন?'))return;
   const r=await api('/api/admins/delete/'+id,'DELETE');
-  if(r?.ok){loadAdms();toast('✅ এডমিন সরানো হয়েছে','success')}
-  else toast('❌ ব্যর্থ','danger');
+  if(r?.ok){loadAdms();toast('এডমিন সরানো হয়েছে','success')}
+  else toast('ব্যর্থ','danger');
 }
 
 // ══════════ USERS ══════════
@@ -1543,20 +1626,20 @@ async function loadUsers(q=''){
   const res=await api('/api/users?limit=50&q='+encodeURIComponent(q));
   if(res) D.users=res;
   const el=$('usr-list');
-  if(!D.users.length){el.innerHTML='<div class="empty"><span class="eico">👥</span><p>কোনো ইউজার পাওয়া যায়নি</p></div>';return}
+  if(!D.users.length){el.innerHTML='<div class="empty"><span class="eico">'+ico('users','ico-xl')+'</span><p>কোনো ইউজার পাওয়া যায়নি</p></div>';return}
   el.innerHTML=D.users.map(u=>`
     <div class="list-card">
       <div class="list-card-row">
-        <div class="list-card-ico">👤</div>
+        <div class="list-card-ico">${ico('user','ico-md')}</div>
         <div class="list-card-info">
           <div class="list-card-title"><span class="code">${u.chat_id}</span></div>
           <div class="list-card-sub">যোগ: ${fd(u.joined_at)} • শেষ: ${fd(u.last_active)}</div>
         </div>
       </div>
       <div class="list-card-actions">
-        <span class="badge b-p">⬆️ ${u.total_uploads||0}</span>
-        <span class="badge b-c">⬇️ ${u.total_downloads||0}</span>
-        <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="banU('${u.chat_id}')">🚫 ব্যান</button>
+        <span class="badge b-p">${ico('upload','ico-xs')} ${u.total_uploads||0}</span>
+        <span class="badge b-c">${ico('download','ico-xs')} ${u.total_downloads||0}</span>
+        <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="banU('${u.chat_id}')">${ico('ban','ico-xs')} ব্যান</button>
       </div>
     </div>`).join('');
 }
@@ -1565,8 +1648,8 @@ function searchU(q){clearTimeout(uTimer);uTimer=setTimeout(()=>loadUsers(q),400)
 async function banU(id){
   if(!confirm(id+' কে ব্যান করবেন?'))return;
   const r=await api('/api/users/ban','POST',{chat_id:id});
-  if(r?.ok) toast('✅ ব্যান হয়েছে','success');
-  else toast('❌ ব্যর্থ','danger');
+  if(r?.ok) toast('ব্যান হয়েছে','success');
+  else toast('ব্যর্থ','danger');
 }
 
 // ══════════ FILES ══════════
@@ -1574,7 +1657,7 @@ async function loadFiles(q=''){
   const res=await api('/api/files?limit=50&q='+encodeURIComponent(q));
   if(res) D.files=res;
   const el=$('file-list');
-  if(!D.files.length){el.innerHTML='<div class="empty"><span class="eico">🗂️</span><p>কোনো ফাইল নেই</p></div>';return}
+  if(!D.files.length){el.innerHTML='<div class="empty"><span class="eico">'+ico('files','ico-xl')+'</span><p>কোনো ফাইল নেই</p></div>';return}
   el.innerHTML=D.files.map(f=>`
     <div class="list-card">
       <div class="list-card-row">
@@ -1585,8 +1668,8 @@ async function loadFiles(q=''){
         </div>
       </div>
       <div class="list-card-actions">
-        <a href="https://t.me/${CFG.user||'Bot'}?start=${f.file_key}" target="_blank" class="btn btn-g btn-sm">🔗 লিংক খুলুন</a>
-        <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="delFile('${f.file_key}')">🗑️ ডিলিট</button>
+        <a href="https://t.me/${CFG.user||'Bot'}?start=${f.file_key}" target="_blank" class="btn btn-g btn-sm">${ico('link','ico-xs')} লিংক খুলুন</a>
+        <button class="btn btn-d btn-sm" style="margin-left:auto" onclick="delFile('${f.file_key}')">${ico('trash','ico-xs')} ডিলিট</button>
       </div>
     </div>`).join('');
 }
@@ -1596,24 +1679,24 @@ function searchF(q){clearTimeout(fTimer);fTimer=setTimeout(()=>loadFiles(q),400)
 // ══════════ SETTINGS ══════════
 async function loadSets(){
   const res=await api('/api/settings');
-  if(!res){toast('⚠️ সেটিংস লোড হয়নি','warn');return}
+  if(!res){toast('সেটিংস লোড হয়নি','warn');return}
   const m={protect_content:'t-protect',short_link_on:'t-sl',force_sub_on:'t-fs',btn_download:'t-dl',btn_download_1:'t-dl1',btn_download_2:'t-dl2',btn_share:'t-sh',btn_tutorial:'t-tut'};
   Object.entries(m).forEach(([k,id])=>{const el=document.getElementById(id);if(el)el.checked=!!res[k]});
 }
 async function saveSetting(key,val){
   const r=await api('/api/settings','POST',{key,value:val});
-  toast(r?.ok?'✅ সেটিং সেভ হয়েছে':'❌ সেভ ব্যর্থ',r?.ok?'success':'danger');
+  toast(r?.ok?'সেটিং সেভ হয়েছে':'সেভ ব্যর্থ',r?.ok?'success':'danger');
 }
 
 // ══════════ FORCE SUB ══════════
 async function loadFS(){
   const res=await api('/api/forcesub');
   const el=$('fs-list');
-  if(!res||!res.length){el.innerHTML='<div class="empty"><span class="eico">🔒</span><p>কোনো Force Subscribe চ্যানেল নেই</p></div>';return}
+  if(!res||!res.length){el.innerHTML='<div class="empty"><span class="eico">'+ico('lock','ico-xl')+'</span><p>কোনো Force Subscribe চ্যানেল নেই</p></div>';return}
   el.innerHTML=res.map(f=>`
     <div class="list-card">
       <div class="list-card-row">
-        <div class="list-card-ico">🔒</div>
+        <div class="list-card-ico">${ico('lock','ico-md')}</div>
         <div class="list-card-info">
           <div class="list-card-title">${f.name}</div>
           <div class="list-card-sub">${f.channel_id}</div>
@@ -1621,25 +1704,25 @@ async function loadFS(){
         <span class="badge ${f.status==='on'?'b-g':'b-r'}">${f.status==='on'?'চালু':'বন্ধ'}</span>
       </div>
       <div class="list-card-actions">
-        <a href="${f.url}" target="_blank" class="btn btn-g btn-sm">🔗 লিংক</a>
-        <button class="btn ${f.status==='on'?'btn-g':'btn-s'} btn-sm" onclick="toggleFS('${f.fs_id}')">${f.status==='on'?'⏸ বন্ধ':'▶ চালু'}</button>
-        <button class="btn btn-d btn-sm" onclick="deleteFS('${f.fs_id}')">🗑️</button>
+        <a href="${f.url}" target="_blank" class="btn btn-g btn-sm">${ico('link','ico-xs')} লিংক</a>
+        <button class="btn ${f.status==='on'?'btn-g':'btn-s'} btn-sm" onclick="toggleFS('${f.fs_id}')">${f.status==='on'?ico('pause','ico-xs')+' বন্ধ':ico('play','ico-xs')+' চালু'}</button>
+        <button class="btn btn-d btn-sm" onclick="deleteFS('${f.fs_id}')">${ico('trash','ico-xs')}</button>
       </div>
     </div>`).join('');
 }
-async function toggleFS(id){const r=await api('/api/forcesub/toggle/'+id,'POST');if(r?.ok){loadFS();toast('✅ পরিবর্তন হয়েছে','success')}}
-async function deleteFS(id){if(!confirm('মুছবেন?'))return;const r=await api('/api/forcesub/delete/'+id,'DELETE');if(r?.ok){loadFS();toast('🗑️ মুছে গেছে','danger')}}
+async function toggleFS(id){const r=await api('/api/forcesub/toggle/'+id,'POST');if(r?.ok){loadFS();toast('পরিবর্তন হয়েছে','success')}}
+async function deleteFS(id){if(!confirm('মুছবেন?'))return;const r=await api('/api/forcesub/delete/'+id,'DELETE');if(r?.ok){loadFS();toast('মুছে গেছে','danger')}}
 
 async function addFS(){
   const name=$('fs-nm').value.trim();
   const channel_id=$('fs-id').value.trim();
   const url=$('fs-url').value.trim();
-  if(!name||!channel_id||!url){toast('⚠️ সব তথ্য পূরণ করুন','warn');return}
+  if(!name||!channel_id||!url){toast('সব তথ্য পূরণ করুন','warn');return}
   const r=await api('/api/forcesub/add','POST',{name,channel_id,url});
   if(r?.ok){
     $('fs-nm').value=''; $('fs-id').value=''; $('fs-url').value='';
-    closeM('m-fs'); loadFS(); toast('✅ Force Subscribe চ্যানেল যোগ হয়েছে','success');
-  } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+    closeM('m-fs'); loadFS(); toast('Force Subscribe চ্যানেল যোগ হয়েছে','success');
+  } else toast(r?.error||'ব্যর্থ','danger');
 }
 
 // Add Channel
@@ -1650,12 +1733,12 @@ async function addCh(){
   const lang = $('ch-lang').value;
   const tutorial_url_1 = $('ch-tut1').value.trim();
   const tutorial_url_2 = $('ch-tut2').value.trim();
-  if(!name || !channel_id){toast('⚠️ সব তথ্য পূরণ করুন','warn');return}
+  if(!name || !channel_id){toast('সব তথ্য পূরণ করুন','warn');return}
   const r = await api('/api/channels/add','POST',{name,channel_id,type,lang,tutorial_url_1,tutorial_url_2});
   if(r?.ok){
     $('ch-nm').value=''; $('ch-id-input').value=''; $('ch-tut1').value=''; $('ch-tut2').value='';
-    closeM('m-ch'); loadChs(); toast('✅ চ্যানেল যোগ হয়েছে','success');
-  } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+    closeM('m-ch'); loadChs(); toast('চ্যানেল যোগ হয়েছে','success');
+  } else toast(r?.error||'ব্যর্থ','danger');
 }
 
 function openEditCh(id){
@@ -1679,11 +1762,11 @@ async function saveEditCh(){
   const lang = $('ech-lang').value;
   const tutorial_url_1 = $('ech-tut1').value.trim();
   const tutorial_url_2 = $('ech-tut2').value.trim();
-  if(!name || !channel_id){toast('⚠️ নাম ও আইডি দিন','warn');return}
+  if(!name || !channel_id){toast('নাম ও আইডি দিন','warn');return}
   const r = await api('/api/channels/update/'+id,'POST',{name,channel_id,type,lang,tutorial_url_1,tutorial_url_2});
   if(r?.ok){
-    closeM('m-edit-ch'); loadChs(); toast('✅ চ্যানেল সেটিংস সেভ হয়েছে','success');
-  } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+    closeM('m-edit-ch'); loadChs(); toast('চ্যানেল সেটিংস সেভ হয়েছে','success');
+  } else toast(r?.error||'ব্যর্থ','danger');
 }
 
 // Add Category
@@ -1692,12 +1775,12 @@ async function addCat(){
   const lang = $('cat-lang').value;
   const tutorial_url_1 = $('cat-tut1').value.trim();
   const tutorial_url_2 = $('cat-tut2').value.trim();
-  if(!name){toast('⚠️ নাম দিন','warn');return}
+  if(!name){toast('নাম দিন','warn');return}
   const r = await api('/api/categories/add','POST',{name,lang,tutorial_url_1,tutorial_url_2});
   if(r?.ok){
     $('cat-nm').value=''; $('cat-tut1').value=''; $('cat-tut2').value='';
-    closeM('m-cat'); loadCats(); toast('✅ ক্যাটাগরি তৈরি হয়েছে','success');
-  } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+    closeM('m-cat'); loadCats(); toast('ক্যাটাগরি তৈরি হয়েছে','success');
+  } else toast(r?.error||'ব্যর্থ','danger');
 }
 
 function openEditCat(id){
@@ -1723,7 +1806,7 @@ async function saveEditCat(){
   const tutorial_url_2_hi = $('ecat-tut2-hi').value.trim();
   const tutorial_url_1_en = $('ecat-tut1-en').value.trim();
   const tutorial_url_2_en = $('ecat-tut2-en').value.trim();
-  if(!name){toast('⚠️ ক্যাটাগরির নাম দিন','warn');return}
+  if(!name){toast('ক্যাটাগরির নাম দিন','warn');return}
   const r = await api('/api/categories/update/'+id,'POST',{
     name,
     tutorial_url_1_bn, tutorial_url_2_bn,
@@ -1731,16 +1814,16 @@ async function saveEditCat(){
     tutorial_url_1_en, tutorial_url_2_en
   });
   if(r?.ok){
-    closeM('m-edit-cat'); loadCats(); toast('✅ ক্যাটাগরি সেটিংস সেভ হয়েছে','success');
-  } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+    closeM('m-edit-cat'); loadCats(); toast('ক্যাটাগরি সেটিংস সেভ হয়েছে','success');
+  } else toast(r?.error||'ব্যর্থ','danger');
 }
 
 // Delete Category
 async function delCat(id){
   if(!confirm('এই ক্যাটাগরি মুছবেন?'))return;
   const r = await api('/api/categories/delete/'+id,'DELETE');
-  if(r?.ok){ loadCats(); toast('🗑️ ক্যাটাগরি মুছে গেছে','danger') }
-  else toast('❌ ব্যর্থ','danger');
+  if(r?.ok){ loadCats(); toast('ক্যাটাগরি মুছে গেছে','danger') }
+  else toast('ব্যর্থ','danger');
 }
 
 // Manage Category Channels Modal opener
@@ -1803,19 +1886,17 @@ async function saveCatChannels(){
   
   const r = await api('/api/categories/update/'+cat_id,'POST',{channels});
   if(r?.ok){
-    closeM('m-cat-channels'); loadCats(); toast('✅ চ্যানেল ও ভাষা লিংক আপডেট হয়েছে','success');
-  } else toast('❌ '+(r?.error||'ব্যর্থ'),'danger');
+    closeM('m-cat-channels'); loadCats(); toast('চ্যানেল ও ভাষা লিংক আপডেট হয়েছে','success');
+  } else toast(r?.error||'ব্যর্থ','danger');
 }
 
 // Delete File
 async function delFile(key){
   if(!confirm('ফাইলটি ডিলিট করবেন?'))return;
   const r = await api('/api/files/delete/'+key,'DELETE');
-  if(r?.ok){ loadFiles(); toast('🗑️ ফাইল ডিলিট হয়েছে','danger') }
-  else toast('❌ ব্যর্থ','danger');
+  if(r?.ok){ loadFiles(); toast('ফাইল ডিলিট হয়েছে','danger') }
+  else toast('ব্যর্থ','danger');
 }
-async function toggleFS(id){const r=await api('/api/forcesub/toggle/'+id,'POST');if(r?.ok){loadFS();toast('✅ পরিবর্তন হয়েছে','success')}}
-async function deleteFS(id){if(!confirm('মুছবেন?'))return;const r=await api('/api/forcesub/delete/'+id,'DELETE');if(r?.ok){loadFS();toast('🗑️ মুছে গেছে','danger')}}
 
 // ══════════ MODAL ══════════
 function openM(id){document.getElementById(id).classList.add('open');document.body.style.overflow='hidden'}
@@ -1825,10 +1906,15 @@ document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e
 // ══════════ TOAST ══════════
 function toast(msg,type='info'){
   const C={info:'var(--cyan)',success:'var(--green)',warn:'var(--yellow)',danger:'var(--red)'};
-  const I={info:'ℹ️',success:'✅',warn:'⚠️',danger:'❌'};
+  const I={
+    info: ico('info', 'ico-sm'),
+    success: ico('check-circle', 'ico-sm'),
+    warn: ico('alert-triangle', 'ico-sm'),
+    danger: ico('x-circle', 'ico-sm')
+  };
   const el=document.createElement('div');el.className='tm';
   el.style.borderLeft='3px solid '+(C[type]||C.info);
-  el.innerHTML='<span>'+I[type]+'</span><span>'+msg+'</span>';
+  el.innerHTML='<span style="display:inline-flex;align-items:center;color:'+(C[type]||C.info)+'">'+(I[type]||I.info)+'</span><span>'+msg+'</span>';
   $('toast').appendChild(el);
   setTimeout(()=>el.remove(),3500);
 }
@@ -1837,9 +1923,23 @@ function toast(msg,type='info'){
 function $(id){return document.getElementById(id)}
 function set(id,v){const e=$(id);if(e)e.textContent=v}
 function n(v){return (v||0).toLocaleString('bn-BD')}
-function mico(t){return{video:'🎬',photo:'🖼️',document:'📄',audio:'🎵'}[t]||'📁'}
+function mico(t){
+  const map = {
+    video: ico('video', 'ico-md'),
+    photo: ico('image', 'ico-md'),
+    document: ico('file', 'ico-md'),
+    audio: ico('music', 'ico-md')
+  };
+  return map[t] || ico('folder', 'ico-md');
+}
 function sbadge(s){return{pending:'b-y',done:'b-g',error:'b-r'}[s]||'b-p'}
-function slbl(s){return{pending:'⏳ পেন্ডিং',done:'✅ সম্পন্ন',error:'❌ ব্যর্থ'}[s]||s}
+function slbl(s){
+  return {
+    pending: `${ico('clock', 'ico-xs')} পেন্ডিং`,
+    done: `${ico('check', 'ico-xs')} সম্পন্ন`,
+    error: `${ico('x-circle', 'ico-xs')} ব্যর্থ`
+  }[s] || s;
+}
 function ft(iso){if(!iso)return'—';if(iso.startsWith('203'))return'অনির্ধারিত (ক্লিক করে সেট করুন)';try{return new Date(iso).toLocaleString('bn-BD',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}catch{return iso.slice(0,16).replace('T',' ')}}
 function fd(iso){if(!iso)return'—';try{return new Date(iso).toLocaleDateString('bn-BD')}catch{return iso.slice(0,10)}}
 </script>
