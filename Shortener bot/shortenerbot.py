@@ -57,6 +57,7 @@ force_sub_col     = db['force_subscribe']
 settings_col      = db['bot_settings']
 categories_col    = db['categories']
 scheduled_col     = db['scheduled_posts']
+unlock_tokens_col = db['unlock_tokens']
 
 try:
     if MONGO_URL and MONGO_URL != "আপনার_MongoDB_URL":
@@ -65,6 +66,8 @@ try:
         files_col.create_index("batch_id", background=True)
         queue_col.create_index("delete_at", background=True)
         scheduled_col.create_index("scheduled_at", background=True)
+        unlock_tokens_col.create_index("created_at", expireAfterSeconds=300, background=True)
+        unlock_tokens_col.create_index("token", background=True)
         
         if not admins_col.find_one({"chat_id": str(MAIN_ADMIN_ID)}):
             admins_col.insert_one({"chat_id": str(MAIN_ADMIN_ID), "role": "super_admin", "added_at": datetime.now().isoformat()})
@@ -946,8 +949,33 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
 # ══════════════════════════════════════════════════
 def _deliver_files(chat_id, file_key, user, is_unlocked=False):
     if file_key.startswith("unprotect_"):
-        file_key = file_key[10:]
-        is_unlocked = True
+        raw = file_key[10:]  # "unprotect_" এর পরের অংশ
+        parts = raw.rsplit("_", 1)  # শেষ _ দিয়ে split: [actual_key, token]
+        if len(parts) == 2:
+            actual_key, token = parts
+            token_doc = unlock_tokens_col.find_one({"token": token, "file_key": actual_key, "used": False})
+            if token_doc:
+                try:
+                    created = datetime.fromisoformat(token_doc['created_at'])
+                    elapsed = (datetime.now() - created).total_seconds()
+                    if elapsed < 300:  # ৫ মিনিটের মধ্যে
+                        file_key = actual_key
+                        is_unlocked = True
+                        unlock_tokens_col.update_one({"_id": token_doc["_id"]}, {"$set": {"used": True}})
+                        logger.info(f"✅ Unlock token verified for file_key={actual_key}, user={chat_id}")
+                    else:
+                        bot.send_message(chat_id, "⏰ <b>টোকেন মেয়াদোত্তীর্ণ!</b>\nআবার অ্যাড দেখে চেষ্টা করুন।")
+                        return
+                except Exception as e:
+                    logger.error(f"Token verification error: {e}")
+                    bot.send_message(chat_id, "❌ <b>টোকেন যাচাই ব্যর্থ!</b>\nআবার অ্যাড দেখে চেষ্টা করুন।")
+                    return
+            else:
+                bot.send_message(chat_id, "❌ <b>আনলক টোকেন অবৈধ বা ইতিমধ্যে ব্যবহৃত!</b>\nআবার অ্যাড দেখে চেষ্টা করুন।")
+                return
+        else:
+            bot.send_message(chat_id, "❌ <b>অবৈধ আনলক লিংক!</b>\nসঠিক লিংক ব্যবহার করুন।")
+            return
 
     files = list(files_col.find({"$or": [{"file_key": file_key}, {"batch_id": file_key}]}))
     if not files:
@@ -3043,6 +3071,46 @@ def home():
 @shortener_bp.route('/health', methods=['GET','OPTIONS'])
 def health():
     return jsonify({"status":"ok","time":datetime.now().isoformat()})
+
+@shortener_bp.route('/api/gen_unlock_token', methods=['POST','OPTIONS'])
+def gen_unlock_token():
+    """অ্যাড দেখার পর ওয়ান-টাইম আনলক টোকেন জেনারেট করে"""
+    if request.method == 'OPTIONS':
+        return jsonify({"ok": True}), 200
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        file_key = (data.get("file_key") or "").strip()
+        user_id = str(data.get("user_id") or "").strip()
+
+        if not file_key or not user_id:
+            return jsonify({"error": "file_key এবং user_id আবশ্যক"}), 400
+
+        # রেট লিমিট: একই user+file_key এর জন্য ৩০ সেকেন্ডে ১টির বেশি টোকেন নয়
+        recent = unlock_tokens_col.find_one({
+            "file_key": file_key, "user_id": user_id,
+            "created_at": {"$gte": (datetime.now() - timedelta(seconds=30)).isoformat()}
+        })
+        if recent:
+            return jsonify({"error": "অনুগ্রহ করে ৩০ সেকেন্ড অপেক্ষা করুন"}), 429
+
+        # ফাইল আছে কিনা চেক
+        file_exists = files_col.find_one({"$or": [{"file_key": file_key}, {"batch_id": file_key}]})
+        if not file_exists:
+            return jsonify({"error": "ফাইল পাওয়া যায়নি"}), 404
+
+        token = uuid.uuid4().hex[:16]
+        unlock_tokens_col.insert_one({
+            "token": token,
+            "file_key": file_key,
+            "user_id": user_id,
+            "used": False,
+            "created_at": datetime.now().isoformat()
+        })
+        logger.info(f"🔑 Unlock token generated: file_key={file_key}, user={user_id}")
+        return jsonify({"token": token, "bot_username": BOT_USERNAME}), 200
+    except Exception as e:
+        logger.error(f"gen_unlock_token error: {e}")
+        return jsonify({"error": "সার্ভার ত্রুটি"}), 500
 
 @shortener_bp.route('/panel')
 @shortener_bp.route('/panel.html')
