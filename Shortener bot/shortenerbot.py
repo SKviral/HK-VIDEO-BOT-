@@ -6,13 +6,13 @@
 ╚══════════════════════════════════════════════════════════════╝
 """
 
-import os, re, time, json, uuid, threading, requests, telebot, logging, base64
+import os, re, time, json, uuid, threading, requests, telebot, logging, base64, hmac, hashlib, secrets
 from datetime import datetime, timedelta
 from functools import wraps
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from pymongo import MongoClient
+from pymongo import MongoClient, ReturnDocument
 from flask import Blueprint, request, jsonify
-from urllib.parse import quote
+from urllib.parse import quote, parse_qsl
 
 # ══════════════════════════════════════════════════
 #  লগিং
@@ -37,6 +37,18 @@ FIREBASE_DB_URL = os.environ.get("FIREBASE_DB_URL", "https://telegram-bot-ca2a6-
 MONGO_URL     = os.environ.get("MONGO_URL")
 BOT_VERSION   = "6.0.0"
 
+# ── অ্যাড/আনলক সিকিউরিটি কনফিগ ──
+# Mini App (Web bot) যে বটের মাধ্যমে খোলা হয়, তার টোকেন দিয়েই initData সাইন হয়
+WEBBOT_TOKEN = os.environ.get("WEBBOT_TOKEN", "")
+# অ্যাড শুরুর পর কমপক্ষে এত সেকেন্ড না গেলে আনলক টোকেন দেওয়া হবে না
+UNLOCK_MIN_AD_SECONDS = int(os.environ.get("UNLOCK_MIN_AD_SECONDS", "8"))
+UNLOCK_TOKEN_TTL      = 300    # টোকেন ব্যবহারের সময়সীমা (সেকেন্ড)
+AD_SESSION_TTL        = 600    # অ্যাড সেশনের সময়সীমা (সেকেন্ড)
+INITDATA_MAX_AGE      = 3600   # initData কতক্ষণ পর্যন্ত বৈধ (সেকেন্ড)
+UNLOCK_MAX_PER_HOUR   = 20     # প্রতি ইউজারের ঘণ্টায় সর্বোচ্চ আনলক
+_KEY_RE = re.compile(r"^[A-Za-z0-9]{1,32}$")   # file_key / batch_id ফরম্যাট (uuid hex)
+_TOKEN_RE = re.compile(r"^[0-9a-f]{32}$")
+
 bot = telebot.TeleBot(BOT_TOKEN or "DUMMY_TOKEN", parse_mode="HTML")
 
 # ══════════════════════════════════════════════════
@@ -58,6 +70,7 @@ settings_col      = db['bot_settings']
 categories_col    = db['categories']
 scheduled_col     = db['scheduled_posts']
 unlock_tokens_col = db['unlock_tokens']
+ad_sessions_col   = db['ad_sessions']
 
 try:
     if MONGO_URL and MONGO_URL != "আপনার_MongoDB_URL":
@@ -68,6 +81,8 @@ try:
         scheduled_col.create_index("scheduled_at", background=True)
         unlock_tokens_col.create_index("created_at", expireAfterSeconds=300, background=True)
         unlock_tokens_col.create_index("token", background=True)
+        ad_sessions_col.create_index("created_at", expireAfterSeconds=AD_SESSION_TTL, background=True)
+        ad_sessions_col.create_index("sid", background=True)
         
         if not admins_col.find_one({"chat_id": str(MAIN_ADMIN_ID)}):
             admins_col.insert_one({"chat_id": str(MAIN_ADMIN_ID), "role": "super_admin", "added_at": datetime.now().isoformat()})
@@ -951,31 +966,37 @@ def _deliver_files(chat_id, file_key, user, is_unlocked=False):
     if file_key.startswith("unprotect_"):
         raw = file_key[10:]  # "unprotect_" এর পরের অংশ
         parts = raw.rsplit("_", 1)  # শেষ _ দিয়ে split: [actual_key, token]
-        if len(parts) == 2:
+        if len(parts) == 2 and _KEY_RE.match(parts[0]) and _TOKEN_RE.match(parts[1]):
             actual_key, token = parts
-            token_doc = unlock_tokens_col.find_one({"token": token, "file_key": actual_key, "used": False})
+            now = datetime.utcnow()
+            # অ্যাটমিক রিডিম: একই টোকেন দুবার ব্যবহার করা যাবে না (রেস কন্ডিশন নেই),
+            # টোকেন শুধু যে ইউজারের জন্য ইস্যু হয়েছে সেই ইউজারই ব্যবহার করতে পারবে।
+            token_doc = unlock_tokens_col.find_one_and_update(
+                {
+                    "token": token,
+                    "file_key": actual_key,
+                    "user_id": str(chat_id),
+                    "used": False,
+                    "created_at": {"$gte": now - timedelta(seconds=UNLOCK_TOKEN_TTL)},
+                },
+                {"$set": {"used": True, "used_at": now}},
+                return_document=ReturnDocument.BEFORE,
+            )
             if token_doc:
-                try:
-                    created = datetime.fromisoformat(token_doc['created_at'])
-                    elapsed = (datetime.now() - created).total_seconds()
-                    if elapsed < 300:  # ৫ মিনিটের মধ্যে
-                        file_key = actual_key
-                        is_unlocked = True
-                        unlock_tokens_col.update_one({"_id": token_doc["_id"]}, {"$set": {"used": True}})
-                        logger.info(f"✅ Unlock token verified for file_key={actual_key}, user={chat_id}")
-                    else:
-                        bot.send_message(chat_id, "⏰ <b>টোকেন মেয়াদোত্তীর্ণ!</b>\nআবার অ্যাড দেখে চেষ্টা করুন।")
-                        return
-                except Exception as e:
-                    logger.error(f"Token verification error: {e}")
-                    bot.send_message(chat_id, "❌ <b>টোকেন যাচাই ব্যর্থ!</b>\nআবার অ্যাড দেখে চেষ্টা করুন।")
-                    return
+                file_key = actual_key
+                is_unlocked = True
+                logger.info(f"✅ Unlock token verified for file_key={actual_key}, user={chat_id}")
             else:
-                bot.send_message(chat_id, "❌ <b>আনলক টোকেন অবৈধ বা ইতিমধ্যে ব্যবহৃত!</b>\nআবার অ্যাড দেখে চেষ্টা করুন।")
+                bot.send_message(chat_id, "❌ <b>আনলক টোকেন অবৈধ, মেয়াদোত্তীর্ণ বা ইতিমধ্যে ব্যবহৃত!</b>\nআবার অ্যাড দেখে চেষ্টা করুন।")
                 return
         else:
             bot.send_message(chat_id, "❌ <b>অবৈধ আনলক লিংক!</b>\nসঠিক লিংক ব্যবহার করুন।")
             return
+
+    # খালি/অবৈধ কী দিয়ে সব ফাইল ম্যাচ হওয়া আটকানো (IDOR ফিক্স)
+    if not isinstance(file_key, str) or not _KEY_RE.match(file_key):
+        bot.send_message(chat_id, "❌ <b>অবৈধ লিংক!</b>")
+        return
 
     files = list(files_col.find({"$or": [{"file_key": file_key}, {"batch_id": file_key}]}))
     if not files:
@@ -2412,7 +2433,7 @@ def handle_message(message):
         return
 
     if text.startswith("/start"):
-        pts = text.split(" ")
+        pts = text.split()   # একাধিক স্পেস থাকলেও খালি আইটেম তৈরি হবে না
         if len(pts)>1:
             fk = pts[1]; joined, nj = check_force_sub(cid)
             if not joined: send_force_sub_msg(cid, nj, fk); return
@@ -3072,44 +3093,127 @@ def home():
 def health():
     return jsonify({"status":"ok","time":datetime.now().isoformat()})
 
-@shortener_bp.route('/api/gen_unlock_token', methods=['POST','OPTIONS'])
-def gen_unlock_token():
-    """অ্যাড দেখার পর ওয়ান-টাইম আনলক টোকেন জেনারেট করে"""
+def verify_webapp_init_data(init_data):
+    """Telegram Mini App initData-র HMAC যাচাই করে। সফল হলে user_id (str) ফেরত দেয়, নাহলে None।
+    initData সাইন হয় Mini App যে বটের (WEBBOT_TOKEN) মাধ্যমে খোলা হয় তার টোকেন দিয়ে।"""
+    try:
+        if not WEBBOT_TOKEN or not init_data or len(init_data) > 4096:
+            return None
+        pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+        recv_hash = pairs.pop("hash", "")
+        if not recv_hash:
+            return None
+        check_str = "\n".join(f"{k}={pairs[k]}" for k in sorted(pairs))
+        secret = hmac.new(b"WebAppData", WEBBOT_TOKEN.encode(), hashlib.sha256).digest()
+        calc = hmac.new(secret, check_str.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(calc, recv_hash):
+            return None
+        if time.time() - int(pairs.get("auth_date", "0")) > INITDATA_MAX_AGE:
+            return None
+        uid = json.loads(pairs.get("user", "{}")).get("id")
+        return str(uid) if uid else None
+    except Exception:
+        return None
+
+
+def _unlock_auth(data):
+    """রিকোয়েস্ট থেকে ভেরিফাইড user_id বের করে। (user_id, error_response) ফেরত দেয়।"""
+    if not WEBBOT_TOKEN:
+        logger.error("WEBBOT_TOKEN env সেট নেই — আনলক API বন্ধ রাখা হয়েছে")
+        return None, (jsonify({"error": "সার্ভার কনফিগারেশন অসম্পূর্ণ"}), 503)
+    if not BOT_USERNAME or BOT_USERNAME == "YourBotUsername":
+        logger.error("BOT_USERNAME env সেট নেই — আনলক API বন্ধ রাখা হয়েছে")
+        return None, (jsonify({"error": "সার্ভার কনফিগারেশন অসম্পূর্ণ"}), 503)
+    uid = verify_webapp_init_data(str(data.get("init_data") or ""))
+    if not uid:
+        return None, (jsonify({"error": "অননুমোদিত — টেলিগ্রাম অ্যাপের ভেতর থেকে খুলুন"}), 401)
+    if is_banned(uid):
+        return None, (jsonify({"error": "অ্যাক্সেস নেই"}), 403)
+    return uid, None
+
+
+@shortener_bp.route('/api/ad_session', methods=['POST', 'OPTIONS'])
+def api_ad_session():
+    """ধাপ ১: অ্যাড দেখানো শুরুর আগে কল হয়। সার্ভার শুরুর সময় রেকর্ড করে।"""
     if request.method == 'OPTIONS':
         return jsonify({"ok": True}), 200
     try:
         data = request.get_json(force=True, silent=True) or {}
-        file_key = (data.get("file_key") or "").strip()
-        user_id = str(data.get("user_id") or "").strip()
+        uid, err = _unlock_auth(data)
+        if err: return err
 
-        if not file_key or not user_id:
-            return jsonify({"error": "file_key এবং user_id আবশ্যক"}), 400
-
-        # রেট লিমিট: একই user+file_key এর জন্য ৩০ সেকেন্ডে ১টির বেশি টোকেন নয়
-        recent = unlock_tokens_col.find_one({
-            "file_key": file_key, "user_id": user_id,
-            "created_at": {"$gte": (datetime.now() - timedelta(seconds=30)).isoformat()}
-        })
-        if recent:
-            return jsonify({"error": "অনুগ্রহ করে ৩০ সেকেন্ড অপেক্ষা করুন"}), 429
-
-        # ফাইল আছে কিনা চেক
-        file_exists = files_col.find_one({"$or": [{"file_key": file_key}, {"batch_id": file_key}]})
-        if not file_exists:
+        file_key = str(data.get("file_key") or "").strip()
+        if not _KEY_RE.match(file_key):
+            return jsonify({"error": "অবৈধ ফাইল কী"}), 400
+        if not files_col.find_one({"$or": [{"file_key": file_key}, {"batch_id": file_key}]}):
             return jsonify({"error": "ফাইল পাওয়া যায়নি"}), 404
 
-        token = uuid.uuid4().hex[:16]
+        now = datetime.utcnow()
+        # রেট লিমিট: প্রতি ইউজার ১ মিনিটে সর্বোচ্চ ৫টি সেশন
+        if ad_sessions_col.count_documents({"user_id": uid, "created_at": {"$gte": now - timedelta(seconds=60)}}) >= 5:
+            return jsonify({"error": "অনেক বেশি চেষ্টা, কিছুক্ষণ পর আবার করুন"}), 429
+
+        sid = secrets.token_hex(16)
+        ad_sessions_col.insert_one({
+            "sid": sid, "user_id": uid, "file_key": file_key,
+            "used": False, "created_at": now
+        })
+        return jsonify({"sid": sid, "min_seconds": UNLOCK_MIN_AD_SECONDS}), 200
+    except Exception as e:
+        logger.error(f"ad_session error: {type(e).__name__}")
+        return jsonify({"error": "সার্ভার ত্রুটি"}), 500
+
+
+@shortener_bp.route('/api/gen_unlock_token', methods=['POST', 'OPTIONS'])
+def gen_unlock_token():
+    """ধাপ ২: অ্যাড শেষে কল হয়। যাচাইকৃত ইউজারের জন্য ওয়ান-টাইম, ইউজার-বাইন্ডেড টোকেন দেয়।"""
+    if request.method == 'OPTIONS':
+        return jsonify({"ok": True}), 200
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        uid, err = _unlock_auth(data)
+        if err: return err
+
+        sid = str(data.get("sid") or "").strip()
+        if not _TOKEN_RE.match(sid):
+            return jsonify({"error": "অবৈধ সেশন"}), 400
+
+        now = datetime.utcnow()
+        # ঘণ্টায় সর্বোচ্চ আনলক লিমিট
+        if unlock_tokens_col.count_documents({"user_id": uid, "created_at": {"$gte": now - timedelta(hours=1)}}) >= UNLOCK_MAX_PER_HOUR:
+            return jsonify({"error": "ঘণ্টার লিমিট শেষ, পরে আবার চেষ্টা করুন"}), 429
+
+        # অ্যাটমিক: সেশন শুধু একবার, শুধু ওই ইউজারের জন্য, এবং ন্যূনতম অ্যাড-সময় পার হলে
+        sess = ad_sessions_col.find_one_and_update(
+            {
+                "sid": sid, "user_id": uid, "used": False,
+                "created_at": {
+                    "$lte": now - timedelta(seconds=UNLOCK_MIN_AD_SECONDS),
+                    "$gte": now - timedelta(seconds=AD_SESSION_TTL),
+                },
+            },
+            {"$set": {"used": True, "used_at": now}},
+            return_document=ReturnDocument.BEFORE,
+        )
+        if not sess:
+            # সেশন আছে কিন্তু খুব তাড়াতাড়ি চাওয়া হয়েছে কিনা আলাদা বার্তা
+            early = ad_sessions_col.find_one({"sid": sid, "user_id": uid, "used": False})
+            if early:
+                return jsonify({"error": "অ্যাড সম্পূর্ণ দেখুন, তারপর আবার চেষ্টা করুন"}), 429
+            return jsonify({"error": "সেশন অবৈধ, মেয়াদোত্তীর্ণ বা ব্যবহৃত"}), 403
+
+        token = secrets.token_hex(16)
         unlock_tokens_col.insert_one({
             "token": token,
-            "file_key": file_key,
-            "user_id": user_id,
+            "file_key": sess["file_key"],
+            "user_id": uid,
             "used": False,
-            "created_at": datetime.now().isoformat()
+            "created_at": now          # datetime — যাতে TTL ইনডেক্স কাজ করে
         })
-        logger.info(f"🔑 Unlock token generated: file_key={file_key}, user={user_id}")
-        return jsonify({"token": token, "bot_username": BOT_USERNAME}), 200
+        logger.info(f"🔑 Unlock token issued: file_key={sess['file_key']}, user={uid}")
+        return jsonify({"token": token, "file_key": sess["file_key"], "bot_username": BOT_USERNAME}), 200
     except Exception as e:
-        logger.error(f"gen_unlock_token error: {e}")
+        logger.error(f"gen_unlock_token error: {type(e).__name__}")
         return jsonify({"error": "সার্ভার ত্রুটি"}), 500
 
 @shortener_bp.route('/panel')

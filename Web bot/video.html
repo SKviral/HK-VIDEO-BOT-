@@ -1321,7 +1321,15 @@
         if (old) old.remove();
         const toast = document.createElement('div');
         toast.className = `custom-toast toast-${type}`;
-        toast.innerHTML = `<div class="toast-content"><i class="${type==='success'?'fa-solid fa-circle-check':'fa-solid fa-circle-xmark'}"></i><span>${message}</span></div>`;
+        // message যেকোনো উৎস (সার্ভার/DB) থেকে আসতে পারে — তাই textContent, innerHTML নয় (XSS ফিক্স)
+        const wrap = document.createElement('div');
+        wrap.className = 'toast-content';
+        const ic = document.createElement('i');
+        ic.className = type === 'success' ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-xmark';
+        const sp = document.createElement('span');
+        sp.textContent = String(message);
+        wrap.appendChild(ic); wrap.appendChild(sp);
+        toast.appendChild(wrap);
         document.body.appendChild(toast);
         setTimeout(() => toast.classList.add('show'), 10);
         setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 350); }, 3000);
@@ -1371,7 +1379,10 @@
     let targetVideoId = new URLSearchParams(window.location.search).get('v') || window.Telegram?.WebApp?.initDataUnsafe?.start_param;
     if (targetVideoId && targetVideoId.startsWith('dl_unprotect_')) {
         let unprotectKey = targetVideoId.replace('dl_unprotect_', '');
-        setTimeout(() => showDownloadUnlockModal(unprotectKey), 600);
+        // শুধু অক্ষর-সংখ্যা অনুমোদিত (DOM XSS ফিক্স) — সার্ভারের _KEY_RE-র সাথে মিল রাখা
+        if (/^[A-Za-z0-9]{1,32}$/.test(unprotectKey)) {
+            setTimeout(() => showDownloadUnlockModal(unprotectKey), 600);
+        }
     }
     let scrolledToTarget = false;
     let loadedCount = 0;
@@ -1705,36 +1716,52 @@
         }
     }
 
-    function showAdNetwork(callback, customController = null) {
+    // callback শুধু তখনই চলে যখন অ্যাড সত্যিই সম্পূর্ণ হয়েছে।
+    // স্কিপ/ফেইল/নো-ফিল হলে আনলক হয় না (আগে ফেইল হলেও callback() চলত — বাইপাস বাগ)।
+    // directAdUrl শুধু তখনই ব্যবহার হবে যখন কোনো অ্যাড SDK (Adsgram/Monetag) কনফিগার করাই নেই।
+    function showAdNetwork(callback, customController = null, onFail = null) {
         const controller = customController || adsgramController;
         const mFunc = window[`show_${monetagZone}`];
-        
-        function tryDirectOrCallback() {
-            if (directAdUrl) {
-                try {
-                    if (window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(directAdUrl);
-                    else window.open(directAdUrl, '_blank');
-                } catch(e) {}
-            }
+        const hasSdk = !!controller || typeof mFunc === 'function';
+        let settled = false;
+
+        function done() {
+            if (settled) return;
+            settled = true;
             callback();
+        }
+        function fail() {
+            if (settled) return;
+            settled = true;
+            showToast("অ্যাড সম্পূর্ণ দেখা হয়নি। শেষ পর্যন্ত দেখে আবার চেষ্টা করুন।", "error");
+            if (typeof onFail === 'function') onFail();
+        }
+
+        function tryDirectOrFail() {
+            if (hasSdk || !directAdUrl) { fail(); return; }
+            try {
+                if (window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(directAdUrl);
+                else window.open(directAdUrl, '_blank');
+            } catch(e) {}
+            done();
         }
 
         function tryMonetag() {
             if (typeof mFunc === 'function') {
                 try {
-                    mFunc().then(callback).catch(tryDirectOrCallback);
+                    mFunc().then(done).catch(fail);
                 } catch(e) {
-                    tryDirectOrCallback();
+                    fail();
                 }
             } else {
-                tryDirectOrCallback();
+                tryDirectOrFail();
             }
         }
 
         if (controller) {
             try {
-                controller.show().then(callback).catch((err) => {
-                    console.warn("Adsgram show error or no fill, trying fallback ad:", err);
+                controller.show().then(done).catch((err) => {
+                    console.warn("Adsgram show error/skip/no fill, trying fallback ad:", err);
                     tryMonetag();
                 });
             } catch(e) {
@@ -1971,44 +1998,110 @@
         }
     }
 
-    function showDownloadUnlockModal(fileKey) {
-        const modalHtml = `
-            <div id="dlUnlockModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
-                <div style="background:#1e1e1e;border:1px solid #333;border-radius:16px;padding:24px;width:100%;max-width:360px;text-align:center;color:#fff;">
-                    <div style="font-size:42px;margin-bottom:12px;">🔓</div>
-                    <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;">গ্যালারিতে সেভ ও ডাউনলোড আনলক</h3>
-                    <p style="font-size:13px;color:#aaa;margin-bottom:20px;line-height:1.5;">নিচের অ্যাডটি সম্পূর্ণ দেখলে টেলিগ্রামে সরাসরি ফোন গ্যালারিতে ভিডিও সেভ/ডাউনলোড করার অপশন আনলক হবে।</p>
-                    <button id="start-dl-ad-btn" onclick="playDlUnlockAd('${fileKey}')" style="width:100%;background:linear-gradient(135deg,#e91e8c,#c2186e);color:#fff;border:none;padding:14px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                        <i class="fa-solid fa-circle-play"></i> Adsgram Ad দেখুন ও আনলক করুন
-                    </button>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    // Mini App ও শর্টনার API একই সার্ভারে (main.py) চলে, তাই রিলেটিভ পাথ।
+    // আলাদা হোস্টে থাকলে এখানে পূর্ণ URL দিন, যেমন "https://your-app.onrender.com"
+    const UNLOCK_API_BASE = "";
+
+    async function unlockApi(path, body) {
+        const r = await fetch(UNLOCK_API_BASE + path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        let j = {};
+        try { j = await r.json(); } catch (e) {}
+        if (!r.ok) throw new Error(j.error || 'সার্ভার ত্রুটি');
+        return j;
     }
 
-    function playDlUnlockAd(fileKey) {
+    function showDownloadUnlockModal(fileKey) {
+        if (!/^[A-Za-z0-9]{1,32}$/.test(fileKey)) return;
+        if (document.getElementById('dlUnlockModal')) return;
+
+        // DOM API দিয়ে তৈরি — fileKey কোনো HTML/JS স্ট্রিংয়ে বসানো হয় না (XSS ফিক্স)
+        const overlay = document.createElement('div');
+        overlay.id = 'dlUnlockModal';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+        const box = document.createElement('div');
+        box.style.cssText = 'background:#1e1e1e;border:1px solid #333;border-radius:16px;padding:24px;width:100%;max-width:360px;text-align:center;color:#fff;';
+
+        const icon = document.createElement('div');
+        icon.style.cssText = 'font-size:42px;margin-bottom:12px;';
+        icon.textContent = '🔓';
+
+        const h = document.createElement('h3');
+        h.style.cssText = 'font-size:18px;font-weight:700;margin-bottom:8px;';
+        h.textContent = 'গ্যালারিতে সেভ ও ডাউনলোড আনলক';
+
+        const p = document.createElement('p');
+        p.style.cssText = 'font-size:13px;color:#aaa;margin-bottom:20px;line-height:1.5;';
+        p.textContent = 'নিচের অ্যাডটি সম্পূর্ণ দেখলে টেলিগ্রামে সরাসরি ফোন গ্যালারিতে ভিডিও সেভ/ডাউনলোড করার অপশন আনলক হবে।';
+
+        const btn = document.createElement('button');
+        btn.id = 'start-dl-ad-btn';
+        btn.style.cssText = 'width:100%;background:linear-gradient(135deg,#e91e8c,#c2186e);color:#fff;border:none;padding:14px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;';
+        const bi = document.createElement('i');
+        bi.className = 'fa-solid fa-circle-play';
+        btn.appendChild(bi);
+        btn.appendChild(document.createTextNode(' Adsgram Ad দেখুন ও আনলক করুন'));
+        btn.addEventListener('click', () => playDlUnlockAd(fileKey));
+
+        box.append(icon, h, p, btn);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+    }
+
+    async function playDlUnlockAd(fileKey) {
         const btn = document.getElementById('start-dl-ad-btn');
-        if (btn) { btn.disabled = true; btn.innerText = "⏳ অ্যাড লোড হচ্ছে..."; }
-        
-        function triggerUnlockRedirect() {
-            let botUsername = "YourBotUsername";
-            let redirectUrl = `https://t.me/${botUsername}?start=unprotect_${fileKey}`;
-            if (window.Telegram?.WebApp?.openTelegramLink) {
-                window.Telegram.WebApp.openTelegramLink(redirectUrl);
-            } else if (window.Telegram?.WebApp?.openLink) {
-                window.Telegram.WebApp.openLink(redirectUrl);
-            } else {
-                window.open(redirectUrl, '_blank');
-            }
-            if (window.Telegram?.WebApp?.close) window.Telegram.WebApp.close();
+        function resetBtn() {
+            if (!btn) return;
+            btn.disabled = false;
+            btn.textContent = 'আবার চেষ্টা করুন';
         }
 
-        let activeAdsgramController = dlAdsgramController || adsgramController;
-        showAdNetwork(() => {
-            showToast("✅ অ্যাড সম্পন্ন হয়েছে! টেলিগ্রামে রিডাইরেক্ট হচ্ছে...", "success");
-            setTimeout(triggerUnlockRedirect, 1000);
-        }, activeAdsgramController);
+        if (!/^[A-Za-z0-9]{1,32}$/.test(fileKey)) return;
+        const initData = window.Telegram?.WebApp?.initData || '';
+        if (!initData) {
+            showToast("টেলিগ্রাম অ্যাপের ভেতর থেকে খুলুন", "error");
+            return;
+        }
+        if (btn) { btn.disabled = true; btn.textContent = "⏳ অ্যাড লোড হচ্ছে..."; }
+
+        // ধাপ ১: সার্ভারে অ্যাড-সেশন শুরু (সার্ভার শুরুর সময় রেকর্ড করে)
+        let session, t0;
+        try {
+            session = await unlockApi('/api/ad_session', { init_data: initData, file_key: fileKey });
+            t0 = Date.now();
+        } catch (e) {
+            showToast(e.message, "error");
+            resetBtn();
+            return;
+        }
+
+        // ধাপ ২: অ্যাড দেখানো — শুধু সম্পূর্ণ হলেই callback চলবে
+        const activeAdsgramController = dlAdsgramController || adsgramController;
+        showAdNetwork(async () => {
+            try {
+                // সার্ভারের ন্যূনতম অ্যাড-সময় পার না হলে অপেক্ষা
+                const wait = Math.max(0, (session.min_seconds || 0) * 1000 - (Date.now() - t0) + 500);
+                if (wait) await new Promise(r => setTimeout(r, wait));
+
+                // ধাপ ৩: যাচাইকৃত ইউজারের জন্য ওয়ান-টাইম টোকেন নেওয়া
+                const res = await unlockApi('/api/gen_unlock_token', { init_data: initData, sid: session.sid });
+                showToast("✅ অ্যাড সম্পন্ন হয়েছে! টেলিগ্রামে রিডাইরেক্ট হচ্ছে...", "success");
+                const redirectUrl = `https://t.me/${encodeURIComponent(res.bot_username)}?start=unprotect_${encodeURIComponent(res.file_key)}_${encodeURIComponent(res.token)}`;
+                setTimeout(() => {
+                    if (window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(redirectUrl);
+                    else if (window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(redirectUrl);
+                    else window.open(redirectUrl, '_blank');
+                    if (window.Telegram?.WebApp?.close) window.Telegram.WebApp.close();
+                }, 800);
+            } catch (e) {
+                showToast(e.message, "error");
+                resetBtn();
+            }
+        }, activeAdsgramController, resetBtn);
     }
 </script>
 </body>

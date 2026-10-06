@@ -15,12 +15,16 @@ Architecture:
 
 # ─── IMPORTS ────────────────────────────────────────────────────────────────
 import asyncio
+import csv
+import html
 import io
 import json
 import logging
 import os
+import re
 import shutil
 import sqlite3
+import tempfile
 import traceback
 from datetime import datetime, timedelta
 from functools import wraps
@@ -40,7 +44,7 @@ from telegram import (
     Update,
 )
 from telegram.constants import ParseMode
-from telegram.error import BadRequest, Forbidden, TelegramError
+from telegram.error import BadRequest, Forbidden, RetryAfter, TelegramError
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -55,12 +59,21 @@ from telegram.ext import (
 # টোকেন প্রাইভেসি: শুধুমাত্র APPROVE_BOT_TOKEN চেক করবে যাতে শর্টনার বটের সাথে কনফ্লিক্ট না হয়
 BOT_TOKEN = os.getenv("APPROVE_BOT_TOKEN")
 
-ADMIN_IDS = [7756038841]  # ← প্রথম super-admin
+# সুপার-অ্যাডমিন: env SUPER_ADMIN_IDS (কমা দিয়ে আলাদা), না থাকলে আগের ডিফল্ট
+# শুধু সুপার-অ্যাডমিনরা অ্যাডমিন যোগ/বাদ, ব্যাকআপ ডাউনলোড ও রিস্টোর করতে পারবে
+ADMIN_IDS = []
+for _x in (os.getenv("SUPER_ADMIN_IDS") or "").split(","):
+    _x = _x.strip()
+    if _x.isdigit():
+        ADMIN_IDS.append(int(_x))
+if not ADMIN_IDS:
+    ADMIN_IDS = [7756038841]  # ← ডিফল্ট super-admin (SUPER_ADMIN_IDS দিলে এটি বাদ যাবে)
 # মেইন অ্যাডমিন আইডি এনভায়রনমেন্ট ভেরিয়েবল থেকে রিড করে ডাইনামিকালি অ্যাড করা হচ্ছে যাতে /start কাজ করে
 main_admin_env = os.getenv("MAIN_ADMIN_ID")
 if main_admin_env:
     try:
-        ADMIN_IDS.append(int(main_admin_env))
+        if int(main_admin_env) not in ADMIN_IDS:
+            ADMIN_IDS.append(int(main_admin_env))
     except ValueError:
         pass
 
@@ -82,6 +95,41 @@ logging.basicConfig(
 )
 logger = logging.getLogger("AutoAcceptBot")
 
+# httpx/httpcore প্রতিটি Bot API URL (টোকেনসহ) INFO লেভেলে লগ করে — তাই WARNING-এ নামানো
+for _n in ("httpx", "httpcore"):
+    logging.getLogger(_n).setLevel(logging.WARNING)
+
+_TOKEN_RE = re.compile(r"(bot)?\d{6,}:[A-Za-z0-9_-]{30,}")
+
+
+def redact(text) -> str:
+    """যেকোনো টেক্সট থেকে বট টোকেন মুছে ফেলে।"""
+    return _TOKEN_RE.sub("<token-redacted>", str(text))
+
+
+class _RedactFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            record.msg = redact(record.getMessage())
+            record.args = ()
+        except Exception:
+            pass
+        return True
+
+
+# দ্বিতীয় স্তরের সুরক্ষা: কোনো লগ হ্যান্ডলারে টোকেন গেলেও মুছে যাবে
+for _h in logging.getLogger().handlers:
+    _h.addFilter(_RedactFilter())
+
+
+def esc(value) -> str:
+    """Telegram HTML parse_mode-এর জন্য ইউজার/চ্যানেল ডেটা escape।"""
+    return html.escape("" if value is None else str(value), quote=False)
+
+
+def is_super_admin(user_id: int) -> bool:
+    return user_id in ADMIN_IDS
+
 # ─── DATABASE ────────────────────────────────────────────────────────────────
 MONGO_URL = os.getenv("MONGO_URL")
 USING_MONGO = False
@@ -89,7 +137,7 @@ USING_MONGO = False
 # MongoDB Initialization
 try:
     if MONGO_URL and MONGO_URL != "আপনার_MongoDB_URL":
-        mongo_client = MongoClient(MONGO_URL)
+        mongo_client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=5000, connectTimeoutMS=5000, socketTimeoutMS=10000)
         db = mongo_client['telegram_bot_db']
         
         # Collections
@@ -780,11 +828,29 @@ def get_stats(channel_id: int = None) -> dict:
         }
 
 
+BACKUP_KEEP = 7  # সর্বশেষ কয়টি ব্যাকআপ রাখা হবে
+MAX_RESTORE_BYTES = 20 * 1024 * 1024
+_REQUIRED_TABLES = {"admins", "channels", "join_requests", "pending_queue", "bot_settings"}
+
+
+def _rotate_backups():
+    try:
+        files = sorted(Path(BACKUP_DIR).glob("backup_*"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in files[BACKUP_KEEP:]:
+            old.unlink(missing_ok=True)
+    except Exception as e:
+        logger.warning(f"backup rotate error: {e}")
+
+
 def make_backup() -> str:
     """DB backup তৈরি করো (MongoDB বা SQLite), path return করো।"""
     Path(BACKUP_DIR).mkdir(exist_ok=True)
+    try:
+        os.chmod(BACKUP_DIR, 0o700)  # ব্যাকআপে ইউজারের তথ্য থাকে
+    except Exception:
+        pass
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     if USING_MONGO:
         try:
             backup_data = {
@@ -796,50 +862,129 @@ def make_backup() -> str:
             dest = f"{BACKUP_DIR}/backup_{ts}.json"
             with open(dest, "w", encoding="utf-8") as f:
                 json.dump(backup_data, f, ensure_ascii=False, indent=2)
+            os.chmod(dest, 0o600)
             logger.info(f"MongoDB Backup created: {dest}")
+            _rotate_backups()
             return dest
         except Exception as e:
             logger.error(f"make_backup mongo error: {e}")
-            
+
     dest = f"{BACKUP_DIR}/backup_{ts}.db"
-    shutil.copy2(DB_PATH, dest)
+    # SQLite backup API: WAL-মোডেও সম্পূর্ণ ও সামঞ্জস্যপূর্ণ কপি (shutil.copy2 নয়)
+    src = sqlite3.connect(DB_PATH)
+    try:
+        dst = sqlite3.connect(dest)
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
+    try:
+        os.chmod(dest, 0o600)
+    except Exception:
+        pass
     logger.info(f"SQLite Backup created: {dest}")
+    _rotate_backups()
     return dest
 
 
+def _validate_sqlite_backup(file_path: str) -> bool:
+    """রিস্টোরের আগে .db ফাইল যাচাই: অক্ষত, প্রয়োজনীয় টেবিল আছে, ট্রিগার/ভিউ নেই।"""
+    if os.path.getsize(file_path) > MAX_RESTORE_BYTES:
+        return False
+    conn = sqlite3.connect(f"file:{file_path}?mode=ro", uri=True)
+    try:
+        if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            return False
+        objs = conn.execute("SELECT type, name FROM sqlite_master").fetchall()
+        if any(t in ("trigger", "view") for t, _ in objs):
+            return False
+        tables = {n for t, n in objs if t == "table"}
+        return _REQUIRED_TABLES.issubset(tables)
+    finally:
+        conn.close()
+
+
+def _validate_mongo_backup(data) -> bool:
+    if not isinstance(data, dict) or not set(data).issubset({"admins", "channels", "requests", "queue"}):
+        return False
+    for key, docs in data.items():
+        if not isinstance(docs, list) or len(docs) > 200000:
+            return False
+        for d in docs:
+            if not isinstance(d, dict):
+                return False
+            d.pop("_id", None)
+            if any(str(k).startswith("$") or "." in str(k) for k in d):
+                return False
+    for d in data.get("channels", []):
+        if not isinstance(d.get("channel_id"), int):
+            return False
+    for d in data.get("admins", []):
+        if not isinstance(d.get("user_id"), int):
+            return False
+    return True
+
+
 def restore_from_file(file_path: str) -> bool:
+    """সুরক্ষিত রিস্টোর: আগে যাচাই, আগে সেফটি-ব্যাকআপ, ব্যর্থ হলে রোলব্যাক।"""
     try:
         if file_path.endswith(".json") and USING_MONGO:
             with open(file_path, "r", encoding="utf-8") as f:
+                if os.path.getsize(file_path) > MAX_RESTORE_BYTES:
+                    return False
                 data = json.load(f)
-            
-            admins_col.delete_many({})
-            if data.get("admins"):
-                admins_col.insert_many(data["admins"])
-                
-            channels_col.delete_many({})
-            if data.get("channels"):
-                channels_col.insert_many(data["channels"])
-                
-            requests_col.delete_many({})
-            if data.get("requests"):
-                requests_col.insert_many(data["requests"])
-                
-            queue_col.delete_many({})
-            if data.get("queue"):
-                queue_col.insert_many(data["queue"])
-                
+            if not _validate_mongo_backup(data):
+                logger.error("restore: invalid json backup structure")
+                return False
+
+            cols = {"admins": admins_col, "channels": channels_col, "requests": requests_col, "queue": queue_col}
+            snapshot = {k: list(c.find({})) for k, c in cols.items()}   # রোলব্যাকের জন্য
+            try:
+                for key, col in cols.items():
+                    if key not in data:
+                        continue
+                    col.delete_many({})
+                    if data[key]:
+                        col.insert_many(data[key])
+                # সুপার-অ্যাডমিনরা সবসময় থাকবে (ফাইলে না থাকলেও লকআউট হবে না)
+                for uid in ADMIN_IDS:
+                    admins_col.update_one({"user_id": uid},
+                                          {"$set": {"user_id": uid, "username": "super_admin", "added_by": uid}},
+                                          upsert=True)
+            except Exception as e:
+                logger.error(f"restore failed, rolling back: {e}")
+                for key, col in cols.items():
+                    col.delete_many({})
+                    if snapshot[key]:
+                        col.insert_many(snapshot[key])
+                return False
             logger.info("MongoDB restore successful!")
             return True
-            
+
         elif file_path.endswith(".db"):
-            conn = sqlite3.connect(file_path)
-            conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            conn.close()
-            shutil.copy2(file_path, DB_PATH)
+            if not _validate_sqlite_backup(file_path):
+                logger.error("restore: invalid sqlite backup")
+                return False
+            try:
+                make_backup()   # রিস্টোরের আগে সেফটি-ব্যাকআপ
+            except Exception as e:
+                logger.warning(f"pre-restore backup failed: {e}")
+            # SQLite backup API: লাইভ ডেটাবেসে নিরাপদ ও অ্যাটমিক ওভাররাইট (WAL/-shm ঠিক থাকে)
+            src = sqlite3.connect(f"file:{file_path}?mode=ro", uri=True)
+            try:
+                dst = sqlite3.connect(DB_PATH)
+                try:
+                    src.backup(dst)
+                finally:
+                    dst.close()
+            finally:
+                src.close()
+            init_db()   # সুপার-অ্যাডমিন নিশ্চিত + মাইগ্রেশন
             logger.info("SQLite restore successful!")
             return True
-            
+
         return False
     except Exception as e:
         logger.error(f"restore error: {e}")
@@ -1151,32 +1296,60 @@ async def send_welcome(bot: Bot, channel: dict, user_id: int):
 
 
 # ─── AUTO-ACCEPT CORE ─────────────────────────────────────────────────────────
+_WELCOMED: set = set()          # (channel_id, user_id): ওয়েলকাম একবারই যাবে
+_ACCEPT_FAILS: dict = {}        # (channel_id, user_id): ব্যর্থ চেষ্টার সংখ্যা
+MAX_ACCEPT_RETRIES = 5
+
+
 async def do_accept(bot: Bot, channel_id: int, user_id: int, full_name: str, username: str):
     """একটি join request accept করো।"""
-    # ১. প্রথমে welcome message পাঠান (রিকোয়েস্ট পেন্ডিং থাকা অবস্থায়, যাতে চ্যাট ইনিশিয়েট করার পারমিশন পাওয়া যায়)
+    key = (channel_id, user_id)
+
+    # ১. প্রথমে welcome message পাঠান (রিকোয়েস্ট পেন্ডিং থাকা অবস্থায়, যাতে চ্যাট ইনিশিয়েট করার পারমিশন পাওয়া যায়)
+    #    রিট্রাই হলে একই ইউজার বারবার ওয়েলকাম পাবে না।
     ch = get_channel(channel_id)
-    if ch:
+    if ch and key not in _WELCOMED:
+        _WELCOMED.add(key)
         try:
             await send_welcome(bot, ch, user_id)
         except Exception as e:
             logger.warning(f"Failed to send welcome message before approval: {e}")
 
-    # ২. তারপর রিকোয়েস্ট অনুমোদন করুন
+    def _finish():
+        _WELCOMED.discard(key)
+        _ACCEPT_FAILS.pop(key, None)
+
+    # ২. তারপর রিকোয়েস্ট অনুমোদন করুন
     try:
         await bot.approve_chat_join_request(chat_id=channel_id, user_id=user_id)
         mark_accepted(channel_id, user_id)
         dequeue(channel_id, user_id)
+        _finish()
         logger.info(f"Accepted: user={user_id} ({username}) → channel={channel_id}")
     except BadRequest as e:
         err_msg = str(e).lower()
         if "user_already_participant" in err_msg or "hide_requester_missing" in err_msg or "request has expired" in err_msg:
             mark_accepted(channel_id, user_id)
-            dequeue(channel_id, user_id)
         else:
             logger.error(f"do_accept BadRequest: {e}")
+        dequeue(channel_id, user_id)
+        _finish()
+    except RetryAfter as e:
+        ra = e.retry_after
+        ra = ra.total_seconds() if hasattr(ra, "total_seconds") else ra
+        logger.warning(f"do_accept flood-wait {ra}s")
+        await asyncio.sleep(min(float(ra), 30))
+        _ACCEPT_FAILS[key] = _ACCEPT_FAILS.get(key, 0) + 1
+        if _ACCEPT_FAILS[key] >= MAX_ACCEPT_RETRIES:
             dequeue(channel_id, user_id)
+            _finish()
     except TelegramError as e:
         logger.error(f"do_accept TelegramError: {e}")
+        _ACCEPT_FAILS[key] = _ACCEPT_FAILS.get(key, 0) + 1
+        if _ACCEPT_FAILS[key] >= MAX_ACCEPT_RETRIES:
+            logger.error(f"do_accept giving up after {MAX_ACCEPT_RETRIES} tries: user={user_id} channel={channel_id}")
+            dequeue(channel_id, user_id)
+            _finish()
 
 
 async def process_due_queue(app: Application):
@@ -1186,6 +1359,14 @@ async def process_due_queue(app: Application):
         return
     logger.info(f"Processing {len(due)} due requests from queue")
     for item in due:
+        ch = get_channel(item["channel_id"])
+        if not ch:
+            # চ্যানেল সরানো হয়েছে → কিউ থেকে বাদ, অ্যাপ্রুভ নয়
+            dequeue(item["channel_id"], item["user_id"])
+            continue
+        if not ch.get("auto_accept", 1):
+            # অটো-অ্যাকসেপ্ট পজ করা → কিউতেই থাকবে, রিজিউম করলে প্রসেস হবে
+            continue
         await do_accept(
             app.bot, item["channel_id"], item["user_id"],
             item["full_name"], item["username"] or ""
@@ -1203,9 +1384,8 @@ async def handle_join_request(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     ch = get_channel(channel_id)
     if not ch:
-        # চ্যানেল registered না, তবুও accept করো (safety)
-        logger.warning(f"Unregistered channel {channel_id}, auto-accepting anyway")
-        await do_accept(ctx.bot, channel_id, user_id, full_name, username)
+        # চ্যানেল registered না (বা সরানো হয়েছে) → অ্যাপ্রুভ করা হবে না
+        logger.warning(f"Unregistered channel {channel_id}, ignoring join request")
         return
 
     # জয়েন রিকোয়েস্ট পাঠানোর সাথে সাথেই যদি প্রথম তাৎক্ষণিক মেসেজ (Message 1) এনাবল থাকে, তবে তা পাঠান
@@ -1272,7 +1452,7 @@ USER_STATES: dict[int, dict] = {}
 
 def format_stats_text(title: str, s: dict) -> str:
     return (
-        f"📊 <b>{title}</b>\n\n"
+        f"📊 <b>{esc(title)}</b>\n\n"
         f"📩 মোট রিকুয়েস্ট: <b>{s['total']}</b>\n"
         f"✅ একসেপ্টেড: <b>{s['accepted']}</b>\n"
         f"⏳ পেন্ডিং: <b>{s['pending']}</b>\n"
@@ -1284,7 +1464,7 @@ def format_stats_text(title: str, s: dict) -> str:
     )
 
 
-async def send_broadcast_message(bot: Bot, chat_id: int, state: dict, action_type: str, kb) -> bool:
+async def send_broadcast_message(bot: Bot, chat_id: int, state: dict, action_type: str, kb, _depth: int = 0) -> bool:
     try:
         if action_type == "post":
             if state.get("media_type") == "photo":
@@ -1325,7 +1505,9 @@ async def send_broadcast_message(bot: Bot, chat_id: int, state: dict, action_typ
                 seconds = int(match.group(1))
             logger.warning(f"Rate limited. Sleeping for {seconds} seconds...")
             await asyncio.sleep(seconds)
-            return await send_broadcast_message(bot, chat_id, state, action_type, kb)
+            if _depth >= 3:
+                return False
+            return await send_broadcast_message(bot, chat_id, state, action_type, kb, _depth + 1)
         logger.error(f"Broadcast TelegramError for {chat_id}: {e}")
         return False
     except Exception as e:
@@ -1577,8 +1759,8 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         USER_STATES[uid] = {"action": "set_category", "channel_id": cid}
         await q.edit_message_text(
             f"📂 <b>চ্যানেলের ক্যাটাগরি সেট করুন</b>\n\n"
-            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
-            f"📂 বর্তমান ক্যাটাগরি: <code>{curr_cat}</code>\n\n"
+            f"📡 চ্যানেল: <b>{esc(ch['title'])}</b>\n"
+            f"📂 বর্তমান ক্যাটাগরি: <code>{esc(curr_cat)}</code>\n\n"
             f"এই চ্যানেলের জন্য একটি নতুন ক্যাটাগরির নাম লিখে পাঠান। (যেমন: Movies, Sports, News)\n"
             f"ডিফল্ট করতে: <code>Uncategorized</code> লিখে পাঠান।",
             parse_mode=ParseMode.HTML,
@@ -1611,7 +1793,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await q.edit_message_text("❌ চ্যানেল পাওয়া যায়নি।", reply_markup=kb_back_main())
             return
         text = (
-            f"📡 <b>{ch['title']}</b>\n\n"
+            f"📡 <b>{esc(ch['title'])}</b>\n\n"
             f"🆔 ID: <code>{cid}</code>\n"
             f"⚡ এখানে আপনার চ্যানেলের সমস্ত অটো-একসেপ্ট এবং স্বাগতম বার্তা বাটন সেটিংস নিয়ন্ত্রণ করুন।"
         )
@@ -1629,7 +1811,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         silent_status = "🔇 হ্যাঁ" if ch.get("silent_mode", 0) else "🔔 না"
         text = (
             f"⚡ <b>অটো-একসেপ্ট সেটিংস</b>\n\n"
-            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📡 চ্যানেল: <b>{esc(ch['title'])}</b>\n"
             f"⚡ অটো-একসেপ্ট: {status}\n"
             f"⏱️ ডিলে: {delay_m} মিনিট\n"
             f"🔇 সাইলেন্ট মোড: {silent_status}\n"
@@ -1657,7 +1839,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         text = (
             f"💬 <b>তাৎক্ষণিক মেসেজ (Message 1) সেটিংস</b>\n\n"
-            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📡 চ্যানেল: <b>{esc(ch['title'])}</b>\n"
             f"📊 অবস্থা: {status}\n"
             f"📷 মিডিয়া: {photo_status}\n"
             f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
@@ -1686,7 +1868,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         text = (
             f"🎉 <b>অনুমোদন মেসেজ (Message 2) সেটিংস</b>\n\n"
-            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📡 চ্যানেল: <b>{esc(ch['title'])}</b>\n"
             f"🔗 ইনভাইট লিংক: {link}\n"
             f"📷 মিডিয়া: {photo_status}\n"
             f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
@@ -1723,7 +1905,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         silent_status = "🔇 হ্যাঁ" if ch.get("silent_mode", 0) else "🔔 না"
         text = (
             f"⚡ <b>অটো-একসেপ্ট সেটিংস</b>\n\n"
-            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📡 চ্যানেল: <b>{esc(ch['title'])}</b>\n"
             f"⚡ অটো-একসেপ্ট: {status}\n"
             f"⏱️ ডিলে: {delay_m} মিনিট\n"
             f"🔇 সাইলেন্ট মোড: {silent_status}\n"
@@ -1747,7 +1929,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         silent_status = "🔇 হ্যাঁ" if ch.get("silent_mode", 0) else "🔔 না"
         text = (
             f"⚡ <b>অটো-একসেপ্ট সেটিংস</b>\n\n"
-            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📡 চ্যানেল: <b>{esc(ch['title'])}</b>\n"
             f"⚡ অটো-একসেপ্ট: {status}\n"
             f"⏱️ ডিলে: {delay_m} মিনিট\n"
             f"🔇 সাইলেন্ট মোড: {silent_status}\n"
@@ -1780,7 +1962,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         text = (
             f"💬 <b>তাৎক্ষণিক মেসেজ (Message 1) সেটিংস</b>\n\n"
-            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📡 চ্যানেল: <b>{esc(ch['title'])}</b>\n"
             f"📊 অবস্থা: {status}\n"
             f"📷 মিডিয়া: {photo_status}\n"
             f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
@@ -1858,7 +2040,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         text = (
             f"💬 <b>তাৎক্ষণিক মেসেজ (Message 1) সেটিংস</b>\n\n"
-            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📡 চ্যানেল: <b>{esc(ch['title'])}</b>\n"
             f"📊 অবস্থা: {status}\n"
             f"📷 মিডিয়া: {photo_status}\n"
             f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
@@ -1924,7 +2106,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         text = (
             f"🎉 <b>অনুমোদন মেসেজ (Message 2) সেটিংস</b>\n\n"
-            f"📡 চ্যানেল: <b>{ch['title']}</b>\n"
+            f"📡 চ্যানেল: <b>{esc(ch['title'])}</b>\n"
             f"🔗 ইনভাইট লিংক: {link}\n"
             f"📷 মিডিয়া: {photo_status}\n"
             f"🔗 কাস্টম বাটন সংখ্যা: {btn_count} টি\n\n"
@@ -1949,7 +2131,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ch = get_channel(cid)
         title = ch["title"] if ch else str(cid)
         await q.edit_message_text(
-            f"⚠️ আপনি কি নিশ্চিতভাবে <b>{title}</b> চ্যানেলটি সরাতে চান?\n\n"
+            f"⚠️ আপনি কি নিশ্চিতভাবে <b>{esc(title)}</b> চ্যানেলটি সরাতে চান?\n\n"
             "এই চ্যানেলের সব পেন্ডিং কিউও মুছে যাবে।",
             parse_mode=ParseMode.HTML,
             reply_markup=kb_confirm("remove_channel", cid),
@@ -1988,11 +2170,17 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 "SELECT * FROM join_requests WHERE channel_id=? ORDER BY requested_at DESC",
                 (cid,),
             ).fetchall()
-        lines = ["user_id,username,full_name,requested_at,accepted_at,status"]
+        def _cell(v):
+            # Excel/Sheets ফর্মুলা ইনজেকশন ঠেকাতে = + - @ দিয়ে শুরু হলে ' বসানো
+            v = "" if v is None else str(v)
+            return "'" + v if v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+        sio = io.StringIO()
+        w = csv.writer(sio)
+        w.writerow(["user_id", "username", "full_name", "requested_at", "accepted_at", "status"])
         for r in rows:
-            lines.append(f"{r['user_id']},{r['username'] or ''},{r['full_name'] or ''},"
-                         f"{r['requested_at']},{r['accepted_at'] or ''},{r['status']}")
-        csv_data = "\n".join(lines).encode("utf-8")
+            w.writerow([_cell(r["user_id"]), _cell(r["username"]), _cell(r["full_name"]),
+                        _cell(r["requested_at"]), _cell(r["accepted_at"]), _cell(r["status"])])
+        csv_data = sio.getvalue().encode("utf-8-sig")
         bio = io.BytesIO(csv_data)
         bio.name = f"stats_{cid}.csv"
         await ctx.bot.send_document(chat_id=uid, document=bio, caption=f"📤 চ্যানেল {cid} এর স্ট্যাটস এক্সপোর্ট")
@@ -2008,7 +2196,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             lines = [f"⏳ <b>পেন্ডিং কিউ ({len(queue)}টি)</b>\n"]
             for item in queue[:20]:
                 dt = item["accept_after"].replace("T", " ")[:16]
-                name = item["full_name"] or item["username"] or str(item["user_id"])
+                name = esc(item["full_name"] or item["username"] or str(item["user_id"]))
                 lines.append(f"• {name} → ⏰ {dt}")
             if len(queue) > 20:
                 lines.append(f"\n...এবং আরো {len(queue)-20}টি")
@@ -2029,12 +2217,12 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         queue = get_pending_queue(cid)
         title = ch["title"] if ch else str(cid)
         if not queue:
-            text = f"⏳ <b>{title}</b>\n\nকোনো পেন্ডিং কিউ নেই।"
+            text = f"⏳ <b>{esc(title)}</b>\n\nকোনো পেন্ডিং কিউ নেই।"
         else:
-            lines = [f"⏳ <b>{title}</b> — পেন্ডিং ({len(queue)}টি)\n"]
+            lines = [f"⏳ <b>{esc(title)}</b> — পেন্ডিং ({len(queue)}টি)\n"]
             for item in queue[:20]:
                 dt = item["accept_after"].replace("T", " ")[:16]
-                name = item["full_name"] or item["username"] or str(item["user_id"])
+                name = esc(item["full_name"] or item["username"] or str(item["user_id"]))
                 lines.append(f"• {name} → {dt}")
             text = "\n".join(lines)
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 কিউ", callback_data="menu:queue")]])
@@ -2051,6 +2239,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "admin:add_guide":
+        if not is_super_admin(uid):
+            await q.answer("⛔ শুধু সুপার-অ্যাডমিন এটি করতে পারবেন", show_alert=True)
+            return
         USER_STATES[uid] = {"action": "add_admin"}
         await q.edit_message_text(
             "➕ <b>নতুন অ্যাডমিন যোগ করুন</b>\n\n"
@@ -2063,6 +2254,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if data.startswith("admin:remove:"):
+        if not is_super_admin(uid):
+            await q.answer("⛔ শুধু সুপার-অ্যাডমিন এটি করতে পারবেন", show_alert=True)
+            return
         target_id = int(data.split(":")[-1])
         if target_id in ADMIN_IDS:
             await q.answer("⛔ super-admin সরানো যাবে না!", show_alert=True)
@@ -2090,6 +2284,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # ── BACKUP ──
     if data == "menu:backup":
+        if not is_super_admin(uid):
+            await q.answer("⛔ শুধু সুপার-অ্যাডমিন এটি করতে পারবেন", show_alert=True)
+            return
         await q.edit_message_text(
             "💾 <b>ব্যাকআপ ও রিস্টোর</b>",
             parse_mode=ParseMode.HTML,
@@ -2098,6 +2295,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "backup:download":
+        if not is_super_admin(uid):
+            await q.answer("⛔ শুধু সুপার-অ্যাডমিন এটি করতে পারবেন", show_alert=True)
+            return
         await q.answer("⏳ ব্যাকআপ তৈরি হচ্ছে...")
         path = make_backup()
         with open(path, "rb") as f:
@@ -2110,6 +2310,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "backup:restore_guide":
+        if not is_super_admin(uid):
+            await q.answer("⛔ শুধু সুপার-অ্যাডমিন এটি করতে পারবেন", show_alert=True)
+            return
         USER_STATES[uid] = {"action": "restore_backup"}
         await q.edit_message_text(
             "📥 <b>ব্যাকআপ রিস্টোর</b>\n\n"
@@ -2169,7 +2372,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         update_channel_setting(cid, "category", text)
         USER_STATES.pop(uid, None)
         await msg.reply_text(
-            f"✅ ক্যাটাগরি সফলভাবে সেট করা হয়েছে: <b>{text}</b>",
+            f"✅ ক্যাটাগরি সফলভাবে সেট করা হয়েছে: <b>{esc(text)}</b>",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ চ্যানেল সেটিংস", callback_data=f"ch:manage:{cid}")]])
         )
@@ -2316,9 +2519,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             
         await msg.reply_text(
             f"📊 **পোলের প্রিভিউ:**\n\n"
-            f"❓ প্রশ্ন: <b>{state['question']}</b>\n\n"
+            f"❓ প্রশ্ন: <b>{esc(state['question'])}</b>\n\n"
             f"📝 অপশনসমূহ:\n{opt_text}\n\n"
-            f"🎯 টার্গেট: <b>{target_info}</b>",
+            f"🎯 টার্গেট: <b>{esc(target_info)}</b>",
             parse_mode=ParseMode.HTML
         )
         await msg.reply_text(
@@ -2342,7 +2545,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             upsert_channel(cid, chat.title or str(cid), chat.username or "", invite, uid)
             USER_STATES.pop(uid, None)
             await msg.reply_text(
-                f"✅ <b>{chat.title}</b> চ্যানেল সফলভাবে যোগ করা হয়েছে!",
+                f"✅ <b>{esc(chat.title)}</b> চ্যানেল সফলভাবে যোগ করা হয়েছে!",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("⚙️ সেটিংস দেখুন", callback_data=f"ch:manage:{cid}"),
@@ -2423,7 +2626,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         state["btn_text"] = text
         state["action"] = "add_msg1_btn_url"
         await msg.reply_text(
-            f"🔗 বাটনের নাম: <b>{text}</b>\n\nএবার বাটনটির লিংক (URL) পাঠান।\n"
+            f"🔗 বাটনের নাম: <b>{esc(text)}</b>\n\nএবার বাটনটির লিংক (URL) পাঠান।\n"
             "উদাহরণ: <code>https://t.me/example</code>",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg1:{cid}")]])
@@ -2504,7 +2707,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         state["btn_text"] = text
         state["action"] = "add_msg2_btn_url"
         await msg.reply_text(
-            f"🔗 বাটনের নাম: <b>{text}</b>\n\nএবার বাটনটির লিংক (URL) পাঠান।\n"
+            f"🔗 বাটনের নাম: <b>{esc(text)}</b>\n\nএবার বাটনটির লিংক (URL) পাঠান।\n"
             "উদাহরণ: <code>https://t.me/example</code>",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data=f"ch:menu_msg2:{cid}")]])
@@ -2550,6 +2753,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # ── Add admin ──
     if action == "add_admin":
+        if not is_super_admin(uid):
+            USER_STATES.pop(uid, None)
+            return
         try:
             target_id = int(msg.text.strip())
             try:
@@ -2560,7 +2766,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             add_admin(target_id, uname, uid)
             USER_STATES.pop(uid, None)
             await msg.reply_text(
-                f"✅ <b>{uname}</b> (<code>{target_id}</code>) কে অ্যাডমিন করা হয়েছে!",
+                f"✅ <b>{esc(uname)}</b> (<code>{target_id}</code>) কে অ্যাডমিন করা হয়েছে!",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("👮 অ্যাডমিন লিস্ট", callback_data="menu:admins")]]),
             )
@@ -2570,7 +2776,13 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # ── Restore backup ──
     if action == "restore_backup":
-        if msg.document and (msg.document.file_name.endswith(".db") or msg.document.file_name.endswith(".json")):
+        if not is_super_admin(uid):
+            USER_STATES.pop(uid, None)
+            return
+        fname = (msg.document.file_name or "") if msg.document else ""
+        if msg.document and (msg.document.file_size or 0) > MAX_RESTORE_BYTES:
+            await msg.reply_text("❌ ফাইল অনেক বড় (সর্বোচ্চ ২০ MB)।")
+        elif msg.document and (fname.endswith(".db") or fname.endswith(".json")):
             await msg.reply_text(
                 "⚠️ আপনি কি নিশ্চিতভাবে রিস্টোর করতে চান? বর্তমান ডেটা মুছে যাবে!",
                 reply_markup=InlineKeyboardMarkup([
@@ -2578,7 +2790,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                      InlineKeyboardButton("❌ বাতিল", callback_data="menu:backup")],
                 ]),
             )
-            USER_STATES[uid] = {"action": "restore_confirm", "file_id": msg.document.file_id}
+            USER_STATES[uid] = {"action": "restore_confirm", "file_id": msg.document.file_id, "file_name": fname}
         else:
             await msg.reply_text("❌ .db অথবা .json ফাইল পাঠান।")
         return
@@ -2593,39 +2805,39 @@ async def handle_restore_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     q = update.callback_query
     await q.answer()
     uid = q.from_user.id
-    if not is_admin(uid):
+    if not is_super_admin(uid):
         return
     state = USER_STATES.get(uid, {})
     file_id = state.get("file_id")
     if not file_id:
         await q.edit_message_text("❌ কোনো ফাইল পাওয়া যায়নি। আবার চেষ্টা করুন।", reply_markup=kb_back_main())
         return
+    tmp = None
     try:
         file_obj = await ctx.bot.get_file(file_id)
-        file_path_on_telegram = file_obj.file_path or ""
-        ext = ".json" if file_path_on_telegram.endswith(".json") else ".db"
-        tmp = f"restore_tmp{ext}"
-        
+        ext = ".json" if (state.get("file_name") or "").endswith(".json") else ".db"
+        fd, tmp = tempfile.mkstemp(suffix=ext, prefix="restore_")   # একসাথে দুজন রিস্টোর করলেও সংঘর্ষ নেই
+        os.close(fd)
         await file_obj.download_to_drive(tmp)
         if restore_from_file(tmp):
             USER_STATES.pop(uid, None)
-            
-            try:
-                os.remove(tmp)
-            except Exception:
-                pass
-                
             await q.edit_message_text(
                 "✅ <b>রিস্টোর সফল হয়েছে!</b>\n\nপরিবর্তনগুলো কার্যকর হয়েছে।",
                 parse_mode=ParseMode.HTML,
                 reply_markup=kb_back_main(),
             )
         else:
-            await q.edit_message_text("❌ রিস্টোর ব্যর্থ হয়েছে। ফাইলটি বৈধ কিনা পরীক্ষা করুন।",
+            await q.edit_message_text("❌ রিস্টোর ব্যর্থ হয়েছে। ফাইলটি বৈধ কিনা পরীক্ষা করুন (আগের ডেটা অক্ষত আছে)।",
                                       reply_markup=kb_back_main())
     except Exception as e:
-        logger.error(f"restore error: {e}")
-        await q.edit_message_text(f"❌ ত্রুটি: {e}", reply_markup=kb_back_main())
+        logger.error(f"restore error: {redact(e)}")
+        await q.edit_message_text("❌ রিস্টোরে ত্রুটি হয়েছে। লগ দেখুন।", reply_markup=kb_back_main())
+    finally:
+        if tmp:
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
 
 
 # ─── ERROR HANDLER ────────────────────────────────────────────────────────────
@@ -2638,7 +2850,7 @@ async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE):
         try:
             await ctx.bot.send_message(
                 admin_id,
-                f"⚠️ <b>Bot Error:</b>\n<pre>{tb}</pre>",
+                f"⚠️ <b>Bot Error:</b>\n<pre>{esc(redact(tb))}</pre>",
                 parse_mode=ParseMode.HTML,
             )
         except Exception:

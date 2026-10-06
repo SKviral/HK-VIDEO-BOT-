@@ -53,11 +53,13 @@ pip install -r requirements.txt
 ```
 
 ### Step 4 — Config সেট করুন
-`telegram_bot.py` ফাইলের উপরে এই দুটো লাইন পরিবর্তন করুন:
-```python
-BOT_TOKEN  = "আপনার_বট_টোকেন"   # @BotFather থেকে নিন
-ADMIN_IDS  = [আপনার_user_id]     # @userinfobot থেকে নিন
+টোকেন কখনো সোর্স কোডে লিখবেন না। Environment variable ব্যবহার করুন:
+```bash
+export APPROVE_BOT_TOKEN="আপনার_বট_টোকেন"   # @BotFather থেকে নিন
+export SUPER_ADMIN_IDS="123456789,987654321" # @userinfobot থেকে নিন (কমা দিয়ে আলাদা)
+# ঐচ্ছিক: export MONGO_URL="..."
 ```
+শুধু `SUPER_ADMIN_IDS`-এর ইউজাররা অ্যাডমিন যোগ/বাদ, ব্যাকআপ ডাউনলোড ও রিস্টোর করতে পারবেন।
 
 ### Step 5 — Bot রান করুন
 ```bash
