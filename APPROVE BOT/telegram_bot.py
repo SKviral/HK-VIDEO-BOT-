@@ -1024,7 +1024,11 @@ def admin_only(func):
 
 # ─── KEYBOARD BUILDERS ───────────────────────────────────────────────────────
 def kb_main_menu() -> InlineKeyboardMarkup:
+    held = len(get_pending_queue())
+    hold_txt = "🛑 হোল্ড মোড: চালু ✅ (বন্ধ করুন)" if hold_enabled() else "🟢 হোল্ড মোড: বন্ধ (চালু করুন)"
     return InlineKeyboardMarkup([
+        [InlineKeyboardButton(hold_txt, callback_data="hold:toggle")],
+        [InlineKeyboardButton(f"✅ সব পেন্ডিং একসেপ্ট করুন ({held})", callback_data="hold:bulk_ask")],
         [InlineKeyboardButton("📡 চ্যানেল ম্যানেজমেন্ট", callback_data="menu:channels")],
         [InlineKeyboardButton("📢 ব্রডকাস্ট পোস্ট", callback_data="menu:broadcast")],
         [InlineKeyboardButton("📊 স্ট্যাটিস্টিক্স",       callback_data="menu:stats"),
@@ -1113,6 +1117,7 @@ def kb_channel_msg2(channel_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("💬 স্বাগতম মেসেজ সেট করুন", callback_data=f"ch:set_msg2_text:{channel_id}")],
         [InlineKeyboardButton("🖼️ স্বাগতম ফটো সেট করুন", callback_data=f"ch:set_msg2_photo:{channel_id}")],
+        [InlineKeyboardButton("🔄 ইনভাইট লিংক নতুন করুন (অটো)", callback_data=f"ch:newlink:{channel_id}")],
         [InlineKeyboardButton("🔗 ইনভাইট লিংক সেট করুন", callback_data=f"ch:set_link:{channel_id}")],
         [InlineKeyboardButton("➕ কাস্টম বাটন যোগ করুন", callback_data=f"ch:add_msg2_btn:{channel_id}")],
         [InlineKeyboardButton("🗑️ সব কাস্টম বাটন মুছুন", callback_data=f"ch:clear_msg2_btn:{channel_id}")],
@@ -1348,6 +1353,89 @@ _ACCEPT_FAILS: dict = {}        # (channel_id, user_id): ব্যর্থ চ�
 MAX_ACCEPT_RETRIES = 5
 
 
+# ─── HOLD MODE (এক ক্লিকে সব রিকুয়েস্ট ধরে রাখা, পরে বাল্ক একসেপ্ট) ─────────────
+HOLD_AFTER = datetime(9999, 12, 31)       # কিউতে "কখনো অটো নয়" চিহ্ন
+_HOLD_MARK = "9999-12-31"
+_BULK_RUNNING = False
+
+
+def get_global(key: str, default=None):
+    if USING_MONGO:
+        try:
+            d = settings_col.find_one({"key": key})
+            return d["value"] if d else default
+        except Exception as e:
+            logger.error(f"get_global mongo error: {e}")
+    try:
+        with get_db() as conn:
+            r = conn.execute("SELECT value FROM bot_settings WHERE key=?", (key,)).fetchone()
+            return r["value"] if r else default
+    except Exception as e:
+        logger.error(f"get_global sqlite error: {e}")
+        return default
+
+
+def set_global(key: str, value):
+    if USING_MONGO:
+        try:
+            settings_col.update_one({"key": key}, {"$set": {"key": key, "value": value}}, upsert=True)
+            return
+        except Exception as e:
+            logger.error(f"set_global mongo error: {e}")
+    try:
+        with get_db() as conn:
+            conn.execute("INSERT OR REPLACE INTO bot_settings(key,value) VALUES (?,?)", (key, str(value)))
+    except Exception as e:
+        logger.error(f"set_global sqlite error: {e}")
+
+
+def hold_enabled() -> bool:
+    return str(get_global("hold_all", "0")) in ("1", "True", "true")
+
+
+def is_held(item: dict) -> bool:
+    return str(item.get("accept_after", "")).startswith(_HOLD_MARK)
+
+
+async def bulk_accept(bot: Bot, admin_chat: int, channel_id: int = None):
+    """কিউর সব পেন্ডিং (বা একটি চ্যানেলের) রিকুয়েস্ট একসেপ্ট করে — রেট-লিমিট মেনে, প্রগ্রেসসহ।"""
+    global _BULK_RUNNING
+    if _BULK_RUNNING:
+        await bot.send_message(admin_chat, "⏳ একটি বাল্ক একসেপ্ট আগে থেকেই চলছে। শেষ হলে আবার চেষ্টা করুন।")
+        return
+    _BULK_RUNNING = True
+    try:
+        items = get_pending_queue(channel_id)
+        total = len(items)
+        if not total:
+            await bot.send_message(admin_chat, "✅ কোনো পেন্ডিং রিকুয়েস্ট নেই।", reply_markup=kb_back_main()); return
+        msg = await bot.send_message(admin_chat, f"⏳ <b>বাল্ক একসেপ্ট শুরু</b>\n📊 মোট: <b>{total}</b>", parse_mode=ParseMode.HTML)
+        done = 0
+        last = time.time()
+        for item in items:
+            if not get_channel(item["channel_id"]):
+                dequeue(item["channel_id"], item["user_id"]); continue
+            await do_accept(bot, item["channel_id"], item["user_id"], item.get("full_name") or "", item.get("username") or "")
+            done += 1
+            await asyncio.sleep(0.15)
+            if time.time() - last > 3:
+                last = time.time()
+                try:
+                    await msg.edit_text(f"⏳ <b>একসেপ্ট হচ্ছে...</b>\n📊 {done}/{total}", parse_mode=ParseMode.HTML)
+                except Exception:
+                    pass
+        left = len(get_pending_queue(channel_id))
+        await bot.send_message(
+            admin_chat,
+            f"✅ <b>বাল্ক একসেপ্ট সম্পন্ন!</b>\n📊 প্রসেস: <b>{done}/{total}</b>"
+            + (f"\n⚠️ এখনো কিউতে আছে: <b>{left}</b> (আবার চেষ্টা করুন)" if left else ""),
+            parse_mode=ParseMode.HTML, reply_markup=kb_back_main())
+    except Exception as e:
+        logger.error(f"bulk_accept error: {e}")
+    finally:
+        _BULK_RUNNING = False
+
+
 async def do_accept(bot: Bot, channel_id: int, user_id: int, full_name: str, username: str):
     """একটি join request accept করো।"""
     key = (channel_id, user_id)
@@ -1439,8 +1527,11 @@ async def handle_join_request(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if ch.get("request_msg_enabled"):
         await send_request_received_message(ctx.bot, ch, user_id)
 
-    if not ch.get("auto_accept", 1):
-        logger.info(f"Auto-accept paused for {channel_id}, skipping user {user_id}")
+    if hold_enabled() or not ch.get("auto_accept", 1):
+        # হোল্ড: রিকুয়েস্ট কিউতে জমা থাকবে, অ্যাডমিন বাল্ক একসেপ্ট না করা পর্যন্ত একসেপ্ট হবে না
+        enqueue(channel_id, user_id, username, full_name, HOLD_AFTER)
+        log_request(channel_id, user_id, username, full_name, HOLD_AFTER)
+        logger.info(f"Held request: user={user_id} channel={channel_id}")
         return
 
     delay = ch.get("delay_seconds", 0) or 0
@@ -1645,6 +1736,41 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # ── NOOP ──
     if data == "noop":
+        return
+
+    # ── HOLD MODE / BULK ACCEPT ──
+    if data == "hold:toggle":
+        new = not hold_enabled()
+        set_global("hold_all", "1" if new else "0")
+        n = len(get_pending_queue())
+        note = ("🛑 <b>হোল্ড মোড চালু!</b>\nএখন থেকে সব চ্যানেলের নতুন রিকুয়েস্ট জমা থাকবে — নিজে থেকে একসেপ্ট হবে না।\n"
+                "যখন চাইবেন <b>✅ সব পেন্ডিং একসেপ্ট করুন</b> চাপুন।") if new else (
+                f"🟢 <b>হোল্ড মোড বন্ধ।</b>\nনতুন রিকুয়েস্ট আবার আগের নিয়মে (অটো/ডিলে) একসেপ্ট হবে।\n"
+                f"⏳ জমে থাকা <b>{n}</b>টি রিকুয়েস্ট কিউতেই আছে — বাল্ক একসেপ্ট বাটনে একসেপ্ট করুন।")
+        await q.edit_message_text(note, parse_mode=ParseMode.HTML, reply_markup=kb_main_menu())
+        return
+
+    if data == "hold:bulk_ask":
+        n = len(get_pending_queue())
+        if not n:
+            await q.answer("কোনো পেন্ডিং রিকুয়েস্ট নেই", show_alert=True); return
+        await q.edit_message_text(
+            f"⚠️ <b>সব চ্যানেলের {n}টি পেন্ডিং রিকুয়েস্ট একসেপ্ট করবেন?</b>\n(ওয়েলকাম মেসেজও যাবে, কিছুটা সময় লাগতে পারে)",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ হ্যাঁ, সবাইকে একসেপ্ট", callback_data="hold:bulk_go")],
+                [InlineKeyboardButton("❌ না", callback_data="menu:main")]]))
+        return
+
+    if data == "hold:bulk_go":
+        await q.edit_message_text("⏳ বাল্ক একসেপ্ট শুরু হচ্ছে...", reply_markup=None)
+        ctx.application.create_task(bulk_accept(ctx.bot, q.message.chat_id))
+        return
+
+    if data.startswith("hold:bulk_ch:"):
+        cid = int(data.split(":")[-1])
+        await q.edit_message_text("⏳ এই চ্যানেলের বাল্ক একসেপ্ট শুরু হচ্ছে...", reply_markup=None)
+        ctx.application.create_task(bulk_accept(ctx.bot, q.message.chat_id, cid))
         return
 
     # ── MAIN MENU ──
@@ -2273,7 +2399,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         else:
             lines = [f"⏳ <b>পেন্ডিং কিউ ({len(queue)}টি)</b>\n"]
             for item in queue[:20]:
-                dt = item["accept_after"].replace("T", " ")[:16]
+                dt = "✋ হোল্ডে" if is_held(item) else item["accept_after"].replace("T", " ")[:16]
                 name = esc(item["full_name"] or item["username"] or str(item["user_id"]))
                 lines.append(f"• {name} → ⏰ {dt}")
             if len(queue) > 20:
@@ -2299,11 +2425,15 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         else:
             lines = [f"⏳ <b>{esc(title)}</b> — পেন্ডিং ({len(queue)}টি)\n"]
             for item in queue[:20]:
-                dt = item["accept_after"].replace("T", " ")[:16]
+                dt = "✋ হোল্ডে" if is_held(item) else item["accept_after"].replace("T", " ")[:16]
                 name = esc(item["full_name"] or item["username"] or str(item["user_id"]))
                 lines.append(f"• {name} → {dt}")
             text = "\n".join(lines)
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 কিউ", callback_data="menu:queue")]])
+        rows_q = []
+        if queue:
+            rows_q.append([InlineKeyboardButton(f"✅ এই চ্যানেলের সব একসেপ্ট ({len(queue)})", callback_data=f"hold:bulk_ch:{cid}")])
+        rows_q.append([InlineKeyboardButton("🔙 কিউ", callback_data="menu:queue")])
+        kb = InlineKeyboardMarkup(rows_q)
         await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
         return
 
