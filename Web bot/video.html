@@ -1263,7 +1263,12 @@
         renderedCategories.add(catName);
         
         const cc = document.getElementById('category-container');
-        cc.insertAdjacentHTML('beforeend', `<button class="cat-btn" onclick="filterCategory('${catName}', this)">${catName}</button>`);
+        // DOM API দিয়ে — ক্যাটাগরির নামে ' বা HTML থাকলেও ভাঙবে না/ইনজেকশন হবে না
+        const catBtn = document.createElement('button');
+        catBtn.className = 'cat-btn';
+        catBtn.textContent = catName;
+        catBtn.addEventListener('click', function () { filterCategory(catName, this); });
+        cc.appendChild(catBtn);
     }
 
     db.ref('categories').on('value', snap => {
@@ -1276,8 +1281,10 @@
         renderedCategories.add('All');
         
         const cats = snap.val();
-        if(cats) Object.values(cats).forEach(c => {
-            if (c.name) ensureCategoryButton(c.name);
+        // categories ["নাম", ...] / {id:"নাম"} / {id:{name}} — সব আকার সাপোর্ট (আগে শুধু {name} ধরা হতো)
+        if(cats && typeof cats === 'object') Object.values(cats).forEach(c => {
+            const n = typeof c === 'string' ? c : (c && typeof c === 'object' ? c.name : '');
+            if (n && String(n).trim()) ensureCategoryButton(String(n).trim());
         });
         
         // Also ensure categories from loaded videos are displayed

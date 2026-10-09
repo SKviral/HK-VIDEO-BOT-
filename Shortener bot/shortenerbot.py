@@ -7,6 +7,7 @@
 """
 
 import os, re, time, json, uuid, threading, requests, telebot, logging, base64, hmac, hashlib, secrets
+import html as _html
 from datetime import datetime, timedelta
 from functools import wraps
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
@@ -71,6 +72,7 @@ categories_col    = db['categories']
 scheduled_col     = db['scheduled_posts']
 unlock_tokens_col = db['unlock_tokens']
 ad_sessions_col   = db['ad_sessions']
+temp_posts_col    = db['temp_posts']
 
 try:
     if MONGO_URL and MONGO_URL != "আপনার_MongoDB_URL":
@@ -83,6 +85,8 @@ try:
         unlock_tokens_col.create_index("token", background=True)
         ad_sessions_col.create_index("created_at", expireAfterSeconds=AD_SESSION_TTL, background=True)
         ad_sessions_col.create_index("sid", background=True)
+        temp_posts_col.create_index("delete_at", background=True)
+        temp_posts_col.create_index("group_id", background=True)
         
         if not admins_col.find_one({"chat_id": str(MAIN_ADMIN_ID)}):
             admins_col.insert_one({"chat_id": str(MAIN_ADMIN_ID), "role": "super_admin", "added_at": datetime.now().isoformat()})
@@ -930,6 +934,7 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
 
         if ch_type == "premium":
             pr_links = "\n".join([d_link]*rpt)
+            links_str = pr_links   # আগে এই ভ্যারিয়েবল ছিল না → NameError হয়ে "পোস্ট অল" মাঝপথে থেমে যেত
             prem_caption = f"{ph_t}{fc_txt}{L['prem_caption_title']}\n{links_str}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{ph_t}{fc_txt}{pf_t}".strip()
             pr_share = clean_html(prem_caption)
             prem_markup = _build_post_markup(user, d_link, pr_share, is_premium=True, ch=ch_ctx)
@@ -1038,11 +1043,18 @@ def _deliver_files(chat_id, file_key, user, is_unlocked=False):
             elif f['type']=='audio':  res = bot.send_audio(chat_id,    f['file_id'], caption=caption, reply_markup=kw['reply_markup'], protect_content=protect)
             if res: sent_id = res.message_id; delivered += 1
         except:
-            if f.get('log_chat_id') and f.get('log_msg_id'):
+            # ফলব্যাক: সব লগ চ্যানেলের কপি থেকে একে একে চেষ্টা (যেকোনো একটি কাজ করলেই হবে)
+            copies = list(f.get('log_copies') or [])
+            if f.get('log_chat_id') and f.get('log_msg_id') and not any(
+                    str(c.get('chat_id')) == str(f['log_chat_id']) and c.get('msg_id') == f['log_msg_id'] for c in copies):
+                copies.append({"chat_id": f['log_chat_id'], "msg_id": f['log_msg_id']})
+            for c in copies:
                 try:
-                    res = bot.copy_message(chat_id, f['log_chat_id'], f['log_msg_id'], caption=caption, reply_markup=mk if mk.keyboard else None, protect_content=protect)
+                    res = bot.copy_message(chat_id, c['chat_id'], c['msg_id'], caption=caption, reply_markup=mk if mk.keyboard else None, protect_content=protect)
                     sent_id = res.message_id; delivered += 1
-                except: pass
+                    break
+                except Exception:
+                    continue
 
         if sent_id and uploader.get("auto_delete", 0) > 0:
             queue_col.insert_one({"chat_id": chat_id, "message_id": sent_id, "delete_at": int(time.time()) + uploader["auto_delete"]*60})
@@ -1069,6 +1081,7 @@ def _main_menu():
     m.row(_btn("⚙️ সেটিংস", "settings"), _btn("📊 স্ট্যাটস", "show_stats"))
     m.row(_btn("📢 ব্রডকাস্ট", "broadcast"), _btn("⏰ সিডিউল", "menu_schedule"))
     m.row(_btn("📂 ক্যাটাগরি", "menu_categories"), _btn("ℹ️ হেল্প", "help_menu"))
+    m.add(_btn("🕒 Temp Post (অটো ডিলিট)", "menu_temp_post"))
     return m
 
 def _admin_reply_keyboard():
@@ -1100,6 +1113,384 @@ def _post_btn_menu(u):
 # ══════════════════════════════════════════════════
 #  কলব্যাক হ্যান্ডলার
 # ══════════════════════════════════════════════════
+# ══════════════════════════════════════════════════
+#  🕒 TEMP POST — সময় সেট করে পোস্ট, সময় শেষে অটো ডিলিট
+#  মেনু → Temp Post → সময় → (ভিডিও/ছবি/ফাইল ও/বা টেক্সট) → ক্যাটাগরি
+# ══════════════════════════════════════════════════
+TEMP_MAX_MINUTES = 47 * 60          # টেলিগ্রাম ৪৮ ঘণ্টার বেশি পুরনো মেসেজ ডিলিট করতে দেয় না
+TEMP_DURATIONS = [30, 60, 180, 360, 720, 1440]   # প্রিসেট (মিনিট)
+TEMP_MAX_ATTEMPTS = 5               # ডিলিট ব্যর্থ হলে সর্বোচ্চ চেষ্টা
+BOT_TZ_NAME = os.environ.get("BOT_TZ", "Asia/Dhaka")
+
+_BN_DIGITS = str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789")
+_UNIT_MIN = {"": 1, "m": 1, "min": 1, "mins": 1, "minute": 1, "minutes": 1, "মিনিট": 1, "মি": 1,
+             "h": 60, "hr": 60, "hrs": 60, "hour": 60, "hours": 60, "ঘণ্টা": 60, "ঘন্টা": 60, "ঘণ্টা": 60,
+             "d": 1440, "day": 1440, "days": 1440, "দিন": 1440}
+
+
+def parse_duration_minutes(text):
+    """'30', '30m', '2h', '1d', '1h30m', '২ ঘণ্টা' → মিনিট (int)। অবৈধ হলে None।"""
+    s = (text or "").strip().lower().translate(_BN_DIGITS)
+    if not s:
+        return None
+    pos, total, found = 0, 0.0, False
+    for m in re.finditer(r"\s*(\d+(?:\.\d+)?)\s*([a-zA-Zঀ-৿]*)", s):
+        if m.start() != pos:
+            return None
+        unit = m.group(2)
+        if unit not in _UNIT_MIN:
+            return None
+        total += float(m.group(1)) * _UNIT_MIN[unit]
+        pos, found = m.end(), True
+    if not found or pos != len(s.rstrip()) and s[pos:].strip():
+        return None
+    minutes = int(round(total))
+    return minutes if minutes >= 1 else None
+
+
+def fmt_duration(minutes):
+    minutes = int(minutes)
+    d, rem = divmod(minutes, 1440)
+    h, mi = divmod(rem, 60)
+    parts = []
+    if d: parts.append(f"{d} দিন")
+    if h: parts.append(f"{h} ঘণ্টা")
+    if mi or not parts: parts.append(f"{mi} মিনিট")
+    return " ".join(parts)
+
+
+def _tp_local_time(ts):
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.fromtimestamp(ts, ZoneInfo(BOT_TZ_NAME)).strftime("%d %b, %I:%M %p")
+    except Exception:
+        return datetime.fromtimestamp(ts).strftime("%d %b, %I:%M %p")
+
+
+def _tp_clear(cid):
+    update_user(cid, {"step": "none", "tp_minutes": 0, "tp_text": "", "tp_media_id": "", "tp_media_type": ""})
+
+
+def _tp_is_parse_error(e):
+    return "parse entities" in str(e).lower() or "can't parse" in str(e).lower()
+
+
+def _tp_send(target, text, mtype, mid):
+    """একটি চ্যানেলে Temp Post পাঠায়। সফল হলে পাঠানো সব message_id-র লিস্ট ফেরত দেয়।"""
+    text = text or ""
+    ids = []
+
+    def attempt(fn, *a, **k):
+        try:
+            return fn(*a, **k)
+        except Exception as e:
+            if _tp_is_parse_error(e):            # ইউজারের টেক্সটে ভুল HTML থাকলে প্লেইন টেক্সট হিসেবে পাঠানো
+                k2 = dict(k)
+                if "caption" in k2 and k2["caption"]: k2["caption"] = _html.escape(k2["caption"])
+                if "text" in k2: k2["text"] = _html.escape(k2["text"])
+                return fn(*a, **k2)
+            raise
+
+    if mid and mtype in ("photo", "video", "document", "audio"):
+        senders = {"photo": bot.send_photo, "video": bot.send_video, "document": bot.send_document, "audio": bot.send_audio}
+        cap = text if 0 < len(text) <= 1024 else None
+        res = attempt(senders[mtype], target, mid, caption=cap)
+        ids.append(res.message_id)
+        if text and cap is None:                 # ক্যাপশন ১০২৪ অক্ষরের বেশি → আলাদা মেসেজ
+            res2 = attempt(bot.send_message, target, text=text)
+            ids.append(res2.message_id)
+    elif text:
+        res = attempt(bot.send_message, target, text=text)
+        ids.append(res.message_id)
+    return ids
+
+
+def _tp_channels_for(cat_id):
+    """ক্যাটাগরির (বা সব) চালু চ্যানেল — লগ চ্যানেল বাদ। [(name, channel_id)]"""
+    out, seen = [], set()
+    if cat_id == "all":
+        src = list(auto_channels_col.find({"status": "on"}))
+    else:
+        cat = get_category(cat_id)
+        src = (cat or {}).get("channels", [])
+    for ch in src:
+        if ch.get("status", "on") not in ["on", True, "active", 1, "1", "ON"]:
+            continue
+        if ch.get("type") == "log":
+            continue
+        raw = str(ch.get("channel_id", "")).strip()
+        if not raw or raw in seen:
+            continue
+        seen.add(raw)
+        try: target = int(raw)
+        except ValueError: target = raw
+        out.append((ch.get("name") or raw, target))
+    return out
+
+
+def _tp_content_summary(user):
+    txt = (user.get("tp_text") or "").strip()
+    mt = user.get("tp_media_type") or ""
+    icons = {"video": "🎬 ভিডিও", "photo": "🖼️ ছবি", "document": "📄 ফাইল", "audio": "🎵 অডিও"}
+    parts = []
+    if mt: parts.append(icons.get(mt, "📎 মিডিয়া"))
+    if txt:
+        short = txt if len(txt) <= 80 else txt[:80] + "…"
+        parts.append("📝 " + _html.escape(short))
+    return "\n".join(parts) if parts else "—"
+
+
+def _tp_ask_category(cid, user):
+    cats = get_categories()
+    m = _mk()
+    for c in cats:
+        m.add(_btn(f"📂 {c['name']}", f"tp_cat_{c['cat_id']}"))
+    m.add(_btn("🌐 সব চ্যানেলে", "tp_cat_all"))
+    m.row(_btn("🗑 কন্টেন্ট বদলাবো", "tp_reset"), _btn("❌ বাতিল", "tp_cancel"))
+    bot.send_message(
+        cid,
+        f"✅ <b>কন্টেন্ট নেওয়া হয়েছে</b>\n{'─'*24}\n{_tp_content_summary(user)}\n{'─'*24}\n"
+        f"⏱ ডিলিট হবে: <b>{fmt_duration(user.get('tp_minutes') or 0)}</b> পর\n\n"
+        f"📂 <b>কোন ক্যাটাগরিতে পোস্ট করবেন?</b>\n<i>💡 আরও টেক্সট/ভিডিও পাঠালে কন্টেন্টে যোগ হবে (ভিডিও + টেক্সট একসাথে)।</i>",
+        reply_markup=m)
+
+
+def _tp_start_content(cid, minutes):
+    update_user(cid, {"tp_minutes": int(minutes), "tp_text": "", "tp_media_id": "", "tp_media_type": "", "step": "wait_temp_content"})
+    m = _mk(); m.add(_btn("❌ বাতিল", "tp_cancel"))
+    bot.send_message(
+        cid,
+        f"🕒 <b>Temp Post</b> — ⏱ <b>{fmt_duration(minutes)}</b> পর অটো ডিলিট\n\n"
+        f"এখন পোস্টের কন্টেন্ট পাঠান:\n• 🎬 ভিডিও / 🖼️ ছবি / 📄 ফাইল\n• 📝 টেক্সট\n• অথবা ভিডিওর সাথে ক্যাপশন দিয়ে <b>দুটো একসাথে</b>",
+        reply_markup=m)
+
+
+def _tp_duration_menu(cid, mid=None):
+    update_user(cid, {"step": "wait_temp_duration"})
+    m = _mk()
+    row = []
+    for mins in TEMP_DURATIONS:
+        row.append(_btn(fmt_duration(mins), f"tp_dur_{mins}"))
+        if len(row) == 2: m.row(*row); row = []
+    if row: m.row(*row)
+    m.add(_btn("✍️ নিজে লিখব (যেমন 45m, 2h, 1h30m)", "tp_dur_custom"))
+    m.add(_back("menu_temp_post"))
+    txt = ("🕒 <b>Temp Post — সময় সেট করুন</b>\n\nকতক্ষণ পর পোস্টটি নিজে থেকে ডিলিট হবে?\n"
+           f"<i>সর্বোচ্চ {fmt_duration(TEMP_MAX_MINUTES)} (টেলিগ্রাম ৪৮ ঘণ্টার বেশি পুরনো মেসেজ ডিলিট করতে দেয় না)।</i>")
+    if mid: bot.edit_message_text(txt, cid, mid, reply_markup=m)
+    else: bot.send_message(cid, txt, reply_markup=m)
+
+
+def _tp_active_groups():
+    groups = {}
+    for d in temp_posts_col.find({"status": {"$in": ["active", "deleting"]}}):
+        g = groups.setdefault(d["group_id"], {"group_id": d["group_id"], "delete_at": d["delete_at"], "n": 0, "title": d.get("summary", "")})
+        g["n"] += 1
+        g["delete_at"] = min(g["delete_at"], d["delete_at"])
+    return sorted(groups.values(), key=lambda g: g["delete_at"])
+
+
+def _tp_do_post(cid, user, cat_id):
+    minutes = int(user.get("tp_minutes") or 0)
+    text = (user.get("tp_text") or "").strip()
+    mid, mtype = user.get("tp_media_id") or "", user.get("tp_media_type") or ""
+    if minutes < 1 or not (text or mid):
+        bot.send_message(cid, "⚠️ কন্টেন্ট বা সময় সেট নেই। আবার শুরু করুন।", reply_markup=_main_menu()); _tp_clear(cid); return
+    targets = _tp_channels_for(cat_id)
+    if not targets:
+        bot.send_message(cid, "⚠️ এই ক্যাটাগরিতে কোনো চালু চ্যানেল নেই।"); return
+
+    cat_name = "সব চ্যানেল" if cat_id == "all" else ((get_category(cat_id) or {}).get("name") or cat_id)
+    group_id = uuid.uuid4().hex[:8]
+    delete_at = int(time.time()) + minutes * 60
+    summary = ((text or "").replace("\n", " ")[:40]) or {"video": "ভিডিও", "photo": "ছবি", "document": "ফাইল", "audio": "অডিও"}.get(mtype, "পোস্ট")
+    ok, fail = [], []
+    status_msg = bot.send_message(cid, f"⏳ <b>{len(targets)}</b>টি চ্যানেলে পোস্ট হচ্ছে...")
+    for name, target in targets:
+        try:
+            ids = _tp_send(target, text, mtype, mid)
+            temp_posts_col.insert_one({
+                "group_id": group_id, "admin_id": str(cid), "chat_id": target, "channel_name": name,
+                "message_ids": ids, "delete_at": delete_at, "status": "active", "attempts": 0,
+                "cat_name": cat_name, "summary": summary, "created_at": datetime.now().isoformat()})
+            ok.append(name)
+        except Exception as e:
+            logger.warning(f"TempPost [{name} / {target}]: {type(e).__name__}: {e}")
+            fail.append(f"{name}: {str(e)[:90]}")
+        time.sleep(0.3)
+
+    _tp_clear(cid)
+    lines = [f"✅ <b>Temp Post সম্পন্ন!</b>", f"📂 ক্যাটাগরি: <b>{_html.escape(str(cat_name))}</b>",
+             f"📤 পোস্ট হয়েছে: <b>{len(ok)}/{len(targets)}</b>টি চ্যানেলে",
+             f"🗑 অটো ডিলিট: <b>{_tp_local_time(delete_at)}</b> ({fmt_duration(minutes)} পর)", f"🆔 <code>{group_id}</code>"]
+    if fail:
+        lines.append("\n⚠️ <b>ব্যর্থ:</b>\n" + "\n".join(f"• {_html.escape(x)}" for x in fail))
+        lines.append("💡 বটকে চ্যানেলে অ্যাডমিন (পোস্ট করার অনুমতিসহ) করুন।")
+    m = _mk()
+    if ok: m.add(_btn("🗑 এখনই ডিলিট করুন", f"tp_del_{group_id}"))
+    m.add(_btn("🕒 Temp Post মেনু", "menu_temp_post"))
+    try: bot.delete_message(cid, status_msg.message_id)
+    except Exception: pass
+    bot.send_message(cid, "\n".join(lines), reply_markup=m)
+
+
+def _handle_temp_callback(call, cid, mid, data):
+    try: bot.answer_callback_query(call.id)
+    except Exception: pass
+    user = get_user(cid)
+
+    if data == "menu_temp_post":
+        update_step(cid, "none")
+        n = len(_tp_active_groups())
+        m = _mk()
+        m.add(_btn("➕ নতুন Temp Post", "tp_new"))
+        m.add(_btn(f"📋 সক্রিয় Temp Post ({n}টি)", "tp_list"))
+        m.add(_back("main_menu"))
+        bot.edit_message_text(
+            "🕒 <b>Temp Post</b>\n" + "─" * 26 + "\n"
+            "সময় সেট করে ভিডিও/টেক্সট পোস্ট করুন — ক্যাটাগরির চ্যানেলগুলোতে পোস্ট হবে এবং <b>সেট করা সময়ে নিজে থেকে ডিলিট</b> হয়ে যাবে।\n\n"
+            "⚠️ বটকে চ্যানেলে <b>মেসেজ ডিলিট</b> করার অনুমতি দিতে হবে।",
+            cid, mid, reply_markup=m)
+    elif data == "tp_new":
+        _tp_duration_menu(cid, mid)
+    elif data == "tp_dur_custom":
+        update_step(cid, "wait_temp_duration")
+        m = _mk(); m.add(_btn("❌ বাতিল", "tp_cancel"))
+        bot.send_message(cid, "✍️ সময় লিখুন। উদাহরণ: <code>45m</code>, <code>2h</code>, <code>1h30m</code>, <code>1d</code> (শুধু সংখ্যা লিখলে মিনিট)।", reply_markup=m)
+    elif data.startswith("tp_dur_"):
+        try: mins = int(data[7:])
+        except ValueError: return
+        if mins < 1 or mins > TEMP_MAX_MINUTES: return
+        _tp_start_content(cid, mins)
+    elif data == "tp_reset":
+        mins = int(user.get("tp_minutes") or 0)
+        if mins: _tp_start_content(cid, mins)
+        else: _tp_duration_menu(cid)
+    elif data == "tp_cancel":
+        _tp_clear(cid)
+        s = get_stats()
+        bot.edit_message_text(f"❌ Temp Post বাতিল।\n\n👥 মোট ইউজার : <b>{s['total_users']}</b>", cid, mid, reply_markup=_main_menu())
+    elif data.startswith("tp_cat_"):
+        cat_id = data[7:]
+        if user.get("step") != "wait_temp_content" and not (user.get("tp_text") or user.get("tp_media_id")):
+            bot.send_message(cid, "⚠️ সেশন শেষ। আবার শুরু করুন।", reply_markup=_main_menu()); return
+        # ডাবল-ক্লিকে দুবার পোস্ট ঠেকাতে ধাপ আগেই বদলে নেওয়া
+        update_step(cid, "none")
+        _tp_do_post(cid, get_user(cid), cat_id)
+    elif data == "tp_list":
+        groups = _tp_active_groups()
+        m = _mk()
+        if not groups:
+            txt = "📋 <b>সক্রিয় Temp Post</b>\n\nএখন কোনো সক্রিয় Temp Post নেই।"
+        else:
+            lines = [f"📋 <b>সক্রিয় Temp Post ({len(groups)}টি)</b>\n"]
+            now = int(time.time())
+            for g in groups[:15]:
+                left = max(0, (g["delete_at"] - now) // 60)
+                lines.append(f"• <code>{g['group_id']}</code> — {_html.escape(g['title'])}\n   ⏳ বাকি: {fmt_duration(left) if left else '১ মিনিটের কম'} | 📢 {g['n']}টি চ্যানেল")
+                m.add(_btn(f"🗑 ডিলিট {g['group_id']}", f"tp_del_{g['group_id']}"))
+            txt = "\n".join(lines)
+        m.add(_back("menu_temp_post"))
+        bot.edit_message_text(txt, cid, mid, reply_markup=m)
+    elif data.startswith("tp_del_"):
+        gid = data[7:]
+        n = temp_posts_col.update_many({"group_id": gid, "status": "active"}, {"$set": {"delete_at": 0}}).modified_count
+        if n:
+            _temp_post_tick()
+            bot.send_message(cid, f"🗑 <code>{gid}</code> — ডিলিট প্রক্রিয়া শুরু হয়েছে ({n}টি চ্যানেল)।")
+        else:
+            bot.send_message(cid, "⚠️ এই Temp Post আগেই ডিলিট হয়েছে বা পাওয়া যায়নি।")
+
+
+def _handle_temp_message(message, cid, user, step):
+    """Temp Post ধাপের মেসেজ হ্যান্ডেল। হ্যান্ডেল করলে True।"""
+    text = (message.text or message.caption or "").strip()
+    if step == "wait_temp_duration":
+        if not message.text:
+            return False
+        mins = parse_duration_minutes(text)
+        if mins is None:
+            bot.send_message(cid, "⚠️ সময় বোঝা যায়নি। উদাহরণ: <code>45m</code>, <code>2h</code>, <code>1h30m</code>, <code>1d</code>")
+        elif mins > TEMP_MAX_MINUTES:
+            bot.send_message(cid, f"⚠️ সর্বোচ্চ <b>{fmt_duration(TEMP_MAX_MINUTES)}</b> দেওয়া যাবে (টেলিগ্রামের ৪৮ ঘণ্টার সীমা)।")
+        else:
+            _tp_start_content(cid, mins)
+        return True
+
+    if step == "wait_temp_content":
+        updates = {}
+        if message.photo:
+            updates.update(tp_media_id=message.photo[-1].file_id, tp_media_type="photo")
+        elif message.video:
+            updates.update(tp_media_id=message.video.file_id, tp_media_type="video")
+        elif message.document:
+            updates.update(tp_media_id=message.document.file_id, tp_media_type="document")
+        elif message.audio:
+            updates.update(tp_media_id=message.audio.file_id, tp_media_type="audio")
+        if text:
+            if len(text) > 4000:
+                bot.send_message(cid, "⚠️ টেক্সট অনেক বড় (সর্বোচ্চ ৪০০০ অক্ষর)।"); return True
+            updates["tp_text"] = text
+        if not updates:
+            return False
+        update_user(cid, updates)
+        _tp_ask_category(cid, get_user(cid))
+        return True
+    return False
+
+
+# ── অটো-ডিলিট ওয়ার্কার ──
+def _tp_notify(admin_id, msg):
+    try: bot.send_message(admin_id, msg)
+    except Exception: pass
+
+
+def _temp_post_tick():
+    now = int(time.time())
+    # আটকে থাকা (ক্র্যাশের পর "deleting") রেকর্ড আবার সক্রিয় করা
+    temp_posts_col.update_many({"status": "deleting", "claimed_at": {"$lt": now - 120}}, {"$set": {"status": "active"}})
+    for d in list(temp_posts_col.find({"status": "active", "delete_at": {"$lte": now}})):
+        # অ্যাটমিক ক্লেইম — একাধিক প্রসেস/থ্রেডে একই পোস্ট দুবার ডিলিট হবে না
+        claimed = temp_posts_col.update_one({"_id": d["_id"], "status": "active"}, {"$set": {"status": "deleting", "claimed_at": now}})
+        if claimed.modified_count != 1:
+            continue
+        remaining, last_err = [], ""
+        for m_id in d.get("message_ids", []):
+            try:
+                bot.delete_message(d["chat_id"], m_id)
+            except Exception as e:
+                desc = str(e).lower()
+                if "message to delete not found" in desc or "message_id_invalid" in desc:
+                    continue                         # আগেই মুছে গেছে
+                remaining.append(m_id); last_err = str(e)[:120]
+        if not remaining:
+            temp_posts_col.delete_one({"_id": d["_id"]})
+            if not temp_posts_col.find_one({"group_id": d["group_id"], "status": {"$in": ["active", "deleting"]}}):
+                _tp_notify(d["admin_id"], f"🗑 <b>Temp Post মুছে গেছে</b>\n🆔 <code>{d['group_id']}</code> — {_html.escape(d.get('summary',''))}")
+            continue
+        attempts = d.get("attempts", 0) + 1
+        if attempts >= TEMP_MAX_ATTEMPTS:
+            temp_posts_col.update_one({"_id": d["_id"]}, {"$set": {"status": "failed", "message_ids": remaining, "last_error": last_err}})
+            _tp_notify(d["admin_id"],
+                       f"⚠️ <b>Temp Post ডিলিট করা যায়নি</b>\n📢 {_html.escape(str(d.get('channel_name')))}\n❗ {_html.escape(last_err)}\n"
+                       f"💡 বটকে ওই চ্যানেলে <b>Delete messages</b> অনুমতি দিন, তারপর হাতে মুছুন।")
+        else:
+            temp_posts_col.update_one({"_id": d["_id"]}, {"$set": {"status": "active", "message_ids": remaining,
+                                                                  "attempts": attempts, "delete_at": now + 60}})
+
+
+def _temp_post_worker():
+    while True:
+        try:
+            _temp_post_tick()
+        except Exception as e:
+            logger.error(f"TempPost worker: {type(e).__name__}: {e}")
+        time.sleep(15)
+
+threading.Thread(target=_temp_post_worker, daemon=True).start()
+
+
+
 @bot.callback_query_handler(func=lambda call: True)
 def cb(call):
     cid  = str(call.message.chat.id)
@@ -1124,6 +1515,9 @@ def cb(call):
 
     if not is_admin(cid):
         bot.answer_callback_query(call.id, "⛔ এডমিন অ্যাক্সেস প্রয়োজন!", show_alert=True); return
+
+    if data == "menu_temp_post" or data.startswith("tp_"):
+        _handle_temp_callback(call, cid, mid, data); return
 
     if data == "autogen_thumb":
         user = get_user(cid)
@@ -2511,6 +2905,9 @@ def handle_message(message):
         except: pass
         return
 
+    if step in ("wait_temp_duration", "wait_temp_content"):
+        if _handle_temp_message(message, cid, user, step): return
+
     # ── Custom DL Text/Link Steps (Button Settings) ──
     if step == "wait_set_ct1" and text:
         update_user(cid, {"custom_text_1": text.strip(), "step": "none"})
@@ -3005,23 +3402,36 @@ def handle_message(message):
         if message.caption:
             update_user(cid, {"post_header": message.caption})
         uid=str(uuid.uuid4().hex)[:10]; lch=""; lmid=""
-        log_ch=auto_channels_col.find_one({"type":"log","status":"on"})
-        if log_ch:
+        # সব চালু লগ চ্যানেলে ব্যাকআপ পাঠানো হবে (আগে শুধু প্রথম একটিতে যেত — তাই নতুন লগ চ্যানেলে ভিডিও যেত না)
+        log_copies=[]; log_fail=[]
+        cap_log=f"💾 <b>Backup</b> | 🔑 <code>{uid}</code> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        for log_ch in auto_channels_col.find({"type":"log","status":"on"}):
+            raw_lid = str(log_ch.get('channel_id','')).strip()
+            try: target_lid = int(raw_lid)
+            except ValueError: target_lid = raw_lid
             try:
-                cap_log=f"💾 <b>Backup</b> | 🔑 <code>{uid}</code> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
                 res=None
-                if ftype=="document": res=bot.send_document(log_ch['channel_id'],fid,caption=cap_log)
-                elif ftype=="video":  res=bot.send_video(log_ch['channel_id'],fid,caption=cap_log)
-                elif ftype=="photo":  res=bot.send_photo(log_ch['channel_id'],fid,caption=cap_log)
-                elif ftype=="audio":  res=bot.send_audio(log_ch['channel_id'],fid,caption=cap_log)
-                if res: lch,lmid=log_ch['channel_id'],res.message_id
-            except Exception as e: logger.warning(f"Log backup: {e}")
+                if ftype=="document": res=bot.send_document(target_lid,fid,caption=cap_log)
+                elif ftype=="video":  res=bot.send_video(target_lid,fid,caption=cap_log)
+                elif ftype=="photo":  res=bot.send_photo(target_lid,fid,caption=cap_log)
+                elif ftype=="audio":  res=bot.send_audio(target_lid,fid,caption=cap_log)
+                if res:
+                    log_copies.append({"chat_id": log_ch['channel_id'], "msg_id": res.message_id})
+                    if not lch: lch,lmid=log_ch['channel_id'],res.message_id   # ডেলিভারি ফলব্যাকের জন্য প্রথমটি
+            except Exception as e:
+                logger.warning(f"Log backup [{log_ch.get('name')} / {raw_lid}]: {type(e).__name__}: {e}")
+                log_fail.append(f"{log_ch.get('name','?')} ({raw_lid}): {str(e)[:120]}")
+        if log_fail:
+            try:
+                bot.send_message(cid, "⚠️ <b>লগ চ্যানেলে ব্যাকআপ ব্যর্থ:</b>\n" + "\n".join(f"• {_html.escape(x)}" for x in log_fail) +
+                                 "\n\n💡 বটকে ওই চ্যানেলে অ্যাডমিন (পোস্ট করার অনুমতিসহ) করুন এবং চ্যানেল আইডি (-100...) ঠিক আছে কিনা দেখুন।")
+            except Exception: pass
 
         auto_thumb_url = ""
         if thumb_id:
             auto_thumb_url = upload_photo_to_imgbb(thumb_id)
 
-        doc={"file_key":uid,"file_id":fid,"type":ftype,"uploader":cid,"log_chat_id":lch,"log_msg_id":lmid,"uploaded_at":datetime.now().isoformat()}
+        doc={"file_key":uid,"file_id":fid,"type":ftype,"uploader":cid,"log_chat_id":lch,"log_msg_id":lmid,"log_copies":log_copies,"uploaded_at":datetime.now().isoformat()}
         if thumb_id:
             doc["thumb_file_id"] = thumb_id
         if auto_thumb_url:

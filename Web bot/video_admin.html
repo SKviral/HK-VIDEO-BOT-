@@ -728,10 +728,45 @@
         projectId: "telegram-bot-ca2a6",
         storageBucket: "telegram-bot-ca2a6.firebasestorage.app",
         messagingSenderId: "146679908038",
-        appId: "1:146679908038:web:aff6867b1d7ed806aa79c7"
+        appId: "1:146679908038:web:aff6867b1d7ed806aa79c7",
+        databaseURL: "https://telegram-bot-ca2a6-default-rtdb.firebaseio.com"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+
+    // ── সাহায্যকারী ফাংশন ──
+    // ডেটাবেসের টেক্সট HTML-এ বসানোর আগে escape (XSS বন্ধ)
+    function esc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    // শুধু http/https লিংক গ্রহণযোগ্য (javascript: ইত্যাদি বাদ)
+    function safeUrl(u) {
+        u = String(u || '').trim();
+        return /^https?:\/\//i.test(u) ? u : '';
+    }
+    // categories যেকোনো আকারে থাকতে পারে: ["নাম", ...] / {id: "নাম"} / {id: {name: "নাম"}}
+    // সবগুলোকে [{id, name}] এ রূপান্তর করে (আগে শুধু {name} ধরা হতো, তাই "undefined" দেখাত)
+    function normCats(val) {
+        const out = [];
+        if (!val || typeof val !== 'object') return out;
+        Object.keys(val).forEach(k => {
+            const c = val[k];
+            const name = typeof c === 'string' ? c : (c && typeof c === 'object' ? c.name : '');
+            if (name && String(name).trim()) out.push({ id: k, name: String(name).trim() });
+        });
+        return out;
+    }
+    // লোড ব্যর্থ হলে ফাঁকা না রেখে কারণ দেখানো
+    function showLoadError(containerId, label, err) {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+        const code = (err && (err.code || err.message)) || 'unknown';
+        el.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>
+            <p>${esc(label)} লোড করা যায়নি (${esc(code)})</p>
+            <p style="font-size:12px;opacity:.8">Firebase Rules (read অনুমতি) ও ইন্টারনেট সংযোগ চেক করুন।</p>
+            <button class="btn btn-ghost" onclick="location.reload()"><i class="fa-solid fa-rotate"></i> আবার চেষ্টা করুন</button></div>`;
+        console.error(label + ' load error:', err);
+    }
 
     // গ্রিটিং টেক্সট সেট করা (সময় অনুযায়ী)
     (function setGreeting() {
@@ -752,7 +787,7 @@
         toast.className = `custom-toast toast-${type}`;
         toast.innerHTML = `
             <div class="toast-icon"><i class="${type === 'success' ? 'fa-solid fa-check' : 'fa-solid fa-xmark'}"></i></div>
-            <div class="toast-content">${message}</div>
+            <div class="toast-content">${esc(message)}</div>
         `;
         document.body.appendChild(toast);
         setTimeout(() => toast.classList.add('show'), 10);
@@ -819,33 +854,39 @@
     // ক্যাটাগরি লজিক
     let catCount = 0;
     db.ref('categories').on('value', snap => {
-        const catList = document.getElementById('category-list');
-        const uploadSelect = document.getElementById('add-category');
-        const editSelect = document.getElementById('edit-category');
+        try {
+            const catList = document.getElementById('category-list');
+            const uploadSelect = document.getElementById('add-category');
+            const editSelect = document.getElementById('edit-category');
 
-        uploadSelect.innerHTML = '<option value="Others">Others</option>';
-        editSelect.innerHTML = '<option value="Others">Others</option>';
+            let opts = '<option value="Others">Others</option>';
+            const cats = normCats(snap.val());
+            catCount = cats.length;
+            document.getElementById('stats-total-cats').innerText = catCount;
 
-        const cats = snap.val();
-        catCount = cats ? Object.keys(cats).length : 0;
-        document.getElementById('stats-total-cats').innerText = catCount;
-
-        if (cats) {
-            catList.innerHTML = '';
-            Object.keys(cats).forEach(id => {
-                const name = cats[id].name;
-                catList.innerHTML += `
+            if (cats.length) {
+                let list = '';
+                cats.forEach(c => {
+                    list += `
                     <div class="cat-item">
-                        <span><i class="fa-solid fa-folder"></i> ${name}</span>
-                        <button onclick="deleteCat('${id}')"><i class="fa-solid fa-trash"></i> ডিলিট</button>
+                        <span><i class="fa-solid fa-folder"></i> ${esc(c.name)}</span>
+                        <button onclick="deleteCat('${esc(c.id)}')"><i class="fa-solid fa-trash"></i> ডিলিট</button>
                     </div>`;
-                uploadSelect.innerHTML += `<option value="${name}">${name}</option>`;
-                editSelect.innerHTML += `<option value="${name}">${name}</option>`;
-            });
-        } else {
-            catList.innerHTML = `<div class="empty-state"><i class="fa-solid fa-folder-open"></i><p>এখনো কোনো ক্যাটাগরি তৈরি করা হয়নি</p></div>`;
+                    opts += `<option value="${esc(c.name)}">${esc(c.name)}</option>`;
+                });
+                catList.innerHTML = list;
+            } else {
+                catList.innerHTML = `<div class="empty-state"><i class="fa-solid fa-folder-open"></i><p>এখনো কোনো ক্যাটাগরি তৈরি করা হয়নি</p></div>`;
+            }
+            const prevAdd = uploadSelect.value, prevEdit = editSelect.value;
+            uploadSelect.innerHTML = opts;
+            editSelect.innerHTML = opts;
+            if (prevAdd) uploadSelect.value = prevAdd;
+            if (prevEdit) editSelect.value = prevEdit;
+        } catch (e) {
+            showLoadError('category-list', 'ক্যাটাগরি', e);
         }
-    });
+    }, err => showLoadError('category-list', 'ক্যাটাগরি', err));
 
     function addCategory() {
         const name = document.getElementById('new-cat-name').value.trim();
@@ -899,63 +940,108 @@
         });
     }
 
-    // ভিডিও লিস্ট এবং ড্যাশবোর্ড স্ট্যাট
-    db.ref('videos').on('value', (snapshot) => {
-        const container = document.getElementById('video-manage-list');
-        const data = snapshot.val();
+    // ভিডিও লিস্ট (পেজ করা — একবারে সব ভিডিও ডাউনলোড/রেন্ডার করে না) এবং ড্যাশবোর্ড স্ট্যাট
+    const VIDEO_PAGE = 60;
+    let videoLimit = VIDEO_PAGE;
+    let videoQuery = null;
+    let videosLoadedOnce = false;
 
-        if (!data) {
-            document.getElementById('stats-total-vids').innerText = 0;
-            document.getElementById('stats-total-views').innerText = 0;
-            document.getElementById('stats-total-comments').innerText = 0;
-            container.innerHTML = `<div class="empty-state"><i class="fa-solid fa-clapperboard"></i><p>কোনো ভিডিও আপলোড করা নেই!</p></div>`;
-            return;
-        }
-
-        let totalVids = Object.keys(data).length;
-        let totalViews = 0;
-        let totalComments = 0;
-        let rows = '';
-
-        document.getElementById('stats-total-vids').innerText = totalVids;
-
-        Object.keys(data).reverse().forEach((id) => {
-            const v = data[id];
-            let cCount = v.comments ? Object.keys(v.comments).length : 0;
-
-            totalViews += (v.views || 0);
-            totalComments += cCount;
-
-            rows += `
+    function renderVideoCard(id, v) {
+        v = (v && typeof v === 'object') ? v : {};
+        const cCount = v.comments && typeof v.comments === 'object' ? Object.keys(v.comments).length : 0;
+        const thumb = safeUrl(v.thumb);
+        return `
                 <div class="video-card">
                     <div class="vcard-thumb">
                         <div class="vcard-thumb-fallback"><i class="fa-solid fa-clapperboard"></i></div>
-                        ${v.thumb ? `<img src="${v.thumb}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+                        ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
                     </div>
                     <div class="vcard-body">
-                        <div class="vcard-title">${v.title}</div>
+                        <div class="vcard-title">${esc(v.title || '(শিরোনাম নেই)')}</div>
                         <div class="vcard-badges">
-                            <span class="badge badge-info"><i class="fa-solid fa-folder"></i> ${v.category || 'Others'}</span>
-                            <span class="badge"><i class="fa-solid fa-clapperboard"></i> ${v.watchAds || 1} Ads</span>
-                            <span class="badge"><i class="fa-solid fa-eye"></i> ${v.views || 0} Views</span>
-                            <span class="badge"><i class="fa-solid fa-thumbs-up"></i> ${v.likes || 0} Likes</span>
+                            <span class="badge badge-info"><i class="fa-solid fa-folder"></i> ${esc(v.category || 'Others')}</span>
+                            <span class="badge"><i class="fa-solid fa-clapperboard"></i> ${esc(v.watchAds || 1)} Ads</span>
+                            <span class="badge"><i class="fa-solid fa-eye"></i> ${esc(v.views || 0)} Views</span>
+                            <span class="badge"><i class="fa-solid fa-thumbs-up"></i> ${esc(v.likes || 0)} Likes</span>
                             <span class="badge badge-success"><i class="fa-solid fa-comments"></i> ${cCount} Comments</span>
                             ${v.posted ? `<span class="badge badge-success"><i class="fa-solid fa-paper-plane"></i> Posted</span>` : `<span class="badge badge-warning"><i class="fa-solid fa-clock"></i> Pending Post</span>`}
                             ${v.fullCollectionUrl ? `<span class="badge badge-warning"><i class="fa-solid fa-link"></i> FC Active</span>` : ''}
                         </div>
                         <div class="vcard-actions">
-                            <button class="btn btn-ghost" onclick="manageComments('${id}')"><i class="fa-solid fa-comments"></i> কমেন্টস</button>
-                            <button class="btn btn-ghost" onclick="openEditModal('${id}')"><i class="fa-solid fa-pen"></i> এডিট</button>
-                            <button class="btn btn-ghost btn-ghost-danger" onclick="deleteVideo('${id}')"><i class="fa-solid fa-trash"></i> ডিলিট</button>
+                            <button class="btn btn-ghost" onclick="manageComments('${esc(id)}')"><i class="fa-solid fa-comments"></i> কমেন্টস</button>
+                            <button class="btn btn-ghost" onclick="openEditModal('${esc(id)}')"><i class="fa-solid fa-pen"></i> এডিট</button>
+                            <button class="btn btn-ghost btn-ghost-danger" onclick="deleteVideo('${esc(id)}')"><i class="fa-solid fa-trash"></i> ডিলিট</button>
                         </div>
                     </div>
                 </div>`;
-        });
+    }
 
-        container.innerHTML = rows;
-        document.getElementById('stats-total-views').innerText = totalViews;
-        document.getElementById('stats-total-comments').innerText = totalComments;
-    });
+    function subscribeVideos() {
+        if (videoQuery) videoQuery.off();
+        videoQuery = db.ref('videos').orderByKey().limitToLast(videoLimit);
+        videoQuery.on('value', (snapshot) => {
+            videosLoadedOnce = true;
+            const container = document.getElementById('video-manage-list');
+            const items = [];
+            snapshot.forEach(ch => { items.push([ch.key, ch.val()]); });
+            items.reverse();   // নতুন আগে
+
+            if (!items.length) {
+                container.innerHTML = `<div class="empty-state"><i class="fa-solid fa-clapperboard"></i><p>কোনো ভিডিও আপলোড করা নেই!</p></div>`;
+                updateStats();
+                return;
+            }
+
+            let rows = '';
+            items.forEach(([id, v]) => {
+                try { rows += renderVideoCard(id, v); }
+                catch (e) { console.error('video card render failed:', id, e); }   // একটি ভাঙা রেকর্ডে পুরো লিস্ট ফাঁকা হবে না
+            });
+            if (items.length >= videoLimit) {
+                rows += `<div style="text-align:center;padding:16px;"><button class="btn btn-ghost" onclick="loadMoreVideos()"><i class="fa-solid fa-angles-down"></i> আরও দেখান</button></div>`;
+            }
+            container.innerHTML = rows;
+            updateStats();
+        }, err => showLoadError('video-manage-list', 'ভিডিও', err));
+    }
+
+    function loadMoreVideos() {
+        videoLimit += VIDEO_PAGE;
+        document.getElementById('video-manage-list').insertAdjacentHTML('beforeend',
+            '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><p>লোড হচ্ছে...</p></div>');
+        subscribeVideos();
+    }
+
+    // মোট ভিডিও/ভিউ/কমেন্ট — তালিকা দেখানোর পরে আলাদাভাবে (ব্যাকগ্রাউন্ডে) হিসাব, তাই লিস্ট আটকে থাকে না
+    let statsTimer = null, statsBusy = false;
+    function updateStats() {
+        if (statsTimer || statsBusy) return;
+        statsTimer = setTimeout(() => {
+            statsTimer = null; statsBusy = true;
+            db.ref('videos').once('value').then(snap => {
+                let n = 0, views = 0, comments = 0;
+                snap.forEach(ch => {
+                    const v = ch.val(); n++;
+                    if (v && typeof v === 'object') {
+                        views += Number(v.views) || 0;
+                        comments += v.comments && typeof v.comments === 'object' ? Object.keys(v.comments).length : 0;
+                    }
+                });
+                document.getElementById('stats-total-vids').innerText = n;
+                document.getElementById('stats-total-views').innerText = views;
+                document.getElementById('stats-total-comments').innerText = comments;
+            }).catch(e => console.error('stats error:', e)).finally(() => { statsBusy = false; });
+        }, 1500);
+    }
+
+    subscribeVideos();
+
+    // ১৫ সেকেন্ডেও ডেটা না এলে ফাঁকা/লোডিং না রেখে জানানো
+    setTimeout(() => {
+        if (!videosLoadedOnce) {
+            showLoadError('video-manage-list', 'ভিডিও', { message: 'সংযোগে দেরি হচ্ছে' });
+        }
+    }, 15000);
 
     function deleteVideo(id) {
         if (confirm("⚠️ আপনি কি সত্যিই এই লিঙ্কটি ডিলিট করতে চান?")) {
@@ -966,6 +1052,7 @@
     function openEditModal(id) {
         db.ref('videos/' + id).once('value').then(snap => {
             let v = snap.val();
+            if (!v) return showToast("ভিডিওটি পাওয়া যায়নি!", "error");
             document.getElementById('edit-id').value = id;
             document.getElementById('edit-title').value = v.title;
             document.getElementById('edit-category').value = v.category || "Others";
@@ -995,6 +1082,7 @@
     }
 
     let activeVideoForComment = null;
+    let commentCache = {};   // কমেন্টের টেক্সট onclick-এ না বসিয়ে এখান থেকে পড়া হয় (ইনজেকশন বন্ধ)
     function manageComments(vidId) {
         activeVideoForComment = vidId;
         document.getElementById('commentModal').style.display = 'flex';
@@ -1008,18 +1096,19 @@
                 return;
             }
 
+            commentCache = comments;
             let rows = '';
             Object.keys(comments).reverse().forEach(cid => {
-                let c = comments[cid];
+                let c = comments[cid] || {};
                 rows += `
                     <div class="adm-comment">
-                        <div class="adm-comment-head"><i class="fa-solid fa-user"></i> ${c.userName || 'Anonymous'}</div>
-                        <p class="adm-comment-text">${c.text}</p>
-                        ${c.adminReply ? `<div class="admin-reply-box"><strong>Reply:</strong> ${c.adminReply}</div>` : ''}
+                        <div class="adm-comment-head"><i class="fa-solid fa-user"></i> ${esc(c.userName || 'Anonymous')}</div>
+                        <p class="adm-comment-text">${esc(c.text)}</p>
+                        ${c.adminReply ? `<div class="admin-reply-box"><strong>Reply:</strong> ${esc(c.adminReply)}</div>` : ''}
                         <div class="adm-comment-actions">
-                            <button onclick="editComment('${vidId}', '${cid}', '${c.text.replace(/'/g, "\\'")}')"><i class="fa-solid fa-pen"></i> এডিট</button>
-                            <button onclick="replyComment('${vidId}', '${cid}', '${(c.adminReply || '').replace(/'/g, "\\'")}')"><i class="fa-solid fa-reply"></i> রিপ্লাই</button>
-                            <button class="danger" onclick="deleteComment('${vidId}', '${cid}')"><i class="fa-solid fa-trash"></i> ডিলিট</button>
+                            <button onclick="editComment('${esc(vidId)}', '${esc(cid)}')"><i class="fa-solid fa-pen"></i> এডিট</button>
+                            <button onclick="replyComment('${esc(vidId)}', '${esc(cid)}')"><i class="fa-solid fa-reply"></i> রিপ্লাই</button>
+                            <button class="danger" onclick="deleteComment('${esc(vidId)}', '${esc(cid)}')"><i class="fa-solid fa-trash"></i> ডিলিট</button>
                         </div>
                     </div>
                 `;
@@ -1028,14 +1117,16 @@
         });
     }
 
-    function editComment(vidId, cid, oldText) {
+    function editComment(vidId, cid) {
+        const oldText = (commentCache[cid] && commentCache[cid].text) || '';
         let newText = prompt("কমেন্ট এডিট করুন:", oldText);
         if (newText !== null && newText.trim() !== "") {
             db.ref(`videos/${vidId}/comments/${cid}`).update({ text: newText.trim() }).then(() => showToast("কমেন্ট আপডেট করা হয়েছে!", "success"));
         }
     }
 
-    function replyComment(vidId, cid, oldReply) {
+    function replyComment(vidId, cid) {
+        const oldReply = (commentCache[cid] && commentCache[cid].adminReply) || '';
         let reply = prompt("অ্যাডমিন রিপ্লাই দিন:", oldReply);
         if (reply !== null) {
             db.ref(`videos/${vidId}/comments/${cid}`).update({ adminReply: reply.trim() }).then(() => showToast("রিপ্লাই পোস্ট করা হয়েছে!", "success"));
