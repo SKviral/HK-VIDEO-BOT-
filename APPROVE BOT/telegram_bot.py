@@ -15,6 +15,7 @@ Architecture:
 
 # ─── IMPORTS ────────────────────────────────────────────────────────────────
 import asyncio
+import time
 import csv
 import html
 import io
@@ -44,7 +45,7 @@ from telegram import (
     Update,
 )
 from telegram.constants import ParseMode
-from telegram.error import BadRequest, Forbidden, RetryAfter, TelegramError
+from telegram.error import BadRequest, Conflict, Forbidden, RetryAfter, TelegramError
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -120,6 +121,21 @@ class _RedactFilter(logging.Filter):
 # দ্বিতীয় স্তরের সুরক্ষা: কোনো লগ হ্যান্ডলারে টোকেন গেলেও মুছে যাবে
 for _h in logging.getLogger().handlers:
     _h.addFilter(_RedactFilter())
+
+
+class _ConflictQuietFilter(logging.Filter):
+    """Updater-এর Conflict ট্রেসব্যাক (বিশাল লগ) কমিয়ে এক লাইনে আনে; পুনরায় চেষ্টা নিজে থেকেই হয়।"""
+    def filter(self, record: logging.LogRecord) -> bool:
+        ei = record.exc_info
+        if ei and ei[0] is not None and issubclass(ei[0], Conflict):
+            record.exc_info = None
+            record.exc_text = None
+            record.msg = "Conflict: একই টোকেনে আরেকটি ইনস্ট্যান্স polling করছে (স্বয়ংক্রিয়ভাবে আবার চেষ্টা হবে)"
+            record.args = ()
+        return True
+
+
+logging.getLogger("telegram.ext.Updater").addFilter(_ConflictQuietFilter())
 
 
 def esc(value) -> str:
@@ -1057,6 +1073,7 @@ def kb_channel_manage(channel_id: int) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(f"📂 ক্যাটাগরি: {category}", callback_data=f"ch:set_cat:{channel_id}")],
         [InlineKeyboardButton("📊 স্ট্যাটস", callback_data=f"stats:channel:{channel_id}"),
          InlineKeyboardButton("⏳ পেন্ডিং কিউ", callback_data=f"queue:channel:{channel_id}")],
+        [InlineKeyboardButton("🔄 ইনভাইট লিংক নতুন করুন", callback_data=f"ch:newlink:{channel_id}")],
         [InlineKeyboardButton("🗑️ চ্যানেল সরিয়ে দিন", callback_data=f"ch:remove:{channel_id}")],
         [InlineKeyboardButton("🔙 চ্যানেল লিস্ট", callback_data="ch:list:0")],
     ])
@@ -1247,6 +1264,36 @@ async def send_request_received_message(bot: Bot, channel: dict, user_id: int):
         logger.warning(f"Cannot send request received message to {user_id}: {e}")
 
 
+async def make_invite_link(bot: Bot, channel_id: int, username: str = "") -> str:
+    """এই বটের নিজের তৈরি join-request ইনভাইট লিংক বানায় (চ্যানেল ডিলিট/নতুন বট হলে পুরনো লিংক অচল হয়ে যায়)।"""
+    if username:
+        return f"https://t.me/{username.lstrip('@')}"
+    try:
+        lk = await bot.create_chat_invite_link(chat_id=channel_id, name="Approve Bot", creates_join_request=True)
+        return lk.invite_link
+    except Exception as e:
+        logger.warning(f"create_chat_invite_link failed [{channel_id}]: {redact(str(e))}")
+    try:
+        return (await bot.export_chat_invite_link(channel_id)) or ""
+    except Exception as e:
+        logger.warning(f"export_chat_invite_link failed [{channel_id}]: {redact(str(e))}")
+        return ""
+
+
+async def relink_channel(bot: Bot, ch: dict):
+    """(ok, message) — চ্যানেলের লিংক নতুন করে সেভ করে।"""
+    cid = ch["channel_id"]
+    try:
+        chat = await bot.get_chat(cid)
+    except Exception as e:
+        return False, f"চ্যানেল পাওয়া যায়নি / বট অ্যাডমিন নয় ({redact(str(e))[:80]})"
+    link = await make_invite_link(bot, cid, chat.username or "")
+    if not link:
+        return False, "লিংক তৈরি হয়নি — বটকে 'Invite users via link' অনুমতি দিন"
+    upsert_channel(cid, chat.title or ch.get("title") or str(cid), chat.username or "", link, ch.get("added_by") or 0)
+    return True, link
+
+
 async def send_welcome(bot: Bot, channel: dict, user_id: int):
     """ইউজার অনুমোদন পাওয়ার পর স্বাগতম মেসেজ (Message 2) পাঠান।"""
     if channel.get("silent_mode"):
@@ -1422,6 +1469,23 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def cmd_panel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await cmd_start(update, ctx)
+
+
+@admin_only
+async def cmd_relink(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """সব চ্যানেলের ইনভাইট লিংক নতুন করে তৈরি করে (শুধু অ্যাডমিন)।"""
+    if not update.effective_user or not is_admin(update.effective_user.id):
+        return
+    chans = get_channels()
+    if not chans:
+        await update.message.reply_text("কোনো চ্যানেল নেই।"); return
+    lines = []
+    for ch in chans:
+        ok, res = await relink_channel(ctx.bot, ch)
+        lines.append(f"{'✅' if ok else '❌'} <b>{esc(ch.get('title') or ch['channel_id'])}</b>\n   {esc(res)}")
+        await asyncio.sleep(0.3)
+    await update.message.reply_text("🔄 <b>ইনভাইট লিংক রিফ্রেশ</b>\n\n" + "\n".join(lines),
+                                    parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
 
 @admin_only
@@ -2115,6 +2179,20 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb_channel_msg2(cid))
         return
 
+    if data.startswith("ch:newlink:"):
+        cid = int(data.split(":")[-1])
+        ch = get_channel(cid)
+        if not ch:
+            await q.answer("চ্যানেল পাওয়া যায়নি", show_alert=True); return
+        ok, res = await relink_channel(ctx.bot, ch)
+        await q.answer("✅ নতুন লিংক তৈরি হয়েছে" if ok else "❌ ব্যর্থ", show_alert=not ok)
+        if ok:
+            await q.edit_message_text(f"✅ <b>নতুন ইনভাইট লিংক:</b>\n{esc(res)}\n\n📌 ইউজারদের এই লিংক দিন।",
+                                      parse_mode=ParseMode.HTML, reply_markup=kb_channel_manage(cid))
+        else:
+            await q.edit_message_text(f"❌ {esc(res)}", parse_mode=ParseMode.HTML, reply_markup=kb_channel_manage(cid))
+        return
+
     if data.startswith("ch:set_link:"):
         cid = int(data.split(":")[-1])
         USER_STATES[uid] = {"action": "set_link", "channel_id": cid}
@@ -2536,12 +2614,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         try:
             cid = int(text)
             chat: Chat = await ctx.bot.get_chat(cid)
-            invite = chat.invite_link or ""
-            if not invite:
-                try:
-                    invite = (await ctx.bot.export_chat_invite_link(cid)) or ""
-                except Exception:
-                    pass
+            invite = await make_invite_link(ctx.bot, cid, chat.username or "")
             upsert_channel(cid, chat.title or str(cid), chat.username or "", invite, uid)
             USER_STATES.pop(uid, None)
             await msg.reply_text(
@@ -2841,7 +2914,24 @@ async def handle_restore_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
 
 
 # ─── ERROR HANDLER ────────────────────────────────────────────────────────────
+_LAST_CONFLICT = 0.0
+
+
 async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE):
+    global _LAST_CONFLICT
+    if isinstance(ctx.error, Conflict):
+        # একই টোকেনে দুটি ইনস্ট্যান্স চলছে (যেমন Render ডিপ্লয় ওভারল্যাপ)। অ্যাডমিনকে স্প্যাম না করে ঘণ্টায় একবার জানাই।
+        logger.warning("Conflict: একই বট টোকেনে আরেকটি ইনস্ট্যান্স polling করছে — পুরনো ইনস্ট্যান্স বন্ধ করুন।")
+        now = time.time()
+        if now - _LAST_CONFLICT > 3600:
+            _LAST_CONFLICT = now
+            for admin_id in ADMIN_IDS:
+                try:
+                    await ctx.bot.send_message(admin_id, "⚠️ <b>Conflict:</b> এই বটের টোকেন দিয়ে আরেকটি ইনস্ট্যান্স চলছে। "
+                                               "Render-এ শুধু ১টি সার্ভিস/ইনস্ট্যান্স রাখুন, পুরনো ডিপ্লয়/লোকাল রান বন্ধ করুন।", parse_mode=ParseMode.HTML)
+                except Exception:
+                    pass
+        return
     logger.error("Exception:", exc_info=ctx.error)
     tb = "".join(traceback.format_exception(type(ctx.error), ctx.error, ctx.error.__traceback__))
     if len(tb) > 3000:
@@ -2858,6 +2948,15 @@ async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ─── AUTO-BACKUP JOB ──────────────────────────────────────────────────────────
+async def heal_missing_links(bot: Bot):
+    """স্টার্টআপে: যেসব চ্যানেলের ইনভাইট লিংক নেই, নতুন তৈরি করে।"""
+    for ch in get_channels():
+        if not (ch.get("invite_link") or ch.get("username")):
+            ok, res = await relink_channel(bot, ch)
+            logger.info(f"heal link [{ch['channel_id']}]: {'ok' if ok else res}")
+            await asyncio.sleep(0.5)
+
+
 async def auto_backup_job(bot: Bot):
     """প্রতিদিন স্বয়ংক্রিয় ব্যাকআপ।"""
     try:
@@ -2889,6 +2988,7 @@ def main():
     app.add_handler(CommandHandler("start",  cmd_start))
     app.add_handler(CommandHandler("panel",  cmd_panel))
     app.add_handler(CommandHandler("health", cmd_health))
+    app.add_handler(CommandHandler("relink", cmd_relink))
 
     app.add_handler(ChatJoinRequestHandler(handle_join_request))
 
@@ -2920,6 +3020,8 @@ def main():
         args=[app.bot],
         id="auto_backup",
     )
+    scheduler.add_job(heal_missing_links, "date",
+                      run_date=datetime.utcnow() + timedelta(seconds=15), args=[app.bot], id="heal_links")
     scheduler.start()
     logger.info("Scheduler started ✓")
 
