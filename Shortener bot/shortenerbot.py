@@ -842,11 +842,11 @@ def _ask_web_title(chat_id, user, mtype, mid):
     hint = f"\n\nবর্তমান caption/title: <b>{default_title[:80]}</b>" if default_title else ""
     m = InlineKeyboardMarkup()
     m.row(
-        InlineKeyboardButton("Use Post Title 📝", callback_data="use_post_title"),
-        InlineKeyboardButton("Save Title 💾", callback_data="use_saved_title")
+        InlineKeyboardButton("📝 Use Post Title", callback_data="use_post_title"),
+        InlineKeyboardButton("💾 Save Title", callback_data="use_saved_title")
     )
     m.row(
-        InlineKeyboardButton("No Title 🚫", callback_data="use_no_title")
+        InlineKeyboardButton("🚫 No Title", callback_data="use_no_title")
     )
     bot.send_message(
         chat_id,
@@ -1270,7 +1270,7 @@ def _tp_duration_menu(cid, mid=None):
     m = _mk()
     row = []
     for mins in TEMP_DURATIONS:
-        row.append(_btn(fmt_duration(mins), f"tp_dur_{mins}"))
+        row.append(_btn(f"⏱️ {fmt_duration(mins)}", f"tp_dur_{mins}"))
         if len(row) == 2: m.row(*row); row = []
     if row: m.row(*row)
     m.add(_btn("✍️ নিজে লিখব (যেমন 45m, 2h, 1h30m)", "tp_dur_custom"))
@@ -1737,7 +1737,7 @@ def cb(call):
         user = get_user(cid)
         m = _mk()
         for i in range(1, 6):
-            m.add(_btn(f"{i}টি অ্যাড", f"setads_{i}"))
+            m.add(_btn(f"📺 {i}টি অ্যাড", f"setads_{i}"))
         m.add(_btn("✏️ কাস্টম সংখ্যা", "setads_custom"))
         m.add(_btn("🔙 ব্যাক", "back_to_post_options"))
         try:
@@ -1811,8 +1811,8 @@ def cb(call):
         update_user(cid, {"step":"wait_thumbnail","pending_link":dl,"pending_short_link":sl,"batch_id":"","pending_thumb_url":"","pending_web_title":"","pending_web_video_id":"","pending_web_post_link":""})
         m = InlineKeyboardMarkup()
         m.row(
-            InlineKeyboardButton("Auto Generate 🤖", callback_data="autogen_thumb"),
-            InlineKeyboardButton("Skip ⏩", callback_data="skip_thumb")
+            InlineKeyboardButton("🤖 Auto Generate", callback_data="autogen_thumb"),
+            InlineKeyboardButton("⏩ Skip", callback_data="skip_thumb")
         )
         bot.edit_message_text(
             f"✅ <b>{cnt}টি ফাইল সেভ হয়েছে!</b>\n\n💎 Direct Link:\n<code>{dl}</code>\n\n📺 Short Link:\n<code>{sl}</code>\n\n🖼️ থাম্বনেইল (ছবি/ভিডিও) পাঠান অথবা নিচের বাটন ব্যবহার করুন।",
@@ -3449,8 +3449,8 @@ def handle_message(message):
             _inc_stat("uploads")
             m = InlineKeyboardMarkup()
             m.row(
-                InlineKeyboardButton("Auto Generate 🤖", callback_data="autogen_thumb"),
-                InlineKeyboardButton("Skip ⏩", callback_data="skip_thumb")
+                InlineKeyboardButton("🤖 Auto Generate", callback_data="autogen_thumb"),
+                InlineKeyboardButton("⏩ Skip", callback_data="skip_thumb")
             )
             m.row(
                 InlineKeyboardButton("🔗 ম্যানুয়াল ইমেজ লিংক", callback_data="manual_thumb_url")

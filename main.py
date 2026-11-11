@@ -61,6 +61,14 @@ def load_module_from_path(module_name, file_paths):
         logger.error(f"❌ Failed to load module {module_name} from {selected_path}: {e}")
         sys.exit(1)
 
+# 🎨 সব বটের বাটন রঙিন করা (Telegram Bot API "style": primary/success/danger)
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import button_colors
+    button_colors.apply()
+except Exception as _e:
+    logger.warning(f"⚠️ Colorful buttons not enabled: {_e}")
+
 # Shortener Bot, Web Bot এবং Approve Bot মডিউল লোড করা
 shortenerbot = load_module_from_path("shortenerbot", ["Shortener bot/shortenerbot.py", "shortener bot/shortenerbot.py"])
 webbot = load_module_from_path("webbot", ["Web bot/webbot.py", "web bot/webbot.py"])
