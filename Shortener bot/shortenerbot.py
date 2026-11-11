@@ -73,6 +73,7 @@ scheduled_col     = db['scheduled_posts']
 unlock_tokens_col = db['unlock_tokens']
 ad_sessions_col   = db['ad_sessions']
 temp_posts_col    = db['temp_posts']
+detected_ch_col   = db['detected_channels']   # বট অ্যাডমিন হলে অটো-ডিটেক্ট হওয়া চ্যানেল
 
 try:
     if MONGO_URL and MONGO_URL != "আপনার_MongoDB_URL":
@@ -1489,6 +1490,251 @@ def _temp_post_worker():
 
 threading.Thread(target=_temp_post_worker, daemon=True).start()
 
+# ══════════════════════════════════════════════════
+#  📡 অটো চ্যানেল ডিটেকশন
+#  বটকে কোনো চ্যানেলে অ্যাডমিন বানালে বট নিজে থেকেই এডমিনকে মেসেজ দেয়,
+#  কনফার্ম করলে এক ক্লিকে চ্যানেল সেভ হয় (Ad / Premium / Log / Force Sub
+#  এবং চাইলে ক্যাটাগরিতেও)। পোলিং মোডেই কাজ করে — Render ফ্রি টায়ারে সমস্যা নেই।
+# ══════════════════════════════════════════════════
+# my_chat_member আপডেট নিশ্চিতভাবে পেতে স্পষ্টভাবে allowed_updates দেওয়া হলো
+ALLOWED_UPDATES = [
+    "message", "edited_message", "channel_post", "edited_channel_post",
+    "inline_query", "chosen_inline_result", "callback_query",
+    "shipping_query", "pre_checkout_query", "poll", "poll_answer",
+    "my_chat_member", "chat_join_request",
+]
+
+_DC_TYPE_NAMES = {"ad": "📺 Ad", "premium": "💎 Premium", "log": "💾 Log", "fs": "🔒 Force Sub"}
+_DC_LANGS = [("bn", "🇧🇩 বাংলা"), ("hi", "🇮🇳 Hindi"), ("en", "🇬🇧 English")]
+
+def _sbtn(label, cb_data, style=None):
+    """রঙসহ বাটন (style: primary / success / danger)"""
+    b = _btn(label, cb_data)
+    if style: b.style = style
+    return b
+
+def _dc_edit(txt, cid, mid, m=None):
+    try:
+        bot.edit_message_text(txt, cid, mid, reply_markup=m, disable_web_page_preview=True)
+    except Exception as e:
+        if "not modified" not in str(e):
+            logger.warning(f"DetectChannel edit: {e}")
+
+def _dc_saved_where(ch_id):
+    """চ্যানেলটি বর্তমানে কোথায় কোথায় সেভ আছে"""
+    where = []
+    for c in auto_channels_col.find({"channel_id": ch_id}):
+        where.append(_DC_TYPE_NAMES.get(c.get("type"), str(c.get("type", "?"))))
+    if force_sub_col.find_one({"channel_id": ch_id}):
+        where.append(_DC_TYPE_NAMES["fs"])
+    for cat in categories_col.find({"channels.channel_id": ch_id}, {"name": 1}):
+        where.append(f"📂 {_html.escape(str(cat.get('name', '?')))}")
+    return where
+
+def _dc_perm_text(member):
+    def f(attr): return "✅" if getattr(member, attr, False) else "❌"
+    return (f"{f('can_post_messages')} পোস্ট  {f('can_edit_messages')} এডিট  "
+            f"{f('can_delete_messages')} ডিলিট  {f('can_invite_users')} ইনভাইট")
+
+def _dc_header(rec):
+    uname = f"@{rec['username']}" if rec.get("username") else "🔒 প্রাইভেট"
+    saved = _dc_saved_where(rec["channel_id"])
+    return (f"📡 <b>{_html.escape(rec.get('name', '?'))}</b>\n"
+            f"🆔 <code>{rec['channel_id']}</code> | {uname}\n"
+            f"💾 সেভ আছে: <b>{', '.join(saved) if saved else 'কোথাও না'}</b>\n")
+
+def _dc_main_kb(dc):
+    m = _mk()
+    m.row(_sbtn("📺 Ad চ্যানেল", f"dc_save_{dc}_ad", "primary"),
+          _sbtn("💎 Premium চ্যানেল", f"dc_save_{dc}_premium", "primary"))
+    m.row(_sbtn("💾 Log চ্যানেল", f"dc_save_{dc}_log", "primary"),
+          _sbtn("🔒 Force Sub", f"dc_save_{dc}_fs", "primary"))
+    m.add(_sbtn("❌ সেভ করবো না", f"dc_ignore_{dc}", "danger"))
+    return m
+
+def _dc_send(target, txt, m=None):
+    # এডমিনকে মেসেজ; ব্যর্থ হলে মেইন এডমিনকে পাঠায়
+    for t_id in dict.fromkeys([str(target), str(MAIN_ADMIN_ID)]):
+        try:
+            bot.send_message(t_id, txt, reply_markup=m, disable_web_page_preview=True); return
+        except Exception as e:
+            logger.warning(f"DetectChannel notify {t_id} failed: {e}")
+
+@bot.my_chat_member_handler()
+def on_bot_chat_member_update(upd):
+    try:
+        chat = upd.chat
+        if chat.type != "channel":
+            return
+        old_s = upd.old_chat_member.status if upd.old_chat_member else "left"
+        new_s = upd.new_chat_member.status if upd.new_chat_member else "left"
+        actor = upd.from_user.id if upd.from_user else None
+        actor_is_admin = bool(actor and is_admin(actor))
+        target = str(actor) if actor_is_admin else str(MAIN_ADMIN_ID)
+        ch_id = str(chat.id)
+        adder = (f"{_html.escape(upd.from_user.first_name or '')} (<code>{actor}</code>)"
+                 if upd.from_user else "অজানা")
+
+        # ✅ বট নতুন করে অ্যাডমিন হয়েছে
+        if new_s == "administrator" and old_s != "administrator":
+            old = detected_ch_col.find_one({"channel_id": ch_id})
+            dc = old["dc_id"] if old and old.get("dc_id") else uuid.uuid4().hex[:8]
+            rec = {
+                "dc_id": dc, "channel_id": ch_id, "name": chat.title or "Unknown",
+                "username": chat.username or "", "added_by": str(actor or ""),
+                "status": "pending", "detected_at": datetime.now().isoformat(),
+            }
+            detected_ch_col.update_one({"channel_id": ch_id}, {"$set": rec}, upsert=True)
+            warn = "" if actor_is_admin else "\n⚠️ <i>যিনি অ্যাড করেছেন তিনি বটের এডমিন নন!</i>\n"
+            perm_warn = ("" if getattr(upd.new_chat_member, "can_post_messages", False)
+                         else "\n⚠️ <b>বটের পোস্ট করার পারমিশন নেই!</b> চ্যানেল সেটিংসে চালু করুন।\n")
+            txt = (f"🎉 <b>নতুন চ্যানেলে বটকে অ্যাডমিন বানানো হয়েছে!</b>\n\n"
+                   f"{_dc_header(rec)}"
+                   f"👤 অ্যাড করেছেন: {adder}\n"
+                   f"🔑 পারমিশন: {_dc_perm_text(upd.new_chat_member)}\n"
+                   f"{warn}{perm_warn}\n"
+                   f"❓ <b>চ্যানেলটি বটে সেভ করবেন?</b> কোন হিসেবে সেভ করবেন সিলেক্ট করুন 👇")
+            _dc_send(target, txt, _dc_main_kb(dc))
+
+        # ⚠️ বটকে অ্যাডমিন থেকে সরানো / চ্যানেল থেকে বের করা হয়েছে
+        elif old_s == "administrator" and new_s != "administrator":
+            rec = detected_ch_col.find_one({"channel_id": ch_id})
+            if rec:
+                detected_ch_col.update_one({"_id": rec["_id"]}, {"$set": {"status": "removed"}})
+            else:
+                # আগে ম্যানুয়ালি সেভ করা চ্যানেলের জন্যও রেকর্ড তৈরি (যাতে মুছুন বাটন কাজ করে)
+                detected_ch_col.insert_one({
+                    "dc_id": uuid.uuid4().hex[:8], "channel_id": ch_id, "name": chat.title or "Unknown",
+                    "username": chat.username or "", "added_by": "", "status": "removed",
+                    "detected_at": datetime.now().isoformat(),
+                })
+                rec = detected_ch_col.find_one({"channel_id": ch_id})
+            saved = _dc_saved_where(ch_id)
+            txt = (f"⚠️ <b>বটকে একটি চ্যানেল থেকে সরানো হয়েছে!</b>\n\n"
+                   f"📡 <b>{_html.escape(chat.title or '?')}</b>\n🆔 <code>{ch_id}</code>\n"
+                   f"👤 সরিয়েছেন: {adder}\n"
+                   f"💾 সেভ আছে: <b>{', '.join(saved) if saved else 'কোথাও না'}</b>\n\n"
+                   + ("❗ এই চ্যানেলে আর পোস্ট হবে না। লিস্ট থেকে মুছে দিতে চান?" if saved else ""))
+            m = None
+            if saved and rec:
+                m = _mk()
+                m.row(_sbtn("🗑 সব লিস্ট থেকে মুছুন", f"dc_rm_{rec['dc_id']}", "danger"),
+                      _sbtn("📌 রেখে দিন", f"dc_done_{rec['dc_id']}", "primary"))
+            _dc_send(target, txt, m)
+    except Exception as e:
+        logger.error(f"my_chat_member handler error: {e}")
+
+def _handle_detected_channel_cb(call, cid, mid, data):
+    parts = data.split("_")          # dc_<action>_<dc_id>_...
+    if len(parts) < 3:
+        return
+    action, dc, extra = parts[1], parts[2], parts[3:]
+    rec = detected_ch_col.find_one({"dc_id": dc})
+    if not rec:
+        bot.answer_callback_query(call.id, "⚠️ চ্যানেলের তথ্য পাওয়া যায়নি!", show_alert=True); return
+    ch_id, name = rec["channel_id"], rec.get("name", "?")
+
+    if action == "ignore":
+        detected_ch_col.update_one({"_id": rec["_id"]}, {"$set": {"status": "ignored"}})
+        bot.answer_callback_query(call.id, "সেভ করা হয়নি")
+        _dc_edit(f"{_dc_header(rec)}\n❌ <b>চ্যানেলটি সেভ করা হয়নি।</b>", cid, mid)
+        return
+
+    if action in ("back", "done"):
+        bot.answer_callback_query(call.id)
+        if action == "back":
+            _dc_edit(f"{_dc_header(rec)}\n❓ <b>কোন হিসেবে সেভ করবেন?</b> 👇", cid, mid, _dc_main_kb(dc))
+        else:
+            _dc_edit(f"{_dc_header(rec)}\n✔️ <b>সম্পন্ন!</b>", cid, mid)
+        return
+
+    if action == "save" and extra:
+        ctype = extra[0]
+        if ctype in ("ad", "premium", "log"):
+            if auto_channels_col.find_one({"channel_id": ch_id, "type": ctype}):
+                bot.answer_callback_query(call.id, f"ℹ️ আগে থেকেই {_DC_TYPE_NAMES[ctype]} হিসেবে সেভ আছে")
+            else:
+                auto_channels_col.insert_one({"ch_id": uuid.uuid4().hex[:8], "type": ctype, "name": name,
+                                              "channel_id": ch_id, "status": "on"})
+                bot.answer_callback_query(call.id, f"✅ {_DC_TYPE_NAMES[ctype]} চ্যানেল হিসেবে সেভ হয়েছে!")
+        elif ctype == "fs":
+            if force_sub_col.find_one({"channel_id": ch_id}):
+                bot.answer_callback_query(call.id, "ℹ️ আগে থেকেই Force Sub এ আছে")
+            else:
+                url = f"https://t.me/{rec['username']}" if rec.get("username") else ""
+                if not url:
+                    try: url = bot.export_chat_invite_link(int(ch_id))
+                    except Exception as e:
+                        logger.warning(f"Invite link export failed: {e}")
+                if not url:
+                    bot.answer_callback_query(call.id, "❌ ইনভাইট লিংক তৈরি করা যায়নি!\nবটকে 'Invite Users' পারমিশন দিন।", show_alert=True)
+                    return
+                force_sub_col.insert_one({"fs_id": uuid.uuid4().hex[:8], "name": name,
+                                          "channel_id": ch_id, "url": url, "status": "on"})
+                bot.answer_callback_query(call.id, "✅ Force Sub চ্যানেল হিসেবে সেভ হয়েছে!")
+        else:
+            return
+        detected_ch_col.update_one({"_id": rec["_id"]}, {"$set": {"status": "saved"}})
+        m = _mk()
+        if ctype != "fs" and categories_col.count_documents({}) > 0:
+            m.add(_sbtn("📂 ক্যাটাগরিতেও যোগ করুন", f"dc_cats_{dc}_{ctype}", "success"))
+        m.row(_sbtn("➕ অন্য হিসেবেও সেভ", f"dc_back_{dc}", "primary"),
+              _sbtn("✔️ শেষ", f"dc_done_{dc}", "success"))
+        _dc_edit(f"{_dc_header(rec)}\n✅ <b>{_DC_TYPE_NAMES[ctype]} হিসেবে সেভ হয়েছে!</b>", cid, mid, m)
+        return
+
+    if action == "cats" and extra:
+        ctype = extra[0]
+        m = _mk()
+        for c in get_categories():
+            m.add(_sbtn(f"📂 {c.get('name', '?')}", f"dc_cp_{dc}_{ctype}_{c['cat_id']}", "primary"))
+        m.add(_back(f"dc_back_{dc}"))
+        bot.answer_callback_query(call.id)
+        _dc_edit(f"{_dc_header(rec)}\n📂 <b>কোন ক্যাটাগরিতে যোগ করবেন?</b>", cid, mid, m)
+        return
+
+    if action == "cp" and len(extra) >= 2:
+        ctype, cat_id = extra[0], "_".join(extra[1:])
+        m = _mk()
+        m.row(*[_sbtn(lbl, f"dc_cl_{dc}_{ctype}_{cat_id}_{lg}", "primary") for lg, lbl in _DC_LANGS])
+        m.add(_back(f"dc_cats_{dc}_{ctype}"))
+        bot.answer_callback_query(call.id)
+        _dc_edit(f"{_dc_header(rec)}\n🌐 <b>চ্যানেলের ভাষা সিলেক্ট করুন</b>", cid, mid, m)
+        return
+
+    if action == "cl" and len(extra) >= 3:
+        ctype, lang, cat_id = extra[0], extra[-1], "_".join(extra[1:-1])
+        cat = get_category(cat_id)
+        if not cat:
+            bot.answer_callback_query(call.id, "⚠️ ক্যাটাগরি পাওয়া যায়নি!", show_alert=True); return
+        channels = cat.get("channels", [])
+        if any(str(c.get("channel_id")) == ch_id for c in channels):
+            bot.answer_callback_query(call.id, "ℹ️ এই ক্যাটাগরিতে আগে থেকেই আছে", show_alert=True)
+        else:
+            src = auto_channels_col.find_one({"channel_id": ch_id}) or {}
+            channels.append({"name": name, "channel_id": ch_id, "type": ctype, "lang": lang,
+                             "tutorial_url_1": src.get("tutorial_url_1", ""),
+                             "tutorial_url_2": src.get("tutorial_url_2", ""), "status": "on"})
+            categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": channels}})
+            try: sync_categories_to_firebase()
+            except Exception as e: logger.warning(f"Category sync: {e}")
+            bot.answer_callback_query(call.id, f"✅ '{cat.get('name')}' ক্যাটাগরিতে যোগ হয়েছে!")
+        m = _mk()
+        m.row(_sbtn("📂 আরেক ক্যাটাগরিতে", f"dc_cats_{dc}_{ctype}", "primary"),
+              _sbtn("✔️ শেষ", f"dc_done_{dc}", "success"))
+        _dc_edit(f"{_dc_header(rec)}\n✅ <b>ক্যাটাগরিতে যোগ সম্পন্ন!</b>", cid, mid, m)
+        return
+
+    if action == "rm":
+        auto_channels_col.delete_many({"channel_id": ch_id})
+        force_sub_col.delete_many({"channel_id": ch_id})
+        categories_col.update_many({}, {"$pull": {"channels": {"channel_id": ch_id}}})
+        try: sync_categories_to_firebase()
+        except Exception as e: logger.warning(f"Category sync: {e}")
+        detected_ch_col.update_one({"_id": rec["_id"]}, {"$set": {"status": "deleted"}})
+        bot.answer_callback_query(call.id, "🗑 সব লিস্ট থেকে মুছে ফেলা হয়েছে")
+        _dc_edit(f"🗑 <b>{_html.escape(name)}</b> (<code>{ch_id}</code>) সব লিস্ট থেকে মুছে ফেলা হয়েছে।", cid, mid)
+        return
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -1515,6 +1761,9 @@ def cb(call):
 
     if not is_admin(cid):
         bot.answer_callback_query(call.id, "⛔ এডমিন অ্যাক্সেস প্রয়োজন!", show_alert=True); return
+
+    if data.startswith("dc_"):
+        _handle_detected_channel_cb(call, cid, mid, data); return
 
     if data == "menu_temp_post" or data.startswith("tp_"):
         _handle_temp_callback(call, cid, mid, data); return
@@ -4095,7 +4344,7 @@ def run_bot():
     logger.info(f"🚀 Shortener Bot Polling started (v{BOT_VERSION})...")
     while True:
         try:
-            bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
+            bot.polling(none_stop=True, timeout=60, long_polling_timeout=60, allowed_updates=ALLOWED_UPDATES)
         except Exception as e:
             logger.error(f"Shortener Bot Polling error: {e}")
             time.sleep(5)
