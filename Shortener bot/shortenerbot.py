@@ -74,6 +74,7 @@ unlock_tokens_col = db['unlock_tokens']
 ad_sessions_col   = db['ad_sessions']
 temp_posts_col    = db['temp_posts']
 detected_ch_col   = db['detected_channels']   # বট অ্যাডমিন হলে অটো-ডিটেক্ট হওয়া চ্যানেল
+post_archive_col  = db['post_archive']        # কোন পোস্ট কোন চ্যানেলে গেছে (অটো-ডিলিটের জন্য)
 
 try:
     if MONGO_URL and MONGO_URL != "আপনার_MongoDB_URL":
@@ -84,6 +85,9 @@ try:
         scheduled_col.create_index("scheduled_at", background=True)
         unlock_tokens_col.create_index("created_at", expireAfterSeconds=300, background=True)
         unlock_tokens_col.create_index("token", background=True)
+        post_archive_col.create_index("posted_at", background=True)
+        post_archive_col.create_index("group_id", background=True)
+        post_archive_col.create_index("file_key", background=True)
         ad_sessions_col.create_index("created_at", expireAfterSeconds=AD_SESSION_TTL, background=True)
         ad_sessions_col.create_index("sid", background=True)
         temp_posts_col.create_index("delete_at", background=True)
@@ -412,10 +416,18 @@ def resolve_channel_tutorial(ch, cat, num, user=None):
     return ""
 
 def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
-    cat = get_category(cat_id)
+    if cat_id == "__all_preview__":   # "সব চ্যানেল" প্রিভিউয়ের জন্য ভার্চুয়াল ক্যাটাগরি
+        cat = {"name": "All", "channels": [
+            {"name": c.get("name", "?"), "channel_id": c.get("channel_id", ""), "type": c.get("type", "ad"),
+             "lang": c.get("lang", "en"), "tutorial_url_1": c.get("tutorial_url_1", ""),
+             "tutorial_url_2": c.get("tutorial_url_2", ""), "status": "on"}
+            for c in auto_channels_col.find({"status": "on"})]}
+    else:
+        cat = get_category(cat_id)
     if not cat:
         logger.warning(f"Category post: category not found for id {cat_id}")
         return 0
+    _set_post_ctx(user, d_link)
 
     ph = apply_filters(user.get('post_header',''), user['chat_id'])
     pf = apply_filters(user.get('post_footer',''), user['chat_id'])
@@ -482,7 +494,7 @@ def _post_to_category(cat_id, mtype, mid, user, d_link, s_link):
             markup = _build_post_markup(user, s_link, clean_cap, is_premium=False, ch=merged_ctx)
 
         try:
-            _send_media(target_chat_id, mtype, mid, caption, markup, protect if ch_type!="log" else False)
+            _send_media(target_chat_id, mtype, mid, caption, markup, protect if ch_type!="log" else False, track=(ch_type!="log"))
             count += 1
         except Exception as e:
             logger.error(f"Category post failed for [{cat.get('name')} / {ch.get('name')} ({target_chat_id})]: {e}")
@@ -544,6 +556,7 @@ def _scheduled_post_worker():
                         pr_cap = f"{ph_t}{fc_txt}🔗 <b>Direct Download:</b>\n{pr_links}\n\n<i>🕐 {now_str}</i>{pf_t}".strip() if user.get("btn_link_in_caption",1) else f"{fc_txt}".strip()
                         pr_share = clean_html(pr_cap)
                         pr_mk = _build_post_markup(user, d_link, pr_share, is_premium=True)
+                        _set_post_ctx(user, d_link)
                         count = 0
                         for ch in auto_channels_col.find({"type":"ad","status":"on"}):
                             try: _send_media(ch['channel_id'], mtype, mid_, ad_cap, ad_mk, protect); count+=1
@@ -856,12 +869,121 @@ def _ask_web_title(chat_id, user, mtype, mid):
         reply_markup=m
     )
 
-def _send_media(ch_id, mtype, mid, caption, markup, protect=False):
+# ══════════════════════════════════════════════════
+#  পোস্ট ট্র্যাকিং (অটো-ডিলিটের জন্য), ফেইলিওর হ্যান্ডলিং ও প্রিভিউ
+# ══════════════════════════════════════════════════
+_post_ctx = threading.local()
+
+def _set_post_ctx(user, d_link, preview_to=None):
+    """এই থ্রেডের বর্তমান পোস্টের তথ্য (কোন ফাইল/ওয়েব ভিডিও) মনে রাখে।"""
+    cur = getattr(_post_ctx, "data", None)
+    if cur and cur.get("preview_to") and preview_to is None:
+        return   # প্রিভিউ চলাকালীন আসল কনটেক্সট বদলানো যাবে না
+    user = user or {}
+    vid = str(user.get("pending_web_video_id") or "")
+    m = re.search(r'startapp=([A-Za-z0-9_\-]+)', str(user.get("pending_web_post_link") or ""))
+    if m: vid = m.group(1)
+    fk = ""
+    mm = re.search(r'[?&]start=([A-Za-z0-9]+)', str(d_link or ""))
+    if mm: fk = mm.group(1)
+    _post_ctx.data = {
+        "group_id": uuid.uuid4().hex[:10], "file_key": fk, "video_id": vid,
+        "title": str(user.get("pending_web_title") or "")[:80],
+        "preview_to": preview_to, "previewed": False,
+    }
+
+def _record_post(ctx, ch_id, msg):
+    """চ্যানেলে পাঠানো মেসেজ আইডি সংরক্ষণ — মেয়াদ শেষে ডিলিট করার জন্য।"""
+    try:
+        if not ctx or not msg or not getattr(msg, "message_id", None): return
+        gid = ctx.get("group_id")
+        post_archive_col.update_one(
+            {"group_id": gid},
+            {"$setOnInsert": {"group_id": gid, "file_key": ctx.get("file_key", ""),
+                              "video_id": ctx.get("video_id", ""), "title": ctx.get("title", ""),
+                              "posted_at": datetime.utcnow()},
+             "$push": {"messages": {"ch": str(ch_id), "mid": msg.message_id}}},
+            upsert=True)
+    except Exception as e:
+        logger.warning(f"post record failed: {e}")
+
+_PERM_ERR_KEYS = ("chat not found", "bot was kicked", "bot is not a member", "not enough rights",
+                  "have no rights", "chat_write_forbidden", "channel_private", "forbidden",
+                  "chat_admin_required", "need administrator rights", "peer_id_invalid",
+                  "bot was blocked", "chat was deleted")
+
+def _ch_is_on(c):
+    return c.get("status", "on") in ["on", True, "active", 1, "1", "ON"]
+
+def _disable_channel(sid, reason):
+    """সব লিস্টে (অটো চ্যানেল + ক্যাটাগরি) চ্যানেল বন্ধ করে; বন্ধ হওয়া নামের লিস্ট ফেরত দেয়।"""
+    names = []
+    for c in auto_channels_col.find({"channel_id": sid, "status": "on"}):
+        auto_channels_col.update_one({"_id": c["_id"]}, {"$set": {"status": "off", "auto_disabled": True, "disabled_reason": reason}})
+        names.append(c.get("name", "?"))
+    for cat in categories_col.find({"channels.channel_id": sid}):
+        chs, mod = cat.get("channels", []), False
+        for c in chs:
+            if str(c.get("channel_id")).strip() == sid and _ch_is_on(c):
+                c["status"] = "off"; c["auto_disabled"] = True; mod = True
+                names.append(f"{c.get('name', '?')} ({cat.get('name', '?')})")
+        if mod: categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
+    return names
+
+def _handle_post_failure(ch_id, err):
+    """স্থায়ী ত্রুটি (বট সরানো/পারমিশন নেই) হলে চ্যানেল অটো-বন্ধ করে এডমিনকে জানায়।"""
+    try:
+        s = str(err).lower()
+        if not any(k in s for k in _PERM_ERR_KEYS): return
+        sid = str(ch_id).strip()
+        reason = str(err)[:150]
+        names = _disable_channel(sid, reason)
+        if not names: return   # আগেই বন্ধ — বারবার নোটিফাই নয়
+        m = _mk()
+        m.add(_btn("🩺 চ্যানেল হেলথ চেক", "chk_run"))
+        _dc_send(MAIN_ADMIN_ID,
+                 "🚨 <b>চ্যানেলে পোস্ট ব্যর্থ — চ্যানেল অটো-বন্ধ করা হয়েছে!</b>\n\n"
+                 f"🆔 <code>{sid}</code>\n📡 {_html.escape(', '.join(names))}\n"
+                 f"⚠️ কারণ: <code>{_html.escape(reason)}</code>\n\n"
+                 "💡 বটকে আবার অ্যাডমিন বানালে চ্যানেল নিজে থেকেই চালু হয়ে যাবে।", m)
+    except Exception as e:
+        logger.error(f"post failure handler error: {e}")
+
+def _reenable_channel(ch_id):
+    """অটো-বন্ধ হওয়া চ্যানেল আবার চালু করে (বট আবার অ্যাডমিন হলে)।"""
+    sid, n = str(ch_id).strip(), 0
+    try:
+        n += auto_channels_col.update_many({"channel_id": sid, "auto_disabled": True},
+                                           {"$set": {"status": "on"}, "$unset": {"auto_disabled": "", "disabled_reason": ""}}).modified_count
+        for cat in categories_col.find({"channels.channel_id": sid}):
+            chs, mod = cat.get("channels", []), False
+            for c in chs:
+                if str(c.get("channel_id")).strip() == sid and c.get("auto_disabled"):
+                    c["status"] = "on"; c.pop("auto_disabled", None); mod = True; n += 1
+            if mod: categories_col.update_one({"_id": cat["_id"]}, {"$set": {"channels": chs}})
+    except Exception as e:
+        logger.warning(f"re-enable channel error: {e}")
+    return n
+
+def _send_media(ch_id, mtype, mid, caption, markup, protect=False, track=True):
+    ctx = getattr(_post_ctx, "data", None) or {}
+    pv = ctx.get("preview_to")
+    if pv:   # প্রিভিউ মোড: শুধু এডমিনকে একবার দেখাও, চ্যানেলে পাঠাও না
+        if ctx.get("previewed") or markup is None: return None
+        ctx["previewed"] = True
+        ch_id = pv
     kw = {"caption": caption, "reply_markup": markup, "protect_content": False}
-    if mtype == 'photo': bot.send_photo(ch_id, mid, **kw)
-    elif mtype == 'video': bot.send_video(ch_id, mid, **kw)
-    elif mtype == 'document': bot.send_document(ch_id, mid, **kw)
-    elif mtype == 'audio': bot.send_audio(ch_id, mid, **kw)
+    try:
+        if mtype == 'photo': msg = bot.send_photo(ch_id, mid, **kw)
+        elif mtype == 'video': msg = bot.send_video(ch_id, mid, **kw)
+        elif mtype == 'document': msg = bot.send_document(ch_id, mid, **kw)
+        elif mtype == 'audio': msg = bot.send_audio(ch_id, mid, **kw)
+        else: return None
+    except Exception as e:
+        if not pv: _handle_post_failure(ch_id, e)
+        raise
+    if track and not pv: _record_post(ctx, ch_id, msg)
+    return msg
 
 def execute_channel_post(chat_id, user, mtype, mid, scheduled_at=None):
     d_link = user.get("pending_link", "")
@@ -907,6 +1029,7 @@ def execute_channel_post(chat_id, user, mtype, mid, scheduled_at=None):
     _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link)
 
 def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
+    _set_post_ctx(user, d_link)
     ph = apply_filters(user.get('post_header',''), chat_id)
     pf = apply_filters(user.get('post_footer',''), chat_id)
     ph_t = f"{ph}\n\n" if ph else ""
@@ -947,7 +1070,7 @@ def _do_post_all_channels(chat_id, user, mtype, mid, d_link, s_link):
         elif ch_type == "log":
             try:
                 log_cap = f"💾 <b>Backup</b> | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-                _send_media(ch['channel_id'], mtype, mid, log_cap, None, False)
+                _send_media(ch['channel_id'], mtype, mid, log_cap, None, False, track=False)
             except Exception as e:
                 logger.warning(f"Log post: {e}")
         else:  # ad
@@ -1585,6 +1708,8 @@ def on_bot_chat_member_update(upd):
                 "status": "pending", "detected_at": datetime.now().isoformat(),
             }
             detected_ch_col.update_one({"channel_id": ch_id}, {"$set": rec}, upsert=True)
+            re_n = _reenable_channel(ch_id)
+            re_txt = f"\n🔄 <b>অটো-বন্ধ থাকা {re_n}টি এন্ট্রি আবার চালু হয়েছে!</b>\n" if re_n else ""
             warn = "" if actor_is_admin else "\n⚠️ <i>যিনি অ্যাড করেছেন তিনি বটের এডমিন নন!</i>\n"
             perm_warn = ("" if getattr(upd.new_chat_member, "can_post_messages", False)
                          else "\n⚠️ <b>বটের পোস্ট করার পারমিশন নেই!</b> চ্যানেল সেটিংসে চালু করুন।\n")
@@ -1592,7 +1717,7 @@ def on_bot_chat_member_update(upd):
                    f"{_dc_header(rec)}"
                    f"👤 অ্যাড করেছেন: {adder}\n"
                    f"🔑 পারমিশন: {_dc_perm_text(upd.new_chat_member)}\n"
-                   f"{warn}{perm_warn}\n"
+                   f"{warn}{perm_warn}{re_txt}\n"
                    f"❓ <b>চ্যানেলটি বটে সেভ করবেন?</b> কোন হিসেবে সেভ করবেন সিলেক্ট করুন 👇")
             _dc_send(target, txt, _dc_main_kb(dc))
 
@@ -1737,6 +1862,305 @@ def _handle_detected_channel_cb(call, cid, mid, data):
         return
 
 
+# ══════════════════════════════════════════════════
+#  🩺 চ্যানেল হেলথ চেক + 👥 মেম্বার সংখ্যা
+# ══════════════════════════════════════════════════
+def _collect_channels():
+    d = {}
+    def add(chid, name, tag):
+        chid = str(chid or "").strip()
+        if not chid: return
+        e = d.setdefault(chid, {"name": name or chid, "tags": set()})
+        e["tags"].add(tag)
+    for c in auto_channels_col.find({}):
+        add(c.get("channel_id"), c.get("name"), _DC_TYPE_NAMES.get(c.get("type"), "?"))
+    for cat in categories_col.find({}):
+        for c in cat.get("channels", []):
+            add(c.get("channel_id"), c.get("name"), f"📂 {cat.get('name', '?')}")
+    for c in force_sub_col.find({}):
+        add(c.get("channel_id"), c.get("name"), _DC_TYPE_NAMES["fs"])
+    return d
+
+def _channel_health_report():
+    chans = _collect_channels()
+    try: me = bot.get_me().id
+    except Exception as e:
+        return {"text": f"❌ বটের তথ্য আনা যায়নি: {_html.escape(str(e))}", "bad": [], "total": 0, "n": 0, "ok": 0}
+    lines, bad, counts, total, ok = [], [], {}, 0, 0
+    for chid, info in chans.items():
+        name = _html.escape(str(info["name"]))
+        tag = _html.escape(", ".join(sorted(info["tags"]))[:70])
+        try:
+            mem = bot.get_chat_member(chid, me)
+            if mem.status not in ("administrator", "creator"):
+                raise Exception("বট এখন অ্যাডমিন নয়")
+            owner = mem.status == "creator"
+            can_post = owner or getattr(mem, "can_post_messages", None) is not False
+            can_del = owner or getattr(mem, "can_delete_messages", None) is not False
+            try: n = bot.get_chat_member_count(chid)
+            except Exception: n = None
+            if n: total += n; counts[chid] = n
+            n_txt = f"{n:,}" if n else "?"
+            if can_post:
+                ok += 1
+            else:
+                bad.append(chid)
+            lines.append(f"{'🟢' if can_post else '🟠'} <b>{name}</b> — 👥 {n_txt} | {'✅' if can_post else '❌'}পোস্ট {'✅' if can_del else '❌'}ডিলিট\n      └ {tag}")
+        except Exception as e:
+            bad.append(chid)
+            lines.append(f"🔴 <b>{name}</b> — ❌ {_html.escape(str(e)[-70:])}\n      └ {tag}")
+        time.sleep(0.05)
+    head = (f"🩺 <b>চ্যানেল হেলথ চেক</b>\n{'─'*26}\n"
+            f"📡 মোট: <b>{len(chans)}</b> | 🟢 ঠিক: <b>{ok}</b> | 🔴 সমস্যা: <b>{len(bad)}</b>\n"
+            f"👥 মোট মেম্বার: <b>{total:,}</b>\n{'─'*26}\n")
+    body, size = [], len(head) + 200
+    for ln in lines:
+        if size + len(ln) > 3800:
+            body.append(f"… আরও {len(lines) - len(body)}টি চ্যানেল"); break
+        body.append(ln); size += len(ln) + 1
+    try:
+        set_setting("health_bad", bad); set_setting("ch_member_counts", counts)
+        set_setting("last_health_check", time.time())
+    except Exception: pass
+    return {"text": head + ("\n".join(body) if body else "কোনো চ্যানেল সেভ করা নেই।"),
+            "bad": bad, "total": total, "n": len(chans), "ok": ok}
+
+def _health_kb(bad):
+    m = _mk()
+    m.add(_sbtn("🔄 আবার চেক করুন", "chk_run", "primary"))
+    if bad: m.add(_sbtn("⏸ সমস্যাযুক্ত চ্যানেল বন্ধ করুন", "chk_off", "danger"))
+    m.add(_back("menu_auto_post"))
+    return m
+
+# ══════════════════════════════════════════════════
+#  👁 পোস্ট প্রিভিউ
+# ══════════════════════════════════════════════════
+def _firebase_delete_video(video_id):
+    if not (FIREBASE_DB_URL and video_id): return False
+    try:
+        r = requests.delete(f"{FIREBASE_DB_URL.rstrip('/')}/videos/{video_id}.json", timeout=15)
+        return r.status_code == 200
+    except Exception as e:
+        logger.warning(f"Firebase video delete error: {e}")
+        return False
+
+def _post_preview(call, cid, mid, target):
+    user = get_user(cid)
+    mtype, mmid = user.get("temp_media_type", ""), user.get("temp_media_id", "")
+    cat = None
+    if target != "all":
+        cat = get_category(target)
+        if not cat:
+            bot.answer_callback_query(call.id, "⚠️ ক্যাটাগরি পাওয়া যায়নি!", show_alert=True); return
+    bot.answer_callback_query(call.id, "👁 প্রিভিউ তৈরি হচ্ছে...")
+    update_user(cid, {"pending_category": target if cat else ""})
+    user2 = get_user(cid)
+    if not user2.get("pending_web_post_link"):
+        create_web_video_entry(user2, cat.get("name", "Others") if cat else "Others")
+        user2 = get_user(cid)
+    _set_post_ctx(user2, user2.get("pending_link", ""), preview_to=cid)
+    try:
+        _post_to_category(target if cat else "__all_preview__", mtype, mmid, user2,
+                          user2.get("pending_link", ""), user2.get("pending_short_link", ""))
+    except Exception as e:
+        logger.warning(f"Preview error: {e}")
+    finally:
+        _post_ctx.data = None
+    if cat: n_ch = sum(1 for c in cat.get("channels", []) if _ch_is_on(c))
+    else: n_ch = auto_channels_col.count_documents({"status": "on"})
+    m = _mk()
+    m.row(_sbtn("✅ কনফার্ম — পোস্ট করুন", f"postgo_{target}", "success"),
+          _sbtn("❌ বাতিল", "postprev_cancel", "danger"))
+    bot.send_message(cid, f"👆 <b>এটাই প্রিভিউ</b> (একটি চ্যানেলের নমুনা)\n"
+                          f"📂 {_html.escape(cat['name']) if cat else '🌐 সব চ্যানেল'} → <b>{n_ch}</b>টি চ্যানেলে যাবে।\n\nকনফার্ম করলে পোস্ট হবে।",
+                     reply_markup=m)
+
+# ══════════════════════════════════════════════════
+#  🗓 পোস্ট অটো-ডিলিট (MongoDB + Firebase + চ্যানেল)
+# ══════════════════════════════════════════════════
+_EXPIRE_LABELS = {90: "৩ মাস", 180: "৬ মাস", 365: "১ বছর", 730: "২ বছর"}
+
+def _expire_label(days):
+    return _EXPIRE_LABELS.get(days, f"{days} দিন")
+
+def run_expiry_sweep(dry_run=False):
+    """মেয়াদ পার হওয়া পোস্ট চ্যানেল, MongoDB (ফাইল) ও Firebase (ওয়েব ভিডিও) থেকে মুছে দেয়।"""
+    days = int(get_setting("expire_days", 0) or 0)
+    if days <= 0: return None
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    q = {"posted_at": {"$lte": cutoff}}
+    if dry_run:
+        return {"groups": post_archive_col.count_documents(q), "days": days}
+    res = {"groups": 0, "msgs": 0, "msg_fail": 0, "files": 0, "videos": 0, "days": days}
+    keys_fk, keys_vid = set(), set()
+    deadline = time.time() + 240
+    while time.time() < deadline:
+        batch = list(post_archive_col.find(q).limit(50))
+        if not batch: break
+        for g in batch:
+            for x in g.get("messages", []):
+                try:
+                    bot.delete_message(int(x["ch"]), int(x["mid"])); res["msgs"] += 1
+                except Exception:
+                    res["msg_fail"] += 1   # আগেই ডিলিট / বট সরানো — সমস্যা নেই
+                time.sleep(0.05)
+            if g.get("file_key"): keys_fk.add(g["file_key"])
+            if g.get("video_id"): keys_vid.add(g["video_id"])
+            post_archive_col.delete_one({"_id": g["_id"]}); res["groups"] += 1
+    # অন্য নতুন পোস্টে একই ফাইল/ভিডিও ব্যবহার হলে ডাটা মুছবো না
+    for fk in keys_fk:
+        if post_archive_col.count_documents({"file_key": fk}) == 0:
+            res["files"] += files_col.delete_many({"$or": [{"batch_id": fk}, {"file_key": fk}]}).deleted_count
+    for vid in keys_vid:
+        if post_archive_col.count_documents({"video_id": vid}) == 0 and _firebase_delete_video(vid):
+            res["videos"] += 1
+    return res
+
+def _expiry_summary(res):
+    return (f"🧹 <b>অটো-ডিলিট সম্পন্ন</b> ({_expire_label(res['days'])} পুরনো)\n{'─'*26}\n"
+            f"📝 পোস্ট গ্রুপ: <b>{res['groups']}</b>\n"
+            f"📤 চ্যানেল মেসেজ ডিলিট: <b>{res['msgs']}</b> (ব্যর্থ/আগেই ডিলিট: {res['msg_fail']})\n"
+            f"📁 MongoDB ফাইল: <b>{res['files']}</b>\n🎬 Firebase ভিডিও: <b>{res['videos']}</b>")
+
+def _db_usage_text():
+    try:
+        st = db.command("dbstats")
+        used = (st.get("dataSize", 0) + st.get("indexSize", 0)) / (1024 * 1024)
+        return f"💽 MongoDB ব্যবহার: <b>{used:.1f} MB</b> / 512 MB (ফ্রি)"
+    except Exception:
+        return ""
+
+def _expire_menu(cid, mid):
+    days = int(get_setting("expire_days", 0) or 0)
+    tracked = post_archive_col.count_documents({})
+    oldest = post_archive_col.find_one({}, sort=[("posted_at", 1)])
+    oldest_txt = oldest["posted_at"].strftime("%d %b %Y") if oldest and oldest.get("posted_at") else "—"
+    due = (run_expiry_sweep(dry_run=True) or {}).get("groups", 0) if days > 0 else 0
+    m = _mk()
+    row = []
+    for d in (90, 180, 365, 730):
+        row.append(_sbtn(f"{'✅ ' if days == d else '🗓 '}{_expire_label(d)}", f"exp_set_{d}", "primary" if days != d else "success"))
+        if len(row) == 2: m.row(*row); row = []
+    if days and days not in _EXPIRE_LABELS:
+        m.add(_sbtn(f"✅ {days} দিন (কাস্টম)", "exp_custom", "success"))
+    else:
+        m.add(_sbtn("✏️ কাস্টম দিন সংখ্যা", "exp_custom", "primary"))
+    if days: m.add(_sbtn("🔴 অটো-ডিলিট বন্ধ করুন", "exp_off", "danger"))
+    m.add(_sbtn(f"🧹 এখনই চালান (মেয়াদ পার: {due}টি)", "exp_run", "success"))
+    m.add(_back("menu_advanced"))
+    status = f"{_ico(days)} <b>{_expire_label(days)} পর ডিলিট</b>" if days else "🔴 <b>বন্ধ</b>"
+    bot.edit_message_text(
+        f"🗓 <b>পোস্ট অটো-ডিলিট</b>\n{'─'*26}\n"
+        f"বর্তমান: {status}\n"
+        f"📝 ট্র্যাক করা পোস্ট: <b>{tracked}</b> | সবচেয়ে পুরনো: <b>{oldest_txt}</b>\n"
+        f"{_db_usage_text()}\n{'─'*26}\n"
+        "মেয়াদ শেষ হলে বট নিজে থেকেই পোস্টটি <b>সব চ্যানেল</b>, <b>MongoDB (ফাইল)</b> ও <b>Firebase (ওয়েব ভিডিও)</b> থেকে মুছে দেবে — ফ্রি ডাটাবেজের জায়গা বাঁচবে।\n\n"
+        "ℹ️ <i>শুধু এই আপডেটের পর করা পোস্ট ট্র্যাক হয়। Log চ্যানেলের ব্যাকআপ মুছবে না।</i>",
+        cid, mid, reply_markup=m)
+
+def _handle_extra_cb(call, cid, mid, data):
+    if data == "toggle_post_preview":
+        v = toggle_setting("post_preview")
+        bot.answer_callback_query(call.id, f"👁 পোস্ট প্রিভিউ: {'চালু' if v else 'বন্ধ'}")
+        call.data = "menu_advanced"; cb(call); return
+
+    if data == "postprev_cancel":
+        u = get_user(cid)
+        vid = u.get("pending_web_video_id", "")
+        if vid: _firebase_delete_video(vid)
+        update_user(cid, {"pending_category": "", "pending_web_video_id": "", "pending_web_post_link": ""})
+        try: bot.delete_message(cid, mid)
+        except Exception: pass
+        bot.answer_callback_query(call.id, "❌ বাতিল করা হয়েছে")
+        _ask_post_options(cid, get_user(cid), u.get("temp_media_type", ""), u.get("temp_media_id", ""))
+        return
+
+    if data == "chk_run":
+        bot.answer_callback_query(call.id, "🩺 চেক হচ্ছে...")
+        try: bot.edit_message_text("⏳ <b>সব চ্যানেল চেক করা হচ্ছে...</b> একটু অপেক্ষা করুন।", cid, mid)
+        except Exception: pass
+        rep = _channel_health_report()
+        _dc_edit(rep["text"], cid, mid, _health_kb(rep["bad"]))
+        return
+
+    if data == "chk_off":
+        bad = get_setting("health_bad", []) or []
+        total = 0
+        for chid in bad:
+            total += len(_disable_channel(str(chid), "health check: সমস্যাযুক্ত"))
+        bot.answer_callback_query(call.id, f"⏸ {total}টি এন্ট্রি বন্ধ করা হয়েছে", show_alert=True)
+        set_setting("health_bad", [])
+        _dc_edit(f"⏸ <b>{total}টি সমস্যাযুক্ত চ্যানেল এন্ট্রি বন্ধ করা হয়েছে।</b>\n\nবটকে আবার অ্যাডমিন বানালে সেগুলো নিজে থেকেই চালু হবে।", cid, mid, _health_kb([]))
+        return
+
+    if data == "menu_expire":
+        update_step(cid, "none"); _expire_menu(cid, mid); return
+
+    if data.startswith("exp_set_"):
+        try: d = int(data[8:])
+        except ValueError: return
+        set_setting("expire_days", d)
+        bot.answer_callback_query(call.id, f"✅ {_expire_label(d)} পর অটো-ডিলিট চালু")
+        _expire_menu(cid, mid); return
+
+    if data == "exp_off":
+        set_setting("expire_days", 0)
+        bot.answer_callback_query(call.id, "🔴 অটো-ডিলিট বন্ধ")
+        _expire_menu(cid, mid); return
+
+    if data == "exp_custom":
+        update_step(cid, "wait_expire_days")
+        bot.answer_callback_query(call.id)
+        bot.send_message(cid, "✏️ কত দিন পর পোস্ট ডিলিট হবে? সংখ্যা লিখুন (৭ থেকে ৩৬৫০)।\nযেমন: <code>45</code> বা <code>1000</code>")
+        return
+
+    if data == "exp_run":
+        days = int(get_setting("expire_days", 0) or 0)
+        if days <= 0:
+            bot.answer_callback_query(call.id, "⚠️ আগে মেয়াদ সেট করুন!", show_alert=True); return
+        due = (run_expiry_sweep(dry_run=True) or {}).get("groups", 0)
+        if due == 0:
+            bot.answer_callback_query(call.id, "✅ মেয়াদ পার হওয়া কোনো পোস্ট নেই", show_alert=True); return
+        m = _mk()
+        m.row(_sbtn("🗑 হ্যাঁ, মুছে ফেলুন", "exp_run_go", "danger"), _sbtn("❌ না", "menu_expire", "primary"))
+        bot.answer_callback_query(call.id)
+        bot.edit_message_text(f"⚠️ <b>{due}টি পোস্ট</b> ({_expire_label(days)}+ পুরনো) চ্যানেল, MongoDB ও Firebase থেকে <b>স্থায়ীভাবে মুছে যাবে!</b>\n\nনিশ্চিত?", cid, mid, reply_markup=m)
+        return
+
+    if data == "exp_run_go":
+        bot.answer_callback_query(call.id, "🧹 চলছে...")
+        try: bot.edit_message_text("⏳ <b>পুরনো পোস্ট মুছে ফেলা হচ্ছে...</b>", cid, mid)
+        except Exception: pass
+        res = run_expiry_sweep()
+        m = _mk(); m.add(_back("menu_expire"))
+        _dc_edit(_expiry_summary(res) if res else "⚠️ অটো-ডিলিট চালু নেই।", cid, mid, m)
+        return
+
+# ══════════════════════════════════════════════════
+#  🔧 ব্যাকগ্রাউন্ড মেইনটেন্যান্স (অটো-ডিলিট সুইপ + দৈনিক হেলথ চেক)
+#  Render ফ্রি টায়ার রিস্টার্ট হলেও সমস্যা নেই — শেষ রানের সময় MongoDB-তে থাকে।
+# ══════════════════════════════════════════════════
+def _maintenance_worker():
+    time.sleep(90)
+    while True:
+        try:
+            now = time.time()
+            if int(get_setting("expire_days", 0) or 0) > 0 and now - float(get_setting("last_expiry_sweep", 0) or 0) > 6 * 3600:
+                set_setting("last_expiry_sweep", now)
+                res = run_expiry_sweep()
+                if res and (res["groups"] or res["files"] or res["videos"]):
+                    _dc_send(MAIN_ADMIN_ID, _expiry_summary(res))
+            if now - float(get_setting("last_health_check", 0) or 0) > 24 * 3600 and auto_channels_col.count_documents({}) + categories_col.count_documents({}) > 0:
+                rep = _channel_health_report()   # last_health_check এখানেই আপডেট হয়
+                if rep["bad"]:
+                    _dc_send(MAIN_ADMIN_ID, "🌙 <b>দৈনিক অটো হেলথ চেক — সমস্যা পাওয়া গেছে!</b>\n\n" + rep["text"], _health_kb(rep["bad"]))
+        except Exception as e:
+            logger.error(f"Maintenance worker: {e}")
+        time.sleep(1800)
+
+threading.Thread(target=_maintenance_worker, daemon=True).start()
+
+
 @bot.callback_query_handler(func=lambda call: True)
 def cb(call):
     cid  = str(call.message.chat.id)
@@ -1764,6 +2188,15 @@ def cb(call):
 
     if data.startswith("dc_"):
         _handle_detected_channel_cb(call, cid, mid, data); return
+
+    if data.startswith(("chk_", "exp_")) or data in ("menu_expire", "toggle_post_preview", "postprev_cancel"):
+        _handle_extra_cb(call, cid, mid, data); return
+
+    # 👁 পোস্ট প্রিভিউ: চালু থাকলে postcat_ এ আগে প্রিভিউ দেখায়, postgo_ কনফার্ম করলে আসল পোস্ট হয়
+    if data.startswith("postgo_"):
+        data = "postcat_" + data[7:]; call.data = data
+    elif data.startswith("postcat_") and get_setting("post_preview", 0):
+        _post_preview(call, cid, mid, data[8:]); return
 
     if data == "menu_temp_post" or data.startswith("tp_"):
         _handle_temp_callback(call, cid, mid, data); return
@@ -2024,7 +2457,7 @@ def cb(call):
         )
 
     elif data == "show_stats":
-        s = get_stats(); m = _mk(); m.add(_back("main_menu"))
+        s = get_stats(); m = _mk(); m.add(_btn("🩺 চ্যানেল হেলথ ও মেম্বার সংখ্যা", "chk_run")); m.add(_back("main_menu"))
         bot.edit_message_text(
             f"📊 <b>বট স্ট্যাটিস্টিক্স</b>\n{'─'*26}\n👥 মোট ইউজার   : <b>{s['total_users']}</b>\n🟢 আজ সক্রিয়   : <b>{s['active_today']}</b>\n📁 মোট ফাইল    : <b>{s['total_files']}</b>\n📥 আজ ডাউনলোড : <b>{s['dl_today']}</b>\n📤 আজ আপলোড   : <b>{s['ul_today']}</b>\n👑 এডমিন       : <b>{s['total_admins']}</b>\n🚫 ব্যানড       : <b>{s['total_banned']}</b>\n{'─'*26}\n🕐 {datetime.now().strftime('%d %b %Y, %I:%M %p')}",
             cid, mid, reply_markup=m
@@ -2801,6 +3234,7 @@ def cb(call):
         m.add(_btn(f"📺 Ad Channel   ({auto_channels_col.count_documents({'type':'ad'})}টি)",      "list_ch_ad"))
         m.add(_btn(f"💎 Premium       ({auto_channels_col.count_documents({'type':'premium'})}টি)", "list_ch_premium"))
         m.add(_btn(f"💾 Log Channel   ({auto_channels_col.count_documents({'type':'log'})}টি)",     "list_ch_log"))
+        m.add(_btn("🩺 চ্যানেল হেলথ ও মেম্বার সংখ্যা", "chk_run"))
         m.add(_back("settings"))
         bot.edit_message_text("📤 <b>অটো পোস্ট চ্যানেল ম্যানেজমেন্ট</b>", cid, mid, reply_markup=m)
 
@@ -2977,6 +3411,9 @@ def cb(call):
         m.add(_btn("─────────────────────────","noop"))
         m.row(_btn("👥 এডমিন ম্যানেজ","manage_admins"), _btn("🚫 ব্যান ম্যানেজ","manage_bans"))
         m.row(_btn("💾 ব্যাকআপ","cmd_backup"), _btn("🔄 রিস্টোর","cmd_restore"))
+        m.add(_btn("🗓 পোস্ট অটো-ডিলিট (ডাটাবেজ সেভ)","menu_expire"))
+        m.add(_btn(f"👁 পোস্ট প্রিভিউ: {_ico(get_setting('post_preview',0))}","toggle_post_preview"))
+        m.add(_btn("🩺 চ্যানেল হেলথ ও মেম্বার সংখ্যা","chk_run"))
         m.add(_back("settings"))
         bot.edit_message_text(f"⚙️ <b>অ্যাডভান্সড সেটিংস</b>\n{'─'*26}\n🔒 Protect Content: {_ico(pc)}", cid, mid, reply_markup=m)
 
@@ -3383,6 +3820,16 @@ def handle_message(message):
         return
     elif step.startswith("wait_catadd_"):
         bot.send_message(cid,"⚠️ ফরম্যাট: <code>নাম | চ্যানেল_আইডি</code>")
+        return
+
+    if step == "wait_expire_days":
+        try:
+            d = int(text.strip())
+            if not 7 <= d <= 3650: raise ValueError
+        except ValueError:
+            bot.send_message(cid, "⚠️ ৭ থেকে ৩৬৫০ এর মধ্যে একটি সংখ্যা লিখুন।"); return
+        set_setting("expire_days", d); update_step(cid, "none")
+        bot.send_message(cid, f"✅ এখন থেকে পোস্ট <b>{_expire_label(d)}</b> পর অটো-ডিলিট হবে।\n⚙️ সেটিংস → অ্যাডভান্সড → 🗓 পোস্ট অটো-ডিলিট থেকে বদলাতে পারবেন।")
         return
 
     if step=="wait_schedule_time":
